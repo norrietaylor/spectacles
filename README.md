@@ -32,8 +32,12 @@ Unit 1, the repository foundation.
 
 ## Install
 
-Once the agent units are built, `spectacles` installs onto a consumer repo
-with `scripts/quick-setup.sh`. Installation docs arrive with Unit 9.
+`spectacles` installs onto a consumer repo, including one with an existing
+codebase, with `scripts/quick-setup.sh --suite sdd`. See the
+[install guide](docs/sdd/install.md) for the steps, the required
+configuration, and a post-install smoke test, and
+[`workflows/README.md`](workflows/README.md) for the reusable-workflow plus
+thin-wrapper distribution model.
 
 ## License
 
