@@ -1,0 +1,27 @@
+name: lint
+on:
+  push:
+    branches: [main]
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: markdownlint
+        run: npx --yes markdownlint-cli2 "**/*.md"
+      - name: shellcheck
+        run: |
+          mapfile -t files < <(git ls-files '*.sh')
+          if [ "${#files[@]}" -gt 0 ]; then
+            shellcheck "${files[@]}"
+          else
+            echo "no shell scripts to check"
+          fi
+      - name: actionlint
+        run: |
+          bash <(curl -sSfL https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash)
+          ./actionlint -color

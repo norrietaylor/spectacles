@@ -1,0 +1,12 @@
+{
+  // Line length varies across prose, tables, and wrapped spec text.
+  "MD013": false,
+  // Specs and ADRs reuse section names (Purpose, Proof artifacts) legitimately.
+  "MD024": { "siblings_only": true },
+  // Inline HTML is allowed for docs-site admonitions and details blocks.
+  "MD033": false,
+  // Fragments and partial documents need not open with a top-level heading.
+  "MD041": false,
+  // Table pipe spacing and alignment are cosmetic; not worth gating CI on.
+  "MD060": false
+}

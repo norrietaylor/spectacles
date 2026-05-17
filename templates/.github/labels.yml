@@ -1,0 +1,26 @@
+# Base labels for the spectacles SDD suite.
+#
+# scripts/quick-setup.sh syncs these onto a consumer repo. Colors are
+# six-digit hex without a leading '#'. The SDD lifecycle labels (sdd:*) and
+# the model-tier labels (model:*) are added in Unit 2.
+- name: needs-human
+  color: b60205
+  description: An agent handed off; a human must act, then clear this label.
+- name: kind:bug
+  color: d73a4a
+  description: Something is not working.
+- name: kind:feature
+  color: a2eeef
+  description: A new feature or capability.
+- name: kind:chore
+  color: ededed
+  description: Maintenance, refactor, or internal improvement.
+- name: priority:must-have
+  color: b60205
+  description: Must be done.
+- name: priority:should-have
+  color: fbca04
+  description: Should be done.
+- name: priority:nice-to-have
+  color: 0e8a16
+  description: Nice to have.
