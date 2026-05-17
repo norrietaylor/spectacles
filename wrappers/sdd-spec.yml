@@ -1,0 +1,109 @@
+name: sdd-spec
+
+# Thin wrapper for the sdd-spec agent.
+#
+# The agent itself is the reusable workflow .github/workflows/sdd-spec.lock.yml
+# (compiled from sdd-spec.md, which declares on: workflow_call). This wrapper
+# carries the real event triggers, gates the comment commands to write-access
+# authors, and passes the triggering entity to the agent through the aw_context
+# input. A consumer repository installs this wrapper unchanged.
+
+on:
+  # A tracking issue gained the sdd:spec label (also fired by the
+  # feature/bug issue templates), or the needs-human label was cleared.
+  issues:
+    types: [labeled, unlabeled]
+  # A /spec or /revise comment on an issue or pull request.
+  issue_comment:
+    types: [created]
+  # A spec pull request was closed; the agent advances the lifecycle only
+  # when it was merged.
+  pull_request:
+    types: [closed]
+
+permissions:
+  contents: read
+
+jobs:
+  # Resolve which situation triggered the wrapper and build the aw_context the
+  # reusable workflow consumes. A non-match leaves should_run = false so the
+  # agent job is skipped.
+  route:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      should_run: ${{ steps.decide.outputs.should_run }}
+      aw_context: ${{ steps.decide.outputs.aw_context }}
+    steps:
+      - name: Decide whether to run and build aw_context
+        id: decide
+        uses: actions/github-script@v9
+        with:
+          script: |
+            const event = context.eventName;
+            const payload = context.payload;
+            let run = false;
+            let ctx = {};
+
+            // A tracking issue gained sdd:spec, or needs-human was cleared.
+            if (event === 'issues') {
+              const action = payload.action;
+              const label = payload.label && payload.label.name;
+              if (action === 'labeled' && label === 'sdd:spec') {
+                run = true;
+              } else if (action === 'unlabeled' && label === 'needs-human') {
+                run = true;
+              }
+              if (run) {
+                ctx = { item_type: 'issue', item_number: payload.issue.number };
+              }
+            }
+
+            // A /spec or /revise comment from a write-access author.
+            if (event === 'issue_comment' && payload.action === 'created') {
+              const body = (payload.comment.body || '').trim();
+              const firstWord = body.split(/\s+/)[0];
+              if (firstWord === '/spec' || firstWord === '/revise') {
+                const assoc = payload.comment.author_association;
+                const canWrite = assoc === 'OWNER' || assoc === 'MEMBER'
+                  || assoc === 'COLLABORATOR';
+                if (canWrite) {
+                  run = true;
+                  const isPr = !!payload.issue.pull_request;
+                  ctx = {
+                    item_type: isPr ? 'pull_request' : 'issue',
+                    item_number: payload.issue.number,
+                    comment_id: payload.comment.id,
+                  };
+                } else {
+                  core.info('Command from a non-write author; ignoring.');
+                }
+              }
+            }
+
+            // A spec pull request was merged.
+            if (event === 'pull_request' && payload.action === 'closed') {
+              if (payload.pull_request.merged === true) {
+                run = true;
+                ctx = {
+                  item_type: 'pull_request',
+                  item_number: payload.pull_request.number,
+                };
+              }
+            }
+
+            core.setOutput('should_run', run ? 'true' : 'false');
+            core.setOutput('aw_context', run ? JSON.stringify(ctx) : '');
+
+  sdd-spec:
+    needs: route
+    if: needs.route.outputs.should_run == 'true'
+    uses: ./.github/workflows/sdd-spec.lock.yml
+    with:
+      aw_context: ${{ needs.route.outputs.aw_context }}
+    secrets: inherit
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: write
