@@ -674,6 +674,41 @@ end on it.
   spec -> architecture -> triage -> execute -> validate -> review without
   source edits to the installed wrappers.
 
+### Unit 10: Brand assets and docs-site theming
+
+**Purpose:** Theme the mkdocs site with committed brand assets and set the
+GitHub repository's social-preview card from those assets, so the public site
+and the repo's link previews carry a consistent identity. Demoable: the docs
+site builds with the brand logo, favicon, palette, and typography applied, and
+the repository's social-preview card renders the brand card.
+**Depends on:** Unit 1
+**Affected areas:** `mkdocs.yml`, `docs/assets/` (new), repository settings (the
+social-preview card)
+
+**Functional Requirements:**
+
+- **R10.1**: An `docs/assets/` directory shall be created and shall carry the brand
+  assets committed to the repo: a logo image and a favicon image, produced per
+  the brand tooling. The assets carry no employer name, private org slug, or
+  other denylisted literal, so the `leak-scan` check (R1.3) still passes.
+- **R10.2**: `mkdocs.yml` shall reference the `docs/assets/` logo and favicon via
+  the Material theme's `theme.logo` and `theme.favicon` keys, and shall set the
+  theme `palette` (colors) and `font` (typography) to the brand values from the
+  brand tooling.
+- **R10.3**: The GitHub repository's social-preview card shall be set from the
+  brand assets, so issue, PR, and repository link previews render the brand
+  card. The card source shall live under `docs/assets/` and the setting step shall
+  be documented (the social card is a repository setting, not a tracked file).
+
+**Proof Artifacts:**
+
+- File: `mkdocs.yml` references the `docs/assets/` logo and favicon through
+  `theme.logo` and `theme.favicon`, and declares a `palette` and a `font`.
+- CLI: `mkdocs build --strict` succeeds with the themed config, and the built
+  site includes the logo and favicon assets.
+- File: `docs/assets/` contains the logo, the favicon, and the social-preview card
+  image, and the full tree passes the `leak-scan` check at this unit's commit.
+
 ## Non-Goals (Out of Scope)
 
 - **Cross-repo task execution.** The task schema and DAG support cross-repo
@@ -738,7 +773,7 @@ every later unit runs against them.
 
 **Greenfield bootstrapping:** Unit 1 is the bootstrapping unit. It sets
 `verification.pre` and `verification.post` to empty for itself and establishes
-the commands above for Units 2 to 9.
+the commands above for Units 2 to 10.
 
 ## Technical Considerations
 
@@ -816,7 +851,7 @@ the commands above for Units 2 to 9.
 
 ## Success Metrics
 
-- All nine demoable units land with proof artifacts passing.
+- All ten demoable units land with proof artifacts passing.
 - Each `sdd-*` source compiles clean under `gh aw compile`, including the
   three `sdd-execute` model-tier variants.
 - The `leak-scan` CI check passes on every commit; no private term ever
