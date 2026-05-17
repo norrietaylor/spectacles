@@ -6,6 +6,12 @@
 > reused from prior private work are described generically and never
 > attributed by name.
 
+**Correction (2026-05-16):** ADR 0002 supersedes this spec's `workflows/`
+source location and its local-import assumption. gh-aw workflow sources live
+at `.github/workflows/`; shared fragments stay at `shared/` and are consumed
+via pinned-ref imports (`owner/repo/path@ref`). See
+`decisions/0002-workflow-layout-and-imports.md`.
+
 ## Context
 
 This spec stands up a public, standalone repository hosting a spec-driven
