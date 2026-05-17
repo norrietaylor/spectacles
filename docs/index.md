@@ -20,6 +20,7 @@ issues, comments, labels, and pull requests.
 
 ## Status
 
-The suite is being built unit by unit. Unit 1, the repository foundation, is
-in place: continuous integration, the hand-off ADR, the label set, the shared
-prompt fragments, and the installer skeleton.
+The repository foundation, the human-interaction contract, the shared MCP
+tooling, and all five pipeline agents (`sdd-spec`, `sdd-triage`,
+`sdd-execute`, `sdd-validate`, `sdd-review`) are built. Consumer packaging,
+the one-command install onto another repo, is the last unit.
