@@ -11,17 +11,29 @@ name: sdd-validate
 # sdd-validate has no comment-command trigger, so this wrapper performs no
 # repository-permission gate: the gh-aw command:/slash_command trigger is not
 # used here. The triggers are a pull request opened or synchronized, a tracking
-# issue gaining the sdd:ready label, and the needs-human label being cleared so
-# the agent resumes a hand-off it applied.
+# issue gaining the sdd:ready label, and the needs-human label being cleared on
+# a tracking issue so the agent resumes a hand-off it applied.
+#
+# PR-boundary needs-human resume is intentionally NOT wired here. When
+# sdd-validate escalates a Blocker on a pull request, the hand-off is resumed by
+# a fresh pull_request: synchronize, not by pull_request: unlabeled. Clearing
+# needs-human on a PR without a code change would re-run the same gate set
+# against the unchanged diff and re-post the same Blocker; the human's fix
+# commit fires synchronize and ties re-validation to an actual fix. Only the
+# issues path (the implementation-boundary hand-off landed on a tracking issue,
+# which has no diff to push to) needs the unlabeled trigger. See the
+# "Triggers this agent handles" section of .github/workflows/sdd-validate.md.
 
 on:
   # A pull request was opened or updated: the spec, architecture, or
-  # implementation boundary.
+  # implementation boundary. synchronize also resumes a PR-boundary needs-human
+  # hand-off, since the human's fix commit fires it.
   pull_request:
     types: [opened, synchronize]
   # A tracking issue gained sdd:ready: the non-pull-request triage boundary.
-  # The unlabeled type covers the needs-human label being cleared, which
-  # re-triggers the agent to resume a hand-off it applied.
+  # The unlabeled type covers the needs-human label being cleared on a tracking
+  # issue, which re-triggers the agent to resume a hand-off it applied at the
+  # implementation boundary.
   issues:
     types: [labeled, unlabeled]
 
@@ -67,9 +79,11 @@ jobs:
 
             // A tracking issue gained sdd:ready (the triage boundary), or the
             // needs-human label was cleared (resume a hand-off this agent
-            // applied). needs-human is shared by all five SDD agents, so the
-            // agent itself confirms the item is one it handed off before
-            // re-validating.
+            // applied at the implementation boundary). needs-human is shared by
+            // all five SDD agents, so its removal can re-trigger this workflow
+            // for an item another agent owns; the agent itself applies the
+            // resume guard (the tracking issue still carries sdd:in-progress)
+            // before re-validating, and emits noop otherwise.
             if (event === 'issues') {
               const action = payload.action;
               const label = payload.label && payload.label.name;
