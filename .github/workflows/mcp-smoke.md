@@ -24,7 +24,7 @@ mcp-servers:
       - "--project"
       - ${GITHUB_WORKSPACE}
     mounts:
-      - ${GITHUB_WORKSPACE}:${GITHUB_WORKSPACE}:rw
+      - ${GITHUB_WORKSPACE}:${GITHUB_WORKSPACE}:ro
     allowed:
       - activate_project
       - find_symbol
