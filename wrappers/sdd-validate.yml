@@ -1,0 +1,102 @@
+name: sdd-validate
+
+# Thin wrapper for the sdd-validate agent.
+#
+# The agent itself is the reusable workflow
+# .github/workflows/sdd-validate.lock.yml (compiled from sdd-validate.md, which
+# declares on: workflow_call). This wrapper carries the real event triggers and
+# passes the triggering entity to the agent through the aw_context input. A
+# consumer repository installs this wrapper unchanged.
+#
+# sdd-validate has no comment-command trigger, so this wrapper performs no
+# repository-permission gate: the gh-aw command:/slash_command trigger is not
+# used here. The triggers are a pull request opened or synchronized, a tracking
+# issue gaining the sdd:ready label, and the needs-human label being cleared so
+# the agent resumes a hand-off it applied.
+
+on:
+  # A pull request was opened or updated: the spec, architecture, or
+  # implementation boundary.
+  pull_request:
+    types: [opened, synchronize]
+  # A tracking issue gained sdd:ready: the non-pull-request triage boundary.
+  # The unlabeled type covers the needs-human label being cleared, which
+  # re-triggers the agent to resume a hand-off it applied.
+  issues:
+    types: [labeled, unlabeled]
+
+permissions:
+  contents: read
+
+jobs:
+  # Resolve which situation triggered the wrapper and build the aw_context the
+  # reusable workflow consumes. A non-match leaves should_run = false so the
+  # agent job is skipped.
+  route:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      should_run: ${{ steps.decide.outputs.should_run }}
+      aw_context: ${{ steps.decide.outputs.aw_context }}
+    steps:
+      - name: Decide whether to run and build aw_context
+        id: decide
+        uses: actions/github-script@v9
+        with:
+          script: |
+            const event = context.eventName;
+            const payload = context.payload;
+            let run = false;
+            let ctx = {};
+
+            // A pull request was opened or synchronized. Every such event is
+            // validated; the agent resolves the boundary from the changed
+            // files. A draft pull request is still validated: validation is
+            // advisory and never blocks.
+            if (event === 'pull_request') {
+              const action = payload.action;
+              if (action === 'opened' || action === 'synchronize') {
+                run = true;
+                ctx = {
+                  item_type: 'pull_request',
+                  item_number: payload.pull_request.number,
+                };
+              }
+            }
+
+            // A tracking issue gained sdd:ready (the triage boundary), or the
+            // needs-human label was cleared (resume a hand-off this agent
+            // applied). needs-human is shared by all five SDD agents, so the
+            // agent itself confirms the item is one it handed off before
+            // re-validating.
+            if (event === 'issues') {
+              const action = payload.action;
+              const label = payload.label && payload.label.name;
+              if (action === 'labeled' && label === 'sdd:ready') {
+                run = true;
+              } else if (action === 'unlabeled' && label === 'needs-human') {
+                run = true;
+              }
+              if (run) {
+                ctx = {
+                  item_type: 'issue',
+                  item_number: payload.issue.number,
+                };
+              }
+            }
+
+            core.setOutput('should_run', run ? 'true' : 'false');
+            core.setOutput('aw_context', run ? JSON.stringify(ctx) : '');
+
+  sdd-validate:
+    needs: route
+    if: needs.route.outputs.should_run == 'true'
+    uses: ./.github/workflows/sdd-validate.lock.yml
+    with:
+      aw_context: ${{ needs.route.outputs.aw_context }}
+    secrets: inherit
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: write
