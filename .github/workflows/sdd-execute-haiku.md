@@ -69,7 +69,7 @@ between the three variants.
 
 ## Triggers this agent handles
 
-The wrapper invokes this agent for one of four situations. Determine which one
+The wrapper invokes this agent for one of five situations. Determine which one
 applies from the `aw_context` input before doing anything else.
 
 1. **A scheduled run.** The wrapper fires on a daily cron. Select one eligible
@@ -83,6 +83,18 @@ applies from the `aw_context` input before doing anything else.
 4. **A review comment was created on a pull request this agent opened.**
    Address the actionable review comments by pushing further commits to the
    same branch (see step 7).
+5. **The `needs-human` label was removed from a task sub-issue or a pull
+   request.** A human has resolved an earlier hand-off. The `aw_context` input
+   carries the `trigger: 'resume'` kind and names the task sub-issue or the
+   pull request. `needs-human` is shared by all five SDD agents, so its removal
+   can re-trigger this workflow for an item this agent never handed off:
+   confirm ownership before resuming. For a task sub-issue, resume **only**
+   when it still carries the `sdd:in-progress` label, the lifecycle state a
+   step 5 or step 6 hand-off leaves it in; re-read the whole thread, including
+   the human's new comments, and resume the implementation from step 4. For a
+   pull request, resume **only** when its head branch follows the
+   `sdd/<task-id>-<slug>` convention; re-read the review thread and resume
+   step 7. If the item is not one this agent handed off, emit `noop`.
 
 When the triggering item already carries the `needs-human` label, stop
 immediately and emit `noop`. A `needs-human`-labelled item is off-limits
@@ -177,9 +189,12 @@ must not write those paths. If implementing the task **requires** an edit to a
 protected path, do not make the edit and do not open a pull request. Instead
 apply `needs-human` to the task sub-issue (`add-labels`) and post exactly one
 comment (`add-comment`) stating that the task needs a protected-path edit,
-naming the path and what the edit would be. This is the `needs-human` hand-off
-from the imported interaction contract and ADR 0001; a human takes the
-protected change and clears the label, which re-triggers this agent.
+naming the path and what the edit would be. The task keeps its
+`sdd:in-progress` lifecycle label from step 2; `needs-human` excludes it from
+re-selection until a human clears it. This is the `needs-human` hand-off from
+the imported interaction contract and ADR 0001; a human takes the protected
+change and clears the label, which re-triggers this agent to resume
+(situation 5 above).
 
 ### 6. Run verification, capture proof, open the pull request
 
@@ -196,6 +211,9 @@ Apply `needs-human` to the task sub-issue and post exactly one comment stating
 which artifact failed, what the agent attempted, and the failing output as
 evidence per the imported evidence-rigor standard. The same hand-off applies
 when the task is too underspecified to implement at 80% confidence or higher.
+The task keeps its `sdd:in-progress` lifecycle label from step 2; `needs-human`
+excludes it from re-selection until a human clears it, which re-triggers this
+agent to resume (situation 5 above).
 
 When the implementation is complete and every proof artifact passes, open
 exactly one pull request via the `create-pull-request` safe-output. The pull
@@ -212,17 +230,26 @@ repository-conventions fragment. The pull request body **must** contain:
 ### 7. Address review comments in place
 
 This step runs for a `pull_request_review_comment` event on a pull request
-this agent opened. Read the review comment and the diff it anchors to. Address
-every **actionable** review comment by pushing further commits to the **same
-branch**: do not open a second pull request, and do not open a new branch. The
-pull request already carries `Closes #<task>`; the follow-up commits land on
-its existing branch.
+this agent opened. First confirm ownership: the wrapper routes **every**
+review comment to this agent, including comments on a `sdd-spec` `spec/<slug>`
+pull request, an `arch/<slug>` pull request, or any human pull request, so
+verify that the pull request's head branch follows the `sdd/<task-id>-<slug>`
+convention and was opened by this agent (its body carries the `Closes #<task>`
+reference this agent wrote). If the pull request is not one this agent opened,
+emit `noop` and exit; do not push any commit.
+
+For a pull request this agent owns, read the review comment and the diff it
+anchors to. Address every **actionable** review comment by pushing further
+commits to the **same branch**: do not open a second pull request, and do not
+open a new branch. The pull request already carries `Closes #<task>`; the
+follow-up commits land on its existing branch.
 
 A review comment this agent **cannot** resolve mechanically, for example one
 that asks for a decision a human must make, triggers the `needs-human`
 hand-off: apply `needs-human` to the pull request (`add-labels`) and post
 exactly one comment stating which comment could not be resolved and why. Do
-not guess.
+not guess. A human resolves the comment and clears the label, which
+re-triggers this agent to resume (situation 5 above).
 
 ### 8. Idle, and the all-tasks-closed transition
 

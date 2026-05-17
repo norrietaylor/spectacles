@@ -34,6 +34,14 @@ on:
   # A review comment on a pull request this agent opened.
   pull_request_review_comment:
     types: [created]
+  # The needs-human label being cleared on a task sub-issue, which re-triggers
+  # the agent to resume a hand-off it applied at step 5 or step 6.
+  issues:
+    types: [unlabeled]
+  # The needs-human label being cleared on a pull request this agent opened,
+  # which re-triggers the agent to resume a hand-off it applied at step 7.
+  pull_request:
+    types: [unlabeled]
 
 permissions:
   contents: read
@@ -138,6 +146,38 @@ jobs:
                 item_number: payload.pull_request.number,
                 comment_id: payload.comment.id,
               };
+            }
+
+            // The needs-human label was cleared on a task sub-issue (resume a
+            // step 5 or step 6 hand-off this agent applied). needs-human is
+            // shared by all five SDD agents, so the agent itself confirms the
+            // item is one it handed off before resuming.
+            if (event === 'issues' && payload.action === 'unlabeled') {
+              const label = payload.label && payload.label.name;
+              if (label === 'needs-human') {
+                run = true;
+                ctx = {
+                  trigger: 'resume',
+                  item_type: 'issue',
+                  item_number: payload.issue.number,
+                };
+              }
+            }
+
+            // The needs-human label was cleared on a pull request (resume a
+            // step 7 hand-off this agent applied). needs-human is shared by
+            // all five SDD agents, so the agent itself confirms the pull
+            // request is one it opened before resuming.
+            if (event === 'pull_request' && payload.action === 'unlabeled') {
+              const label = payload.label && payload.label.name;
+              if (label === 'needs-human') {
+                run = true;
+                ctx = {
+                  trigger: 'resume',
+                  item_type: 'pull_request',
+                  item_number: payload.pull_request.number,
+                };
+              }
             }
 
             core.setOutput('should_run', run ? 'true' : 'false');
