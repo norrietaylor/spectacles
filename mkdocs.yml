@@ -2,6 +2,28 @@ site_name: spectacles
 site_description: Spec-driven development as agentic GitHub Actions workflows.
 theme:
   name: material
+  logo: assets/svg/logo-light.svg
+  favicon: assets/svg/favicon-light.svg
+  font:
+    text: Fraunces
+    code: Fraunces
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: custom
+      accent: custom
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: custom
+      accent: custom
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to light mode
+extra_css:
+  - stylesheets/brand.css
 markdown_extensions:
   - admonition
   - tables

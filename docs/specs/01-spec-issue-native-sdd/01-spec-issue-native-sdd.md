@@ -679,11 +679,13 @@ end on it.
 **Purpose:** Theme the mkdocs site with committed brand assets and set the
 GitHub repository's social-preview card from those assets, so the public site
 and the repo's link previews carry a consistent identity. Demoable: the docs
-site builds with the brand logo, favicon, palette, and typography applied, and
-the repository's social-preview card renders the brand card.
+site builds with the brand logo, favicon, palette, and typography applied, the
+repository's social-preview card renders the brand card, and a push to `main`
+publishes the themed site to GitHub Pages.
 **Depends on:** Unit 1
-**Affected areas:** `mkdocs.yml`, `docs/assets/` (new), repository settings (the
-social-preview card)
+**Affected areas:** `mkdocs.yml`, `docs/assets/` (new),
+`docs/stylesheets/brand.css` (new), `.github/workflows/pages.yml` (new),
+repository settings (the social-preview card, the Pages source)
 
 **Functional Requirements:**
 
@@ -699,6 +701,13 @@ social-preview card)
   brand assets, so issue, PR, and repository link previews render the brand
   card. The card source shall live under `docs/assets/` and the setting step shall
   be documented (the social card is a repository setting, not a tracked file).
+- **R10.4**: A `.github/workflows/pages.yml` workflow shall publish the built
+  docs site to GitHub Pages on every push to `main`, building with `mkdocs
+  build` and deploying via `actions/upload-pages-artifact` and
+  `actions/deploy-pages` under `pages: write` and `id-token: write`
+  permissions and the `github-pages` environment. Selecting the Pages
+  "GitHub Actions" source is a one-time repository setting, documented in the
+  workflow alongside the R10.3 social-card step.
 
 **Proof Artifacts:**
 
@@ -708,6 +717,10 @@ social-preview card)
   site includes the logo and favicon assets.
 - File: `docs/assets/` contains the logo, the favicon, and the social-preview card
   image, and the full tree passes the `leak-scan` check at this unit's commit.
+- File: `.github/workflows/pages.yml` triggers on a push to `main`, builds
+  with `mkdocs build`, and deploys through `actions/deploy-pages` with the
+  `pages: write` and `id-token: write` permissions and the `github-pages`
+  environment.
 
 ## Non-Goals (Out of Scope)
 

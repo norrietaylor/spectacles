@@ -98,9 +98,8 @@ presentation title slides, documentation home page.
 | `social-card-light.svg/png`   | 1280 × 640     | OG image for repo                         |
 | `social-card-dark.svg/png`    | 1280 × 640     | Same, dark theme                          |
 
-To set as the GitHub repo's social preview:
-**Settings → Social preview → Upload an image** and pick the PNG. GitHub
-recommends 1280 × 640.
+See [Setting the repository social-preview card](#setting-the-repository-social-preview-card)
+below for the setup step.
 
 ### Banner
 
@@ -136,6 +135,37 @@ Drop into the top of `README.md`. For GitHub light/dark theme support:
   back to the manual-page metaphor.
 - **Sentence case everywhere.** Even the wordmark is lowercase. Never
   "Spectacles" or "SPECTACLES" except in tracked-out italic tagline blocks.
+
+---
+
+## Setting the repository social-preview card
+
+The social-preview card is what GitHub renders when a repository, issue, or
+pull request link is shared (Open Graph / Twitter Card). It is a repository
+setting, not a tracked file, so it is applied once by an operator from the
+card image committed under `docs/assets/png/`.
+
+Steps:
+
+1. Open the repository on GitHub and go to **Settings**.
+2. In the **General** tab, scroll to the **Social preview** section.
+3. Choose **Edit** (or **Upload an image…**) and select the card from this
+   repository at `docs/assets/png/social-card-light.png`. GitHub recommends a
+   1280 × 640 image; the committed card matches that size.
+4. Save. The new card takes effect for subsequent link previews. Use
+   `social-card-dark.png` instead if a dark variant is preferred.
+
+This step has no code artifact: it changes a repository setting only. The
+card image source lives under `docs/assets/png/` so it stays versioned and
+reproducible.
+
+### Verification
+
+- The card image exists at `docs/assets/png/social-card-light.png` (and the
+  dark variant at `docs/assets/png/social-card-dark.png`), each 1280 × 640.
+- After the operator applies the setting, the repository's **Settings →
+  General → Social preview** section shows the brand card, and a freshly
+  shared repository, issue, or pull request link renders that card.
 
 ---
 
