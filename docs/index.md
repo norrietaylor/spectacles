@@ -1,3 +1,6 @@
+![spectacles](assets/svg/banner-light.svg#only-light)
+![spectacles](assets/svg/banner-dark.svg#only-dark)
+
 # spectacles
 
 Spec-driven development as agentic GitHub Actions workflows.
