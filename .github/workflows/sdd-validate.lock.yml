@@ -286,10 +286,10 @@ jobs:
           cat "${RUNNER_TEMP}/gh-aw/prompts/github_mcp_tools_with_safeoutputs_prompt.md"
           cat << 'GH_AW_PROMPT_b2769f0a3951cadd_EOF'
           </system>
-          {{#runtime-import .github/aw/imports/norrietaylor/spectacles/e3df7997cfa62e7b6edb6dc05e229262c0b92d72/shared_principles.md}}
-          {{#runtime-import .github/aw/imports/norrietaylor/spectacles/e3df7997cfa62e7b6edb6dc05e229262c0b92d72/shared_repo-conventions.md}}
-          {{#runtime-import .github/aw/imports/norrietaylor/spectacles/e3df7997cfa62e7b6edb6dc05e229262c0b92d72/shared_sdd-interaction.md}}
-          {{#runtime-import .github/aw/imports/norrietaylor/spectacles/e3df7997cfa62e7b6edb6dc05e229262c0b92d72/shared_sdd-gates.md}}
+          {{#runtime-import .github/aw/imports/norrietaylor/spectacles/fbae3ca7e82fb22feab060c0fa59b5775a9da83f/shared_principles.md}}
+          {{#runtime-import .github/aw/imports/norrietaylor/spectacles/fbae3ca7e82fb22feab060c0fa59b5775a9da83f/shared_repo-conventions.md}}
+          {{#runtime-import .github/aw/imports/norrietaylor/spectacles/fbae3ca7e82fb22feab060c0fa59b5775a9da83f/shared_sdd-interaction.md}}
+          {{#runtime-import .github/aw/imports/norrietaylor/spectacles/fbae3ca7e82fb22feab060c0fa59b5775a9da83f/shared_sdd-gates.md}}
           {{#runtime-import .github/workflows/sdd-validate.md}}
           GH_AW_PROMPT_b2769f0a3951cadd_EOF
           } > "$GH_AW_PROMPT"
