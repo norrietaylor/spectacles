@@ -4,9 +4,16 @@ name: sdd-spec
 #
 # The agent itself is the reusable workflow .github/workflows/sdd-spec.lock.yml
 # (compiled from sdd-spec.md, which declares on: workflow_call). This wrapper
-# carries the real event triggers, gates the comment commands to write-access
-# authors, and passes the triggering entity to the agent through the aw_context
-# input. A consumer repository installs this wrapper unchanged.
+# carries the real event triggers, gates the comment commands to authors with
+# repository write access, and passes the triggering entity to the agent
+# through the aw_context input. A consumer repository installs this wrapper
+# unchanged.
+#
+# The gh-aw command:/slash_command trigger (with its roles: gate) is not used
+# here: that trigger is gh-aw frontmatter and only takes effect when gh aw
+# compiles a workflow. This wrapper is a hand-written GitHub Actions workflow,
+# not a gh-aw source file, so gh aw never processes it. The gating is therefore
+# done explicitly below with a real repository-permission check.
 
 on:
   # A tracking issue gained the sdd:spec label (also fired by the
@@ -60,14 +67,40 @@ jobs:
               }
             }
 
-            // A /spec or /revise comment from a write-access author.
+            // A /spec or /revise comment from an author with repo write
+            // access. The gate is the actor's real repository permission,
+            // not author_association: author_association reports the
+            // relationship to the thread (OWNER/MEMBER/COLLABORATOR), which
+            // is not the same as push access. A MEMBER of the org need not
+            // have write on this repo, and a COLLABORATOR may be read-only.
+            // The collaborators/{user}/permission API returns the actual
+            // permission level; only write, maintain, or admin may run a
+            // command.
             if (event === 'issue_comment' && payload.action === 'created') {
               const body = (payload.comment.body || '').trim();
               const firstWord = body.split(/\s+/)[0];
               if (firstWord === '/spec' || firstWord === '/revise') {
-                const assoc = payload.comment.author_association;
-                const canWrite = assoc === 'OWNER' || assoc === 'MEMBER'
-                  || assoc === 'COLLABORATOR';
+                const actor = payload.comment.user.login;
+                let permission = 'none';
+                try {
+                  const resp = await github.rest.repos
+                    .getCollaboratorPermissionLevel({
+                      owner: context.repo.owner,
+                      repo: context.repo.repo,
+                      username: actor,
+                    });
+                  // role_name is the precise role (write/maintain/triage/...)
+                  // when present; permission is the legacy bucket
+                  // (admin/write/read/none) that collapses maintain into
+                  // write and triage into read.
+                  permission = resp.data.role_name || resp.data.permission;
+                } catch (err) {
+                  core.info(
+                    'Could not resolve repo permission for ' + actor
+                    + ': ' + err.message);
+                }
+                const canWrite = permission === 'write'
+                  || permission === 'maintain' || permission === 'admin';
                 if (canWrite) {
                   run = true;
                   const isPr = !!payload.issue.pull_request;
@@ -77,19 +110,29 @@ jobs:
                     comment_id: payload.comment.id,
                   };
                 } else {
-                  core.info('Command from a non-write author; ignoring.');
+                  core.info(
+                    'Command from an author without write access ('
+                    + permission + '); ignoring.');
                 }
               }
             }
 
-            // A spec pull request was merged.
+            // A merged spec pull request. Scoped to spec PRs only: the head
+            // branch must follow the spec/<slug> convention. A merged
+            // non-spec PR is not this agent's concern and is left to no-op.
             if (event === 'pull_request' && payload.action === 'closed') {
-              if (payload.pull_request.merged === true) {
+              const merged = payload.pull_request.merged === true;
+              const headRef = payload.pull_request.head
+                && payload.pull_request.head.ref || '';
+              const isSpecBranch = headRef.startsWith('spec/');
+              if (merged && isSpecBranch) {
                 run = true;
                 ctx = {
                   item_type: 'pull_request',
                   item_number: payload.pull_request.number,
                 };
+              } else if (merged) {
+                core.info('Merged PR is not a spec branch; ignoring.');
               }
             }
 
