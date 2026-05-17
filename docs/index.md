@@ -1,9 +1,7 @@
-![spectacles](assets/svg/banner-light.svg#only-light)
-![spectacles](assets/svg/banner-dark.svg#only-dark)
+# spectacles {.sr-only}
 
-# spectacles
-
-Spec-driven development as agentic GitHub Actions workflows.
+![spectacles: a spec-driven agent suite for GitHub Actions](assets/svg/banner-light.svg#only-light)
+![spectacles: a spec-driven agent suite for GitHub Actions](assets/svg/banner-dark.svg#only-dark)
 
 `spectacles` moves a feature from a plain GitHub issue to a merged
 implementation through a disciplined pipeline: spec, architecture, triage,
@@ -13,10 +11,29 @@ issues, comments, labels, and pull requests.
 
 ## Where to start
 
-- The full design is the
-  [issue-native SDD spec](specs/01-spec-issue-native-sdd/01-spec-issue-native-sdd.md).
-- The agent-to-human hand-off contract is recorded in ADR 0001
-  (`decisions/0001-needs-human.md` in the repository root).
+<div class="grid cards" markdown>
+
+- **[The SDD pipeline](sdd/index.md)**
+
+  How a plain GitHub issue becomes a merged implementation, and what a
+  human does at each step.
+
+- **[Installing the SDD suite](sdd/install.md)**
+
+  Run `quick-setup.sh --suite sdd` to install the suite on another
+  repository, including one with an existing codebase.
+
+- **[MCP tools](sdd/mcp-tools.md)**
+
+  Distillery for retrieval and memory; Serena for symbol-level code
+  intelligence.
+
+- **[The issue-native SDD spec](specs/01-spec-issue-native-sdd/01-spec-issue-native-sdd.md)**
+
+  The full design: ten demoable units, the `needs-human` contract, and the
+  human-interaction model.
+
+</div>
 
 ## Status
 
@@ -24,3 +41,6 @@ The repository foundation, the human-interaction contract, the shared MCP
 tooling, and all five pipeline agents (`sdd-spec`, `sdd-triage`,
 `sdd-execute`, `sdd-validate`, `sdd-review`) are built. Consumer packaging,
 the one-command install onto another repo, is the last unit.
+
+The source, including the workflow definitions, shared fragments, and ADRs,
+is at [github.com/norrietaylor/spectacles](https://github.com/norrietaylor/spectacles).
