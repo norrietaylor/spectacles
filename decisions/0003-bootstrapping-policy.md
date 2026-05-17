@@ -47,8 +47,11 @@ validator or reviewer yet in place to catch them.
 
 ## Consequences
 
+- This decision supersedes the spec's Success Metric "Dogfood end-to-end in
+  the suite's own repo". Under this policy the first end-to-end pipeline run
+  is the Unit 9 fixture-repo acceptance test, not a run on spectacles itself.
 - No pipeline run happens until the GitHub App is provisioned and Distillery
   and Serena are reachable. That operator infrastructure is a hard
   prerequisite, separate from and parallel to the unit builds.
 - Self-hosting spectacles on its own repository is explicitly not a goal of
-  the initial build.
+  the initial build. ADR 0002 records the same point from the import angle.
