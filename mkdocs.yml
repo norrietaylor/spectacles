@@ -8,5 +8,6 @@ markdown_extensions:
   - fenced_code
 nav:
   - Home: index.md
+  - The SDD pipeline: sdd/index.md
   - Specs:
       - "01: Issue-native SDD": specs/01-spec-issue-native-sdd/01-spec-issue-native-sdd.md
