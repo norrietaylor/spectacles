@@ -13,3 +13,5 @@ nav:
       - MCP tools: sdd/mcp-tools.md
   - Specs:
       - "01: Issue-native SDD": specs/01-spec-issue-native-sdd/01-spec-issue-native-sdd.md
+not_in_nav: |
+  assets/**

@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 320" width="1024" height="320">
+  <title>spectacles</title>
+  <desc>spectacles logo mark — dark theme.</desc>
+  <rect width="1024" height="320" fill="#1a1f2e"/>
+  <g transform="translate(518 160) scale(3.0)" fill="none" stroke="#f4ecd8" stroke-linecap="round" stroke-linejoin="round">
+    <circle cx="-138" cy="0" r="5" fill="#f4ecd8" stroke="none"/>
+    <line x1="-150" y1="0" x2="-144" y2="0" stroke-width="1.2"/>
+    <path d="M-132 0 L -98 0" stroke-width="1.6"/>
+    <circle cx="-95" cy="0" r="3" fill="#f4ecd8" stroke="none"/>
+    <path d="M-92 0 L -78 0" stroke-width="2"/>
+    <circle cx="-42" cy="0" r="36" stroke-width="2.2"/>
+    <line x1="-54" y1="0" x2="-30" y2="0" stroke-width="0.9"/>
+    <line x1="-42" y1="-12" x2="-42" y2="12" stroke-width="0.9"/>
+    <circle cx="-42" cy="0" r="2" fill="#f4ecd8" stroke="none"/>
+    <line x1="-42" y1="-32" x2="-42" y2="-28" stroke-width="1"/>
+    <line x1="-42" y1="28" x2="-42" y2="32" stroke-width="1"/>
+    <path d="M-6 -3 Q 0 -11 6 -3" stroke-width="2.2"/>
+    <circle cx="42" cy="0" r="36" stroke-width="2.2"/>
+    <line x1="30" y1="0" x2="54" y2="0" stroke-width="0.9"/>
+    <line x1="42" y1="-12" x2="42" y2="12" stroke-width="0.9"/>
+    <circle cx="42" cy="0" r="3" fill="#d4a445" stroke="none"/>
+    <line x1="42" y1="-32" x2="42" y2="-28" stroke-width="1"/>
+    <line x1="42" y1="28" x2="42" y2="32" stroke-width="1"/>
+    <path d="M78 0 L 92 0" stroke-width="2"/>
+    <circle cx="95" cy="0" r="3" fill="#f4ecd8" stroke="none"/>
+    <path d="M97 0 L 115 -28 L 132 -28" stroke-width="1.4"/>
+    <path d="M97 0 L 132 0" stroke-width="1.4"/>
+    <path d="M97 0 L 115 28 L 132 28" stroke-width="1.4"/>
+    <circle cx="136" cy="-28" r="4" fill="#d4a445" stroke="none"/>
+    <circle cx="136" cy="0" r="4" fill="#d4a445" stroke="none"/>
+    <circle cx="136" cy="28" r="4" fill="#d4a445" stroke="none"/>
+  </g>
+</svg>
