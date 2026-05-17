@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <title>spectacles favicon</title>
+  <desc>Spectacles mark on an ink field, legible on any browser tab.</desc>
+  <rect width="64" height="64" rx="12" fill="#1a1f2e"/>
+  <g transform="translate(32 32) scale(0.34)" fill="none" stroke="#f4ecd8" stroke-linecap="round" stroke-linejoin="round">
+    <circle cx="-42" cy="0" r="36" stroke-width="9"/>
+    <path d="M-6 -3 Q 0 -11 6 -3" stroke-width="9"/>
+    <circle cx="42" cy="0" r="36" stroke-width="9"/>
+    <circle cx="42" cy="0" r="14" fill="#d4a445" stroke="none"/>
+  </g>
+</svg>
