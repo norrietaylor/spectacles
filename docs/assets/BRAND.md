@@ -43,12 +43,19 @@ fan-out action nodes are brass; everything else is ink/cream.
 
 ## Typography
 
-**Fraunces** is the only typeface used. It's a free, open-source serif from
-Undercase Type, available on Google Fonts.
+**Fraunces** is the brand display face: the wordmark, headings, taglines, and
+every typographic element of the SVG assets. It's a free, open-source serif
+from Undercase Type, available on Google Fonts.
 
 - Source: <https://fonts.google.com/specimen/Fraunces>
 - Weights used: **400 (regular)** and **500 (medium)**
 - Styles used: Roman and *italic*
+
+For long-form body copy (the docs site, rendered prose) Fraunces pairs with
+**Source Serif 4** for text and **Roboto Mono** for code. Fraunces is
+optimized for display sizes, so a text-optimized companion keeps running
+prose legible while headings stay in the brand face. The SVG brand assets
+remain Fraunces-only.
 
 Hierarchy:
 
@@ -80,6 +87,10 @@ loses the distinctive ball terminals — install Fraunces wherever possible.
 Use the favicon variants anywhere the mark needs to fit a square — browser
 tab, GitHub avatar (square crop), app icons, social profiles. The DAG
 branches are stripped so the silhouette stays legible at small sizes.
+
+`favicon.svg` is a self-contained variant of that square mark with a baked
+ink field and rounded corners. It is what `mkdocs.yml` sets as the docs-site
+favicon, so the mark reads on a light or dark browser tab.
 
 ### Wordmark lockup
 

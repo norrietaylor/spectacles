@@ -1,5 +1,9 @@
-/* spectacles brand color overrides for Material for MkDocs.
+/* spectacles brand overrides for Material for MkDocs.
    Palette values from docs/assets/BRAND.md. */
+
+/* Fraunces (display face) for headings and the wordmark. The body and code
+   faces load from theme.font in mkdocs.yml. */
+@import url("https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400..600&display=swap");
 
 /* Light scheme: ink on parchment, brass accent. */
 [data-md-color-scheme="default"] {
@@ -20,4 +24,29 @@
   --md-default-bg-color: #1a1f2e;
   --md-default-fg-color: #f4ecd8;
   --md-typeset-a-color: #d4a445;
+}
+
+/* Headings and the wordmark use Fraunces; body copy stays in the text face. */
+.md-header__topic,
+.md-nav__title,
+.md-typeset h1,
+.md-typeset h2,
+.md-typeset h3,
+.md-typeset h4,
+.md-typeset h5,
+.md-typeset h6 {
+  font-family: "Fraunces", Georgia, "Times New Roman", serif;
+}
+
+/* Material renders h1 in a muted foreground; restore full-strength ink. */
+.md-typeset h1 {
+  color: var(--md-default-fg-color);
+  font-weight: 600;
+}
+
+/* The brand mark sits directly on the header; give it room to read. */
+.md-header__button.md-logo img,
+.md-header__button.md-logo svg {
+  height: 2rem;
+  width: auto;
 }
