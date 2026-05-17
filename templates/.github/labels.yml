@@ -1,8 +1,9 @@
-# Base labels for the spectacles SDD suite.
+# Labels for the spectacles SDD suite.
 #
 # scripts/quick-setup.sh syncs these onto a consumer repo. Colors are
-# six-digit hex without a leading '#'. The SDD lifecycle labels (sdd:*) and
-# the model-tier labels (model:*) are added in Unit 2.
+# six-digit hex without a leading '#'. Base labels were added in Unit 1; the
+# SDD lifecycle labels (sdd:*) and the model-tier labels (model:*) below were
+# added in Unit 2.
 - name: needs-human
   color: b60205
   description: An agent handed off; a human must act, then clear this label.
@@ -24,3 +25,30 @@
 - name: priority:nice-to-have
   color: 0e8a16
   description: Nice to have.
+- name: sdd:spec
+  color: 1d76db
+  description: Lifecycle - the feature is being specified by sdd-spec.
+- name: sdd:triage
+  color: 0052cc
+  description: Lifecycle - the spec is in architecture and triage by sdd-triage.
+- name: sdd:ready
+  color: 0e8a16
+  description: Lifecycle - tasks are decomposed and ready for sdd-execute.
+- name: sdd:in-progress
+  color: fbca04
+  description: Lifecycle - a task is being implemented by sdd-execute.
+- name: sdd:review
+  color: 5319e7
+  description: Lifecycle - the implementation passed validation and awaits review.
+- name: sdd:done
+  color: 0e8a16
+  description: Lifecycle - every task is complete; a human does the final close.
+- name: model:haiku
+  color: c5def5
+  description: Tier - a low-complexity task; run by the haiku sdd-execute variant.
+- name: model:sonnet
+  color: 5319e7
+  description: Tier - a moderate-complexity task; run by the sonnet sdd-execute variant.
+- name: model:opus
+  color: b60205
+  description: Tier - a high-complexity task; run by the opus sdd-execute variant.
