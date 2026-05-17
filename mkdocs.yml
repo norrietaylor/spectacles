@@ -1,0 +1,12 @@
+site_name: spectacles
+site_description: Spec-driven development as agentic GitHub Actions workflows.
+theme:
+  name: material
+markdown_extensions:
+  - admonition
+  - tables
+  - fenced_code
+nav:
+  - Home: index.md
+  - Specs:
+      - "01: Issue-native SDD": specs/01-spec-issue-native-sdd/01-spec-issue-native-sdd.md

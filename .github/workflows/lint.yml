@@ -1,0 +1,35 @@
+name: lint
+on:
+  push:
+    branches: [main]
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: markdownlint
+        run: npx --yes markdownlint-cli2 "**/*.md"
+      - name: shellcheck
+        run: |
+          mapfile -t files < <(git ls-files '*.sh')
+          if [ "${#files[@]}" -gt 0 ]; then
+            shellcheck "${files[@]}"
+          else
+            echo "no shell scripts to check"
+          fi
+      - name: actionlint
+        run: |
+          bash <(curl -sSfL https://raw.githubusercontent.com/rhysd/actionlint/v1.7.12/scripts/download-actionlint.bash) 1.7.12
+          # Lint only hand-authored workflows. The gh-aw-generated *.lock.yml
+          # files use gh-aw extensions (concurrency.queue) and embed scripts
+          # that actionlint flags; they are generated, not hand-edited.
+          mapfile -t wf < <(git ls-files '.github/workflows/*.yml' '.github/workflows/*.yaml' ':!:.github/workflows/*.lock.yml')
+          if [ "${#wf[@]}" -gt 0 ]; then
+            ./actionlint -color "${wf[@]}"
+          else
+            echo "no hand-authored workflow files to lint"
+          fi
