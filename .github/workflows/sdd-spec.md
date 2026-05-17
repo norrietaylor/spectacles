@@ -20,7 +20,7 @@ safe-outputs:
   create-pull-request:
     max: 1
     draft: ${{ false }}
-    title-prefix: "spec: "
+    title-prefix: "spec"
   add-comment:
     max: 1
   add-labels:
@@ -45,7 +45,7 @@ through so this agent knows which entity it is operating on.
 
 ## Triggers this agent handles
 
-The wrapper invokes this agent for one of four situations. Determine which one
+The wrapper invokes this agent for one of five situations. Determine which one
 applies from the workflow context before doing anything else.
 
 1. **A tracking issue gained the `sdd:spec` label.** Author a spec for that
@@ -60,7 +60,19 @@ applies from the workflow context before doing anything else.
 4. **The `needs-human` label was removed from a tracking issue.** A human has
    answered an earlier hand-off. Re-read the whole thread, including the
    human's new comments, and resume: author the spec now that the open
-   questions are answered.
+   questions are answered. Resume **only** when the tracking issue is still in
+   the `sdd:spec` lifecycle state, that is, it still carries the `sdd:spec`
+   label. `needs-human` is shared by all five SDD agents, so its removal can
+   re-trigger this workflow for an issue that has already moved past the spec
+   phase. If the tracking issue no longer carries `sdd:spec`, this is another
+   agent's hand-off: do not re-author and emit `noop`.
+5. **A spec pull request was merged.** Advance the lifecycle as described in
+   step 8 of the procedure. The wrapper only routes this situation for a
+   merged pull request whose head branch follows the `spec/<slug>` convention,
+   so a merged non-spec pull request never reaches this agent. If a merged
+   pull request that is not a spec pull request is nonetheless seen here, it
+   is not this agent's concern: do not author a spec, do not move any label,
+   and emit `noop`.
 
 When the triggering item already carries the `needs-human` label, stop
 immediately and emit `noop`. A `needs-human`-labelled item is off-limits
@@ -168,12 +180,11 @@ health-check checks; one strong artifact is enough when it is unambiguous.
 
 Open exactly one pull request adding the spec file, via the
 `create-pull-request` safe-output. The pull request is not a draft. Its title
-is `spec(<slug>): <issue title>`; the `spec:` title prefix (with its trailing
-space) is applied automatically, so write the title as
-`(<slug>): <issue title>`. The branch
-follows the `spec/<slug>` convention from the imported repository-conventions
-fragment. The pull request body summarizes the spec, links the tracking issue,
-and lists the demoable units.
+is `spec(<slug>): <issue title>`; the `spec` title prefix is applied
+automatically, so write the title as `(<slug>): <issue title>` with no leading
+space. The branch follows the `spec/<slug>` convention from the imported
+repository-conventions fragment. The pull request body summarizes the spec,
+links the tracking issue, and lists the demoable units.
 
 For a `/revise` trigger, update the existing spec pull request on its existing
 branch rather than opening a new one. Apply only the change the `/revise` note
