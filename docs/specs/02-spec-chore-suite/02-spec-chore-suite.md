@@ -72,13 +72,15 @@ project so a shared store cannot leak unrelated content.
 ## Introduction/Overview
 
 This spec stands up the **chore-bot suite**: eight agentic workflows that run
-as a standalone fast-track alongside the SDD pipeline. Five are detectors that
+as a standalone fast-track alongside the SDD pipeline. Four are detectors that
 audit the running repository and file labelled chore issues (`doc-drift`,
-`api-surface-drift`, `test-coverage`, `dependency-review`, `trivial-dep-bump`).
-One is the `chore-fix` worker that turns an open chore-labelled issue into a
-fix pull request directly, bypassing spec and triage. Two are PR-maintenance
-bots that keep the bot pull-request flow tidy (`pr-conflict-resolver`,
-`dedupe-prs`).
+`api-surface-drift`, `test-coverage`, `trivial-dep-bump`). A fifth bot,
+`dependency-review`, audits dependency-bumping pull requests but files no
+chore issue: it posts an advisory risk comment on the pull request, so it is a
+PR-advisory bot rather than an issue-filing detector. One is the `chore-fix`
+worker that turns an open chore-labelled issue into a fix pull request
+directly, bypassing spec and triage. Two are PR-maintenance bots that keep the
+bot pull-request flow tidy (`pr-conflict-resolver`, `dedupe-prs`).
 
 The fast-track is the design center. A detector files a chore issue carrying
 an `agent:*` label. The `chore-fix` worker selects an `agent:*`-labelled issue
@@ -224,7 +226,7 @@ or bug issue.
 fragment on top of spec 01's foundation, so every chore bot states the
 fast-track contract once instead of restating it per workflow. Demoable: the
 labels sync onto a repo and the fragment passes the leak-scan.
-**Depends on:** None (consumes spec 01 Unit 1 foundation and Unit 2 labels)
+**Depends on:** spec 01 Units 1 and 2
 **Affected areas:** `templates/.github/labels.yml`,
 `shared/chore-interaction.md` (new), `docs/sdd/index.md`
 
@@ -260,8 +262,10 @@ labels sync onto a repo and the fragment passes the leak-scan.
 - File: `shared/chore-interaction.md` exists, references
   `decisions/0001-needs-human.md` and `shared/rigor.md`, and passes the
   `leak-scan` check.
-- Test: opening a test issue and applying `agent:doc-drift` to it succeeds
-  because `quick-setup.sh` synced the label onto the repo.
+- Test: running the existing `quick-setup.sh` label sync against a test repo
+  creates the four `agent:*` labels, after which a test issue can be opened
+  and labelled `agent:doc-drift`. This uses the spec 01 Unit 1 label-sync
+  mechanism as is; it does not depend on the `--suite chore` flag added later.
 
 ### Unit 2: `doc-drift` and `api-surface-drift` detectors
 
@@ -270,7 +274,7 @@ finds divergence between user-facing or agent-facing docs and the
 implementation; `api-surface-drift` finds public-API-surface changes missing
 from docs or a changelog. Demoable: each detector files one evidenced chore
 issue against a seeded drift.
-**Depends on:** Unit 1
+**Depends on:** Unit 1; spec 01 Unit 3 (Serena MCP fragment)
 **Affected areas:** `.github/workflows/doc-drift.md` (new),
 `.github/workflows/doc-drift.lock.yml` (generated),
 `.github/workflows/api-surface-drift.md` (new),
@@ -332,7 +336,7 @@ issue against a seeded drift.
 **Purpose:** Stand up the coverage detector: it finds code lacking test
 coverage and files coverage-gap chore issues. Demoable: the detector files an
 evidenced coverage-gap issue against an untested module.
-**Depends on:** Unit 1
+**Depends on:** Unit 1; spec 01 Unit 3 (Serena MCP fragment)
 **Affected areas:** `.github/workflows/test-coverage.md` (new),
 `.github/workflows/test-coverage.lock.yml` (generated),
 `wrappers/test-coverage.yml` (new)
@@ -435,9 +439,9 @@ appears on a dependency PR, and a trivial bump arrives as a PR.
   advisory comment from `dependency-review` naming each changed dependency and
   its version delta; a pull request that changes no dependency yields a
   `noop`.
-- Test: on a fixture repo with a safe patch-level update available,
-  `trivial-dep-bump` opens one pull request that updates the manifest and
-  lockfile.
+- Test: on a fixture repo whose manifest pins a dependency one safe
+  patch-level release behind its latest, `trivial-dep-bump` opens one pull
+  request that updates the manifest and lockfile to that release.
 
 ### Unit 5: `chore-fix` worker
 
@@ -445,7 +449,7 @@ appears on a dependency PR, and a trivial bump arrives as a PR.
 chore-labelled issue, drafts a fix, and opens a pull request directly,
 bypassing `sdd-spec` and `sdd-triage`. Demoable: an `agent:*`-labelled issue
 produces a fix pull request that closes it.
-**Depends on:** Units 1, 2, 3
+**Depends on:** Units 1, 2, 3; spec 01 Unit 3 (Serena MCP fragment)
 **Affected areas:** `.github/workflows/chore-fix.md` (new),
 `.github/workflows/chore-fix.lock.yml` (generated),
 `wrappers/chore-fix.yml` (new)
@@ -586,14 +590,19 @@ it.
   operator-supplied values. No chore-suite source or `shared/chore-*` fragment
   shall carry an org-specific or private literal; the `leak-scan` CI check
   shall pass on the full tree at this unit's commit.
-- **R7.4**: `docs/sdd/install.md` shall gain a chore-suite section documenting
-  the `--suite chore` install, the required configuration, how the chore
-  fast-track relates to the SDD pipeline, and a post-install smoke test. The
-  section shall end with a `## Verification` block of copy-pasteable `gh`
-  commands.
+- **R7.4**: `docs/sdd/install.md` shall document the `--suite chore` install,
+  the required configuration, how the chore fast-track relates to the SDD
+  pipeline, and a post-install smoke test, in a chore-suite section ending
+  with a `## Verification` block of copy-pasteable `gh` commands. `install.md`
+  is planned by spec 01 Unit 9; if spec 01 Unit 9 has not yet delivered the
+  file when this unit lands, Unit 7 creates `docs/sdd/install.md` with the
+  chore-suite section, and a later spec 01 Unit 9 edit appends the SDD
+  section. Either way the edit is additive.
 - **R7.5**: `wrappers/README.md` shall list every chore-suite wrapper and
   state which trigger fires each bot, so an operator sees the full chore suite
-  in one place.
+  in one place. `wrappers/README.md` is planned by spec 01 Unit 9; if it does
+  not yet exist when this unit lands, Unit 7 creates it; otherwise Unit 7
+  appends the chore-suite wrappers to it.
 
 **Proof Artifacts:**
 
@@ -610,8 +619,11 @@ it.
 ## Non-Goals (Out of Scope)
 
 - **Modifying the SDD pipeline.** The chore suite reuses spec 01's foundation
-  and fragments but changes no `sdd-*` workflow. The two suites run in
-  parallel; the chore suite never alters the SDD pipeline.
+  and fragments but changes no `sdd-*` workflow source or fragment. The two
+  suites run in parallel; the chore suite never alters the SDD pipeline. It
+  does make additive-only edits to shared foundation assets (`labels.yml`
+  gains the `agent:*` labels, suite-level docs gain a chore-fast-track
+  section); these append to shared assets and modify no `sdd-*` workflow.
 - **Escalating a chore into the SDD pipeline automatically.** A `chore-fix`
   hand-off proposes, via a `needs-human` comment, that a human reopen the
   chore as a feature or bug issue. No bot files an `sdd:spec` issue or
@@ -682,10 +694,16 @@ gh-aw compilation checks.
 | Test  | `gh aw compile .github/workflows/*.md` (frontmatter and schema validation) |
 | Leak  | `leak-scan` CI job against the secret denylist |
 
+The `markdownlint-cli2` glob covers `docs/` only; it is inherited from spec
+01 and not changed here. Chore-suite sources at `.github/workflows/*.md` and
+fragments under `shared/` are covered by the `gh aw compile` check and the
+`leak-scan` job, which run on those paths regardless of the lint glob.
+
 **Bootstrapping:** The chore suite is built conventionally, consistent with
-ADR 0003: each of the seven units is delivered as an ordinary pull request,
-not built through the SDD pipeline. There is no bootstrapping unit; Unit 1
-consumes the foundation that spec 01 Unit 1 already provides.
+ADR 0003: each of the seven units (eight bots across seven units) is delivered
+as an ordinary pull request, not built through the SDD pipeline. There is no
+bootstrapping unit; Unit 1 consumes the foundation that spec 01 Unit 1 already
+provides.
 
 ## Technical Considerations
 
