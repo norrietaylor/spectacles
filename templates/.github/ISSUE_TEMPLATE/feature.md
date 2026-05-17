@@ -1,0 +1,49 @@
+---
+name: Feature
+about: Propose a new feature or capability for the SDD pipeline to spec and build.
+title: "feature: "
+labels:
+  - kind:feature
+  - sdd:spec
+---
+
+## Summary
+
+One or two sentences describing the feature and who it is for.
+
+## Problem
+
+What is missing or painful today? Describe the situation, not the solution.
+
+## Desired outcome
+
+What should be true once this ships? Describe behavior a person could observe,
+not an implementation.
+
+## Scope notes
+
+Anything in or out of scope, constraints, or related work the agents should
+know. Leave blank if there is nothing to add.
+
+---
+
+<!-- SDD command vocabulary. Do not edit this footer. -->
+
+This issue is the tracking issue for the feature. It carries the `sdd:spec`
+lifecycle label, so `sdd-spec` will draft a spec PR from it automatically.
+
+Steer the pipeline with these comment commands. Each is gated to commenters
+with write access to the repository.
+
+| Command | Where | Effect |
+|---|---|---|
+| `/spec` | this tracking issue | re-run `sdd-spec` to draft or revise the spec |
+| `/triage` | this tracking issue, after the spec PR is merged | start `sdd-triage` phase A (architecture) |
+| `/approve` | this tracking issue | confirm the parent-task list so `sdd-triage` decomposes sub-tasks |
+| `/revise <note>` | a spec, architecture, or implementation PR, or a triage comment | re-run the owning agent with the note as an added instruction |
+| `/execute` | a task sub-issue | run `sdd-execute` for that task ahead of the schedule |
+
+Merging the spec PR advances to the architecture phase; merging the
+architecture PR advances to the parent-task phase. When an agent needs a human
+decision it applies the `needs-human` label and posts one comment; clear the
+label once you have answered and the agent resumes.

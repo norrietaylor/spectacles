@@ -9,6 +9,7 @@ markdown_extensions:
 nav:
   - Home: index.md
   - SDD:
+      - The SDD pipeline: sdd/index.md
       - MCP tools: sdd/mcp-tools.md
   - Specs:
       - "01: Issue-native SDD": specs/01-spec-issue-native-sdd/01-spec-issue-native-sdd.md
