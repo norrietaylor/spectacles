@@ -1,0 +1,196 @@
+name: sdd-execute-haiku
+
+# Thin wrapper for the sdd-execute agent, haiku model-tier variant.
+#
+# The agent itself is the reusable workflow
+# .github/workflows/sdd-execute-haiku.lock.yml (compiled from
+# sdd-execute-haiku.md, which declares on: workflow_call). This wrapper carries
+# the real event triggers, gates the /execute comment command to authors with
+# repository write access, and passes the triggering entity to the agent
+# through the aw_context input. A consumer repository installs this wrapper
+# unchanged.
+#
+# sdd-execute is compiled into three model-tier variants (haiku, sonnet, opus)
+# that differ only in the engine model and the model:* tier they claim. This
+# wrapper is the haiku-tier caller; sdd-execute-sonnet.yml and
+# sdd-execute-opus.yml are its sonnet and opus siblings. All three carry the
+# identical trigger set so any tier's queue is drained on its own cron.
+#
+# The gh-aw command:/slash_command trigger (with its roles: gate) is not used
+# here: that trigger is gh-aw frontmatter and only takes effect when gh aw
+# compiles a workflow. This wrapper is a hand-written GitHub Actions workflow,
+# not a gh-aw source file, so gh aw never processes it. The gating is therefore
+# done explicitly below with a real repository-permission check.
+
+on:
+  # Drain the haiku-tier task queue once per day.
+  schedule:
+    - cron: "0 7 * * *"
+  # Run the queue ahead of the cron.
+  workflow_dispatch:
+  # A /execute comment on a task sub-issue.
+  issue_comment:
+    types: [created]
+  # A review comment on a pull request this agent opened.
+  pull_request_review_comment:
+    types: [created]
+  # The needs-human label being cleared on a task sub-issue, which re-triggers
+  # the agent to resume a hand-off it applied at step 5 or step 6.
+  issues:
+    types: [unlabeled]
+  # The needs-human label being cleared on a pull request this agent opened,
+  # which re-triggers the agent to resume a hand-off it applied at step 7.
+  pull_request:
+    types: [unlabeled]
+
+permissions:
+  contents: read
+
+jobs:
+  # Resolve which situation triggered the wrapper and build the aw_context the
+  # reusable workflow consumes. A non-match leaves should_run = false so the
+  # agent job is skipped.
+  route:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      should_run: ${{ steps.decide.outputs.should_run }}
+      aw_context: ${{ steps.decide.outputs.aw_context }}
+    steps:
+      - name: Decide whether to run and build aw_context
+        id: decide
+        uses: actions/github-script@v9
+        with:
+          script: |
+            const event = context.eventName;
+            const payload = context.payload;
+            let run = false;
+            let ctx = {};
+
+            // A scheduled run or a manual dispatch: scan the task queue and
+            // select one eligible task. There is no specific triggering item,
+            // so aw_context records only the trigger kind.
+            if (event === 'schedule') {
+              run = true;
+              ctx = { trigger: 'schedule' };
+            }
+            if (event === 'workflow_dispatch') {
+              run = true;
+              ctx = { trigger: 'workflow_dispatch' };
+            }
+
+            // A /execute comment from an author with repo write access. The
+            // gate is the actor's real repository permission, not
+            // author_association: author_association reports the relationship
+            // to the thread (OWNER/MEMBER/COLLABORATOR), which is not the same
+            // as push access. A MEMBER of the org need not have write on this
+            // repo, and a COLLABORATOR may be read-only. The
+            // collaborators/{user}/permission API returns the actual
+            // permission level; only write, maintain, or admin may run a
+            // command. /execute on a pull request is ignored: it is a
+            // task-sub-issue command only.
+            if (event === 'issue_comment' && payload.action === 'created') {
+              const body = (payload.comment.body || '').trim();
+              const firstWord = body.split(/\s+/)[0];
+              const isPr = !!payload.issue.pull_request;
+              if (firstWord === '/execute' && !isPr) {
+                const actor = payload.comment.user.login;
+                let permission = 'none';
+                try {
+                  const resp = await github.rest.repos
+                    .getCollaboratorPermissionLevel({
+                      owner: context.repo.owner,
+                      repo: context.repo.repo,
+                      username: actor,
+                    });
+                  // role_name is the precise role (write/maintain/triage/...)
+                  // when present; permission is the legacy bucket
+                  // (admin/write/read/none) that collapses maintain into
+                  // write and triage into read.
+                  permission = resp.data.role_name || resp.data.permission;
+                } catch (err) {
+                  core.info(
+                    'Could not resolve repo permission for ' + actor
+                    + ': ' + err.message);
+                }
+                const canWrite = permission === 'write'
+                  || permission === 'maintain' || permission === 'admin';
+                if (canWrite) {
+                  run = true;
+                  ctx = {
+                    trigger: 'command',
+                    item_type: 'issue',
+                    item_number: payload.issue.number,
+                    comment_id: payload.comment.id,
+                  };
+                } else {
+                  core.info(
+                    'Command from an author without write access ('
+                    + permission + '); ignoring.');
+                }
+              } else if (firstWord === '/execute' && isPr) {
+                core.info('/execute on a pull request; ignoring.');
+              }
+            }
+
+            // A review comment on a pull request. The agent confirms the pull
+            // request is one it opened (an sdd/<task-id>-<slug> branch) before
+            // pushing follow-up commits.
+            if (event === 'pull_request_review_comment'
+                && payload.action === 'created') {
+              run = true;
+              ctx = {
+                trigger: 'review_comment',
+                item_type: 'pull_request',
+                item_number: payload.pull_request.number,
+                comment_id: payload.comment.id,
+              };
+            }
+
+            // The needs-human label was cleared on a task sub-issue (resume a
+            // step 5 or step 6 hand-off this agent applied). needs-human is
+            // shared by all five SDD agents, so the agent itself confirms the
+            // item is one it handed off before resuming.
+            if (event === 'issues' && payload.action === 'unlabeled') {
+              const label = payload.label && payload.label.name;
+              if (label === 'needs-human') {
+                run = true;
+                ctx = {
+                  trigger: 'resume',
+                  item_type: 'issue',
+                  item_number: payload.issue.number,
+                };
+              }
+            }
+
+            // The needs-human label was cleared on a pull request (resume a
+            // step 7 hand-off this agent applied). needs-human is shared by
+            // all five SDD agents, so the agent itself confirms the pull
+            // request is one it opened before resuming.
+            if (event === 'pull_request' && payload.action === 'unlabeled') {
+              const label = payload.label && payload.label.name;
+              if (label === 'needs-human') {
+                run = true;
+                ctx = {
+                  trigger: 'resume',
+                  item_type: 'pull_request',
+                  item_number: payload.pull_request.number,
+                };
+              }
+            }
+
+            core.setOutput('should_run', run ? 'true' : 'false');
+            core.setOutput('aw_context', run ? JSON.stringify(ctx) : '');
+
+  sdd-execute-haiku:
+    needs: route
+    if: needs.route.outputs.should_run == 'true'
+    uses: ./.github/workflows/sdd-execute-haiku.lock.yml
+    with:
+      aw_context: ${{ needs.route.outputs.aw_context }}
+    secrets: inherit
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: write
