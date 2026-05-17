@@ -1,5 +1,8 @@
 site_name: spectacles
 site_description: Spec-driven development as agentic GitHub Actions workflows.
+repo_url: https://github.com/norrietaylor/spectacles
+repo_name: norrietaylor/spectacles
+edit_uri: edit/main/docs/
 theme:
   name: material
   logo: assets/svg/logo-dark.svg
@@ -28,6 +31,8 @@ markdown_extensions:
   - admonition
   - tables
   - fenced_code
+  - attr_list
+  - md_in_html
 nav:
   - Home: index.md
   - SDD:
