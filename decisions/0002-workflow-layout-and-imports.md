@@ -40,17 +40,22 @@ to be wrong:
 - Dogfooding spectacles on its own repository is not a goal, so a
   self-referential `@main` import during the build is acceptable.
 
+## Verification
+
+- The early gh-aw workflows, delivered in Units 1 and 3, compile from
+  `.github/workflows/`.
+- Once an agent unit lands, `gh aw compile` succeeds on a workflow whose
+  `imports:` use the pinned-ref `owner/repo/path@ref` form.
+
 ## Consequences
 
 - The spec's `workflows/` source location and its local-import assumption are
   superseded by this ADR. A correction note in the spec points here.
-- Agent units 4 to 8 declare shared fragments with the pinned-ref `imports:`
-  form.
+- Decisions 1 and 2 (the `.github/workflows/` source location and the
+  repo-root `shared/` location) govern every unit, including the workflows
+  already delivered in Units 1 and 3.
+- Decision 3 (the pinned-ref `imports:` form) is adopted by the agent units
+  that import shared fragments, Units 4 to 8. Units 1 and 3 declared their
+  workflow configuration inline and import no shared fragment.
 - An import pinned to `@main` resolves to whatever is on `main` at compile
   time; switching to release tags makes imports immutable once releases ship.
-
-## Verification
-
-- `gh aw compile` succeeds on an agent workflow whose `imports:` use the
-  pinned-ref form.
-- The early gh-aw workflows compile from `.github/workflows/`.
