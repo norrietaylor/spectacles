@@ -24,7 +24,7 @@ safe-outputs:
     max: 1
     hide-older-comments: true
   add-labels:
-    allowed: [needs-human]
+    allowed: [needs-human, sdd:review]
     max: 1
   remove-labels:
     allowed: [sdd:in-progress]
