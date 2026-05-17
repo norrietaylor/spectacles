@@ -23,7 +23,7 @@ jobs:
           fi
       - name: actionlint
         run: |
-          bash <(curl -sSfL https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash)
+          bash <(curl -sSfL https://raw.githubusercontent.com/rhysd/actionlint/v1.7.12/scripts/download-actionlint.bash) 1.7.12
           # Lint only hand-authored workflows. The gh-aw-generated *.lock.yml
           # files use gh-aw extensions (concurrency.queue) and embed scripts
           # that actionlint flags; they are generated, not hand-edited.
