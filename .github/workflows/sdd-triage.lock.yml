@@ -311,12 +311,12 @@ jobs:
           cat "${RUNNER_TEMP}/gh-aw/prompts/github_mcp_tools_with_safeoutputs_prompt.md"
           cat << 'GH_AW_PROMPT_7a686c36f0b44771_EOF'
           </system>
-          {{#runtime-import .github/aw/imports/norrietaylor/spectacles/a74aee0f46e90d40799d21910b67a1f2ac03f1d5/shared_principles.md}}
-          {{#runtime-import .github/aw/imports/norrietaylor/spectacles/a74aee0f46e90d40799d21910b67a1f2ac03f1d5/shared_repo-conventions.md}}
-          {{#runtime-import .github/aw/imports/norrietaylor/spectacles/a74aee0f46e90d40799d21910b67a1f2ac03f1d5/shared_sdd-interaction.md}}
-          {{#runtime-import .github/aw/imports/norrietaylor/spectacles/a74aee0f46e90d40799d21910b67a1f2ac03f1d5/shared_sdd-proof-artifacts.md}}
-          {{#runtime-import .github/aw/imports/norrietaylor/spectacles/a74aee0f46e90d40799d21910b67a1f2ac03f1d5/shared_sdd-mcp-distillery.md}}
-          {{#runtime-import .github/aw/imports/norrietaylor/spectacles/a74aee0f46e90d40799d21910b67a1f2ac03f1d5/shared_sdd-mcp-serena.md}}
+          {{#runtime-import .github/aw/imports/norrietaylor/spectacles/e3df7997cfa62e7b6edb6dc05e229262c0b92d72/shared_principles.md}}
+          {{#runtime-import .github/aw/imports/norrietaylor/spectacles/e3df7997cfa62e7b6edb6dc05e229262c0b92d72/shared_repo-conventions.md}}
+          {{#runtime-import .github/aw/imports/norrietaylor/spectacles/e3df7997cfa62e7b6edb6dc05e229262c0b92d72/shared_sdd-interaction.md}}
+          {{#runtime-import .github/aw/imports/norrietaylor/spectacles/e3df7997cfa62e7b6edb6dc05e229262c0b92d72/shared_sdd-proof-artifacts.md}}
+          {{#runtime-import .github/aw/imports/norrietaylor/spectacles/e3df7997cfa62e7b6edb6dc05e229262c0b92d72/shared_sdd-mcp-distillery.md}}
+          {{#runtime-import .github/aw/imports/norrietaylor/spectacles/e3df7997cfa62e7b6edb6dc05e229262c0b92d72/shared_sdd-mcp-serena.md}}
           {{#runtime-import .github/workflows/sdd-triage.md}}
           GH_AW_PROMPT_7a686c36f0b44771_EOF
           } > "$GH_AW_PROMPT"

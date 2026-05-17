@@ -241,10 +241,14 @@ depends on:
 - **depends on**: the tasks this task is blocked by, as `blocked by #<task>`
   lines (see step 7 for cross-repo dependencies).
 
-Assign each sub-task a complexity rating and apply the matching tier label via
-the `add-labels` safe-output: `model:haiku` for a simple task, `model:sonnet`
-for a moderate task, `model:opus` for a complex task. The matching
-`sdd-execute` model-tier variant is the one that will pick the task up.
+Assign each sub-task a complexity rating and set the matching tier label in
+the `labels` field of the `create-issue` call that creates the sub-task:
+`model:haiku` for a simple task, `model:sonnet` for a moderate task,
+`model:opus` for a complex task. The tier label is set at issue creation, not
+through `add-labels`: the `add-labels` safe-output is allowlisted to
+`sdd:ready` and `needs-human` only, so a `model:*` write through it would be
+rejected at runtime. The matching `sdd-execute` model-tier variant is the one
+that will pick the task up.
 
 ### 7. Phase C: dependencies and the cross-repo seam
 
