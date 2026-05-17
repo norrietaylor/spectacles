@@ -1,0 +1,23 @@
+/* spectacles brand color overrides for Material for MkDocs.
+   Palette values from docs/assets/BRAND.md. */
+
+/* Light scheme: ink on parchment, brass accent. */
+[data-md-color-scheme="default"] {
+  --md-primary-fg-color: #1a1f2e;
+  --md-primary-fg-color--light: #5a5246;
+  --md-primary-fg-color--dark: #1a1f2e;
+  --md-accent-fg-color: #b8862a;
+  --md-default-bg-color: #f4ecd8;
+  --md-typeset-a-color: #b8862a;
+}
+
+/* Dark scheme: parchment on ink, brighter brass accent. */
+[data-md-color-scheme="slate"] {
+  --md-primary-fg-color: #1a1f2e;
+  --md-primary-fg-color--light: #a8a08c;
+  --md-primary-fg-color--dark: #1a1f2e;
+  --md-accent-fg-color: #d4a445;
+  --md-default-bg-color: #1a1f2e;
+  --md-default-fg-color: #f4ecd8;
+  --md-typeset-a-color: #d4a445;
+}
