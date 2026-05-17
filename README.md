@@ -1,4 +1,16 @@
-# spectacles
+<div align="center">
+
+<a href="https://norrietaylor.github.io/spectacles/">
+<picture>
+<source media="(prefers-color-scheme: dark)" srcset="docs/assets/png/banner-dark.png">
+<source media="(prefers-color-scheme: light)" srcset="docs/assets/png/banner-light.png">
+<img alt="spectacles: a spec-driven agent suite for GitHub Actions" src="docs/assets/png/banner-light.png" width="900">
+</picture>
+</a>
+
+**[Documentation](https://norrietaylor.github.io/spectacles/)**
+
+</div>
 
 Spec-driven development as agentic GitHub Actions workflows.
 
@@ -25,10 +37,13 @@ See [`decisions/0001-needs-human.md`](decisions/0001-needs-human.md).
 
 ## Status
 
-Bootstrapping. The full design is in
-[`docs/specs/01-spec-issue-native-sdd`](docs/specs/01-spec-issue-native-sdd/01-spec-issue-native-sdd.md);
-its nine demoable units are tracked as issues #1 through #9. This commit lands
-Unit 1, the repository foundation.
+The suite is built. The repository foundation, the human-interaction
+contract, the shared MCP tooling, and all five pipeline agents are in place;
+the [issue-native SDD spec](docs/specs/01-spec-issue-native-sdd/01-spec-issue-native-sdd.md)
+defines the full design across ten demoable units. The first live pipeline
+run is an operator acceptance step: see the
+[install guide](docs/sdd/install.md) and
+[`decisions/0003-bootstrapping-policy.md`](decisions/0003-bootstrapping-policy.md).
 
 ## Install
 
