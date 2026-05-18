@@ -311,12 +311,12 @@ jobs:
           cat "${RUNNER_TEMP}/gh-aw/prompts/github_mcp_tools_with_safeoutputs_prompt.md"
           cat << 'GH_AW_PROMPT_7a686c36f0b44771_EOF'
           </system>
-          {{#runtime-import .github/aw/imports/norrietaylor/spectacles/e3df7997cfa62e7b6edb6dc05e229262c0b92d72/shared_principles.md}}
-          {{#runtime-import .github/aw/imports/norrietaylor/spectacles/e3df7997cfa62e7b6edb6dc05e229262c0b92d72/shared_repo-conventions.md}}
-          {{#runtime-import .github/aw/imports/norrietaylor/spectacles/e3df7997cfa62e7b6edb6dc05e229262c0b92d72/shared_sdd-interaction.md}}
-          {{#runtime-import .github/aw/imports/norrietaylor/spectacles/e3df7997cfa62e7b6edb6dc05e229262c0b92d72/shared_sdd-proof-artifacts.md}}
-          {{#runtime-import .github/aw/imports/norrietaylor/spectacles/e3df7997cfa62e7b6edb6dc05e229262c0b92d72/shared_sdd-mcp-distillery.md}}
-          {{#runtime-import .github/aw/imports/norrietaylor/spectacles/e3df7997cfa62e7b6edb6dc05e229262c0b92d72/shared_sdd-mcp-serena.md}}
+          {{#runtime-import .github/aw/imports/norrietaylor/spectacles/31894fc3fa6716fe5c3143e8734b1624ee29d6ec/shared_principles.md}}
+          {{#runtime-import .github/aw/imports/norrietaylor/spectacles/31894fc3fa6716fe5c3143e8734b1624ee29d6ec/shared_repo-conventions.md}}
+          {{#runtime-import .github/aw/imports/norrietaylor/spectacles/31894fc3fa6716fe5c3143e8734b1624ee29d6ec/shared_sdd-interaction.md}}
+          {{#runtime-import .github/aw/imports/norrietaylor/spectacles/31894fc3fa6716fe5c3143e8734b1624ee29d6ec/shared_sdd-proof-artifacts.md}}
+          {{#runtime-import .github/aw/imports/norrietaylor/spectacles/31894fc3fa6716fe5c3143e8734b1624ee29d6ec/shared_sdd-mcp-distillery.md}}
+          {{#runtime-import .github/aw/imports/norrietaylor/spectacles/31894fc3fa6716fe5c3143e8734b1624ee29d6ec/shared_sdd-mcp-serena.md}}
           {{#runtime-import .github/workflows/sdd-triage.md}}
           GH_AW_PROMPT_7a686c36f0b44771_EOF
           } > "$GH_AW_PROMPT"
@@ -870,10 +870,10 @@ jobs:
                   "Authorization": "Bearer \${DISTILLERY_OAUTH_TOKEN}"
                 },
                 "tools": [
-                  "search",
-                  "find_similar",
-                  "relations",
-                  "recall"
+                  "distillery_search",
+                  "distillery_find_similar",
+                  "distillery_relations",
+                  "distillery_get"
                 ],
                 "env": {
                   "DISTILLERY_OAUTH_TOKEN": "\${DISTILLERY_OAUTH_TOKEN}"
