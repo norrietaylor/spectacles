@@ -14,7 +14,9 @@ mcp-servers:
       Authorization: "Bearer ${{ secrets.DISTILLERY_OAUTH_TOKEN }}"
     allowed:
       - gh-sync
-      - search
+      - find_similar
+      - store
+      - update
 tools:
   github:
     toolsets: [default]
@@ -32,17 +34,26 @@ host, or organization slug is a literal in this file.
 
 ## What to ingest
 
-Use the Distillery `gh-sync` tool to ingest this repository's knowledge into
-the store so later `sdd-*` agents can retrieve it. Ingest:
+This workflow keeps the Distillery knowledge store current for this repository
+through two distinct mechanisms, because the store holds two distinct kinds of
+content. Later `sdd-*` agents retrieve both.
 
-1. **Specs.** Every file under `docs/specs/`.
-2. **Decisions.** Every file under `decisions/` (the numbered ADRs).
-3. **Issues and pull requests.** This repository's issues and pull requests,
-   open and closed.
+1. **Issues and pull requests.** The Distillery `gh-sync` tool. `gh-sync`
+   takes a repository, not a file path: it fetches that repository's issues
+   and pull requests, open and closed, and stores them as `github` entries.
+   `gh-sync` ingests issues and pull requests only; it does not read, take, or
+   ingest spec or ADR files.
+2. **Specs and ADRs.** Stored as Distillery knowledge entries, one per file,
+   the way the `distill` skill stores knowledge: a `find_similar` duplicate
+   check followed by `store` (or `update` when the check resolves to a merge).
+   The spec files under `docs/specs/` and the numbered ADR files under
+   `decisions/` are read from the checked-out working tree.
 
-`gh-sync` is incremental: it indexes new and changed content and leaves
-unchanged content alone. The run is read-only with respect to GitHub; it adds
-no comment, opens no issue, and opens no pull request.
+The run is read-only with respect to GitHub: it adds no comment, opens no
+issue, and opens no pull request. `gh-sync` is incremental on the GitHub side,
+indexing new and changed issues and pull requests and leaving unchanged
+content alone. The spec and ADR pass is made incremental by the `find_similar`
+duplicate check described in the procedure below.
 
 ## Project scoping
 
@@ -53,21 +64,45 @@ project. It never ingests, reads, or writes another project's content.
 
 ## Procedure
 
-1. Determine the repository from the workflow context.
-2. Call `gh-sync` for the `docs/specs/` path, the `decisions/` path, and this
-   repository's issues and pull requests, scoped to this repository's project.
-3. Log a short summary: how many spec files, decision files, issues, and pull
-   requests were ingested or refreshed.
-4. If `gh-sync` cannot reach the store, log the failure and exit. Do not
-   retry in a loop and do not open an issue: a missed daily sync is recovered
-   by the next scheduled run.
+1. Determine the repository from the workflow context. Resolve the project
+   slug from `vars.DISTILLERY_PROJECT`; every entry is filed under it.
+2. **Sync issues and pull requests.** Call `gh-sync` with this repository
+   (`owner/repo`, derived from the workflow context, not a file path) and the
+   resolved project. `gh-sync` fetches the repository's issues and pull
+   requests and stores them as `github` entries.
+3. **Store specs and ADRs as entries.** Enumerate the spec files under
+   `docs/specs/` and the ADR files under `decisions/` in the checked-out
+   working tree. For each file, read its contents and:
+   - Call `find_similar` with the file contents and `dedup_action` enabled to
+     get a resolved `action`.
+   - Apply the resolved `action`. The workflow runs unattended in CI: it
+     cannot show a preview or prompt a human, so it acts on the `action` the
+     server returns rather than asking.
+     - `create`: call `store` with the file contents, the resolved
+       `DISTILLERY_PROJECT`, an `entry_type` appropriate to a structured
+       document, and hierarchical tags (`project/<slug>/specs` for a file
+       under `docs/specs/`, `project/<slug>/decisions` for an ADR under
+       `decisions/`, where `<slug>` is this repository's name).
+     - `skip`: the entry already exists unchanged; leave it and move on.
+     - `merge`: call `update` on the most similar existing entry with the
+       file contents.
+     - `link`: call `store` as for `create`, additionally passing the related
+       entry identifiers as `related_entries`.
+4. Log a short summary: how many issues and pull requests `gh-sync` ingested
+   or refreshed, and how many spec and ADR files were created, updated,
+   skipped, or linked.
+5. If the Distillery store cannot be reached on either mechanism, log the
+   failure and exit. Do not retry in a loop and do not open an issue: a missed
+   daily sync is recovered by the next scheduled run.
 
 ## Verification
 
 - `gh aw compile` compiles this workflow with the Distillery MCP server
   declared and reports zero errors.
-- A manual `workflow_dispatch` run logs a non-zero count of ingested specs,
-  decisions, issues, or pull requests.
+- A manual `workflow_dispatch` run logs both mechanisms: a non-zero count of
+  issues and pull requests ingested by `gh-sync`, and a non-zero count of spec
+  and ADR files created, updated, skipped, or linked by the `find_similar` and
+  `store` pass.
 - A follow-up `distillery.search` from an `sdd-*` agent, scoped to this
-  repository's project, returns a non-empty result for content this sync
-  ingested.
+  repository's project, returns a non-empty result for both an issue or pull
+  request and a spec or ADR this sync ingested.

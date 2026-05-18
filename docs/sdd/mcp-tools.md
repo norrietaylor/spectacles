@@ -25,15 +25,20 @@ each new spec is informed by prior work.
   issued by the Distillery operator, not a GitHub OAuth token — agentic
   workflows run unattended and cannot complete a browser OAuth flow. See the
   install guide's "The Distillery machine token" section.
-- **Tools.** `search`, `find_similar`, `relations`, `recall`.
+- **Tools.** `sdd-*` agents are read-only consumers and call `search`,
+  `find_similar`, `relations`, `recall`. The `distillery-sync` workflow is the
+  only writer and additionally calls `gh-sync`, `store`, and `update`.
 - **Project scoping.** Every query an `sdd-*` agent issues is scoped to this
   repository's own ingested content via the `project` filter. The store may be
   shared and may hold unrelated knowledge; scoping is the guarantee that
   retrieval cannot surface unrelated or private content into a public spec,
   issue, or pull request.
 - **Keeping the store current.** The `distillery-sync` workflow runs daily and
-  ingests this repository's `docs/specs/`, `decisions/`, and issues and pull
-  requests via the Distillery `gh-sync` tool.
+  keeps the store current through two mechanisms. Issues and pull requests are
+  ingested via the Distillery `gh-sync` tool, which takes this repository and
+  stores its issues and pull requests as `github` entries. Specs under
+  `docs/specs/` and ADRs under `decisions/` are stored as Distillery knowledge
+  entries, one per file, via `store` after a `find_similar` duplicate check.
 
 ## Serena: code intelligence
 
