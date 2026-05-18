@@ -77,7 +77,7 @@ Set with `gh secret set <NAME> --repo <owner>/<name>`.
 |---|---|
 | `COPILOT_GITHUB_TOKEN` | The token for the Copilot engine that runs the agents. |
 | `GH_AW_GITHUB_TOKEN` | The GitHub App installation token that is the agents' write identity. The agents open PRs, create issues, and apply labels through it. |
-| `DISTILLERY_OAUTH_TOKEN` | The OAuth bearer token authenticating the Distillery HTTP transport. |
+| `DISTILLERY_OAUTH_TOKEN` | The Distillery machine token — a pre-shared static bearer credential the workflows present to the Distillery MCP endpoint. Operator-issued; see "The Distillery machine token" below. Despite the secret name, it is **not** a GitHub OAuth token. |
 | `LEAK_DENYLIST` | The leak-scan denylist, one term per line. Supplied as a secret so the private terms are never themselves committed to the public tree. Comment lines begin with `#`. |
 
 ### The GitHub App identity
@@ -95,6 +95,37 @@ token and not a hardcoded bot. Provision it once:
 
 The App identity is the only write identity the suite uses, and it is scoped
 to the repository it is installed on. `sdd-execute` opens same-repo PRs only.
+
+### The Distillery machine token
+
+`DISTILLERY_OAUTH_TOKEN` carries the credential the workflows present to the
+Distillery MCP endpoint. The secret name is historical — the value is a
+**pre-shared machine token**, not a GitHub OAuth token. Distillery's MCP
+endpoint normally authenticates through an interactive browser OAuth flow;
+agentic workflows run unattended and cannot complete it, so Distillery accepts
+a static machine token as the credential for them.
+
+The token is **operator-issued** — the operator who runs the Distillery
+deployment generates it, configures it on the Distillery service, and
+distributes it. The two roles:
+
+- **Operator.** Generate a high-entropy token, set it as Distillery's
+  `DISTILLERY_MCP_MACHINE_TOKEN`, and hand the same value to each consumer
+  repository.
+- **Consumer.** You do not mint this token. Obtain it from your Distillery
+  operator and set it as the `DISTILLERY_OAUTH_TOKEN` secret.
+
+Set it once as an **organization** secret, scoped to the repositories that
+install the suite, rather than per repository: there is a single machine
+token, so an org-level secret is one grant for every consumer and one place to
+rotate.
+
+One shared token means one shared identity and one shared blast radius. A leak
+from any consumer repository exposes the token for all of them, and
+per-consumer revocation is not possible — rotation replaces the token
+everywhere at once. Keep access to the secret minimal. Isolation between
+repositories' knowledge is enforced by `DISTILLERY_PROJECT` scoping, not by
+the token.
 
 ## Existing-codebase checklist
 

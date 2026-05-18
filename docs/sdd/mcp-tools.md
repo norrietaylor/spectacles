@@ -7,7 +7,7 @@ supplied at install, never a literal in a source file.
 
 | Server | Role | Transport | Fragment |
 |---|---|---|---|
-| Distillery | Retrieval and memory | HTTP, OAuth | `shared/sdd-mcp-distillery.md` |
+| Distillery | Retrieval and memory | HTTP, machine token | `shared/sdd-mcp-distillery.md` |
 | Serena | Code intelligence | Working-tree container | `shared/sdd-mcp-serena.md` |
 
 ## Distillery: retrieval and memory
@@ -16,12 +16,15 @@ Distillery is a semantic knowledge store. It indexes this repository's specs,
 decisions, issues, and pull requests, and answers semantic queries over them so
 each new spec is informed by prior work.
 
-- **Transport.** HTTP, authenticated via OAuth.
+- **Transport.** HTTP, authenticated with a pre-shared machine token.
 - **Configuration.** The endpoint is the variable `DISTILLERY_MCP_URL`, the
-  OAuth credential is the secret `DISTILLERY_OAUTH_TOKEN`, and the project slug
+  machine token is the secret `DISTILLERY_OAUTH_TOKEN`, and the project slug
   for this repository is the variable `DISTILLERY_PROJECT`. All three are
   repository or organization variables and secrets; none is a literal in any
-  fragment or workflow.
+  fragment or workflow. `DISTILLERY_OAUTH_TOKEN` is a static bearer credential
+  issued by the Distillery operator, not a GitHub OAuth token — agentic
+  workflows run unattended and cannot complete a browser OAuth flow. See the
+  install guide's "The Distillery machine token" section.
 - **Tools.** `search`, `find_similar`, `relations`, `recall`.
 - **Project scoping.** Every query an `sdd-*` agent issues is scoped to this
   repository's own ingested content via the `project` filter. The store may be
@@ -63,7 +66,7 @@ repository or organization variables and secrets.
 | Name | Kind | Purpose |
 |---|---|---|
 | `DISTILLERY_MCP_URL` | variable | Distillery HTTP MCP endpoint |
-| `DISTILLERY_OAUTH_TOKEN` | secret | Distillery OAuth bearer token |
+| `DISTILLERY_OAUTH_TOKEN` | secret | Distillery machine token — pre-shared, operator-issued (not a GitHub OAuth token) |
 | `DISTILLERY_PROJECT` | variable | Project slug scoping queries to this repository |
 
 Serena needs no secret: it runs locally against the checked-out working tree.
