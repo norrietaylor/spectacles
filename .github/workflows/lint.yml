@@ -51,7 +51,12 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh aw compile --no-check-update
-          if ! git diff --exit-code -- '.github/workflows/*.lock.yml'; then
-            echo "::error::Workflow locks are out of date. Run 'gh aw compile' and commit the result."
+          # git status --porcelain reports both modified tracked locks and
+          # untracked new ones (??), so a freshly generated but uncommitted
+          # .lock.yml is caught — git diff alone would miss an untracked file.
+          drift=$(git status --porcelain -- '.github/workflows' | grep '\.lock\.yml' || true)
+          if [ -n "$drift" ]; then
+            echo "::error::Workflow locks are out of date or uncommitted. Run 'gh aw compile' and commit the result."
+            echo "$drift"
             exit 1
           fi
