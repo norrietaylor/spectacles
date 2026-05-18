@@ -22,12 +22,14 @@ each new spec is informed by prior work.
   for this repository is the variable `DISTILLERY_PROJECT`. All three are
   repository or organization variables and secrets; none is a literal in any
   fragment or workflow. `DISTILLERY_OAUTH_TOKEN` is a static bearer credential
-  issued by the Distillery operator, not a GitHub OAuth token — agentic
+  issued by the Distillery operator, not a GitHub OAuth token. Agentic
   workflows run unattended and cannot complete a browser OAuth flow. See the
   install guide's "The Distillery machine token" section.
-- **Tools.** `sdd-*` agents are read-only consumers and call `search`,
-  `find_similar`, `relations`, `recall`. The `distillery-sync` workflow is the
-  only writer and additionally calls `gh-sync`, `store`, and `update`.
+- **Tools.** `sdd-*` agents are read-only consumers and call
+  `distillery_search`, `distillery_find_similar`, `distillery_relations`,
+  `distillery_get`. The `distillery-sync` workflow is the only writer and
+  additionally calls `distillery_gh_sync`, `distillery_store`, and
+  `distillery_update`.
 - **Project scoping.** Every query an `sdd-*` agent issues is scoped to this
   repository's own ingested content via the `project` filter. The store may be
   shared and may hold unrelated knowledge; scoping is the guarantee that
@@ -35,10 +37,11 @@ each new spec is informed by prior work.
   issue, or pull request.
 - **Keeping the store current.** The `distillery-sync` workflow runs daily and
   keeps the store current through two mechanisms. Issues and pull requests are
-  ingested via the Distillery `gh-sync` tool, which takes this repository and
-  stores its issues and pull requests as `github` entries. Specs under
-  `docs/specs/` and ADRs under `decisions/` are stored as Distillery knowledge
-  entries, one per file, via `store` after a `find_similar` duplicate check.
+  ingested via the Distillery `distillery_gh_sync` tool, which takes this
+  repository and stores its issues and pull requests as `github` entries.
+  Specs under `docs/specs/` and ADRs under `decisions/` are stored as
+  Distillery knowledge entries, one per file, via `distillery_store` after a
+  `distillery_find_similar` duplicate check.
 
 ## Serena: code intelligence
 
@@ -71,7 +74,7 @@ repository or organization variables and secrets.
 | Name | Kind | Purpose |
 |---|---|---|
 | `DISTILLERY_MCP_URL` | variable | Distillery HTTP MCP endpoint |
-| `DISTILLERY_OAUTH_TOKEN` | secret | Distillery machine token — pre-shared, operator-issued (not a GitHub OAuth token) |
+| `DISTILLERY_OAUTH_TOKEN` | secret | Distillery machine token, pre-shared and operator-issued (not a GitHub OAuth token) |
 | `DISTILLERY_PROJECT` | variable | Project slug scoping queries to this repository |
 
 Serena needs no secret: it runs locally against the checked-out working tree.
@@ -90,7 +93,7 @@ gh workflow run mcp-smoke.lock.yml --repo <owner>/<repo>
 
 A successful run logs, in its run output:
 
-- A non-empty `distillery.search` result, scoped to this repository's project.
+- A non-empty `distillery_search` result, scoped to this repository's project.
 - A Serena result: a non-empty symbol or structure query, or, when no language
   server is available for the stack, an explicit graceful-degradation note.
 

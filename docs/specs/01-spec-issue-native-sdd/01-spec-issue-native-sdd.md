@@ -69,7 +69,7 @@ Two MCP servers were investigated and are adopted as complementary
 infrastructure, not alternatives:
 
 - **Distillery**, a semantic knowledge-store MCP server. It is the retrieval
-  and memory layer of feature 1. Its `gh-sync` capability ingests a
+  and memory layer of feature 1. Its `distillery_gh_sync` capability ingests a
   repository's issues and pull requests; specs and ADRs are stored as
   knowledge entries directly.
 - **Serena** (`oraios/serena`), an LSP-backed symbol-level code retrieval and
@@ -330,19 +330,20 @@ Demoable: a smoke run resolves both servers and returns a result from each.
 
 - **R3.1**: `shared/sdd-mcp-distillery.md` shall be an importable fragment that
   declares the Distillery MCP server over HTTP transport, authenticated via
-  OAuth, and documents the tools SDD agents may call (`search`, `find_similar`,
-  `relations`, `recall`). The endpoint and OAuth credentials shall be read
-  from repo or org variables and secrets; no endpoint or org slug is a literal.
+  OAuth, and documents the tools SDD agents may call (`distillery_search`,
+  `distillery_find_similar`, `distillery_relations`, `distillery_get`). The
+  endpoint and OAuth credentials shall be read from repo or org variables and
+  secrets; no endpoint or org slug is a literal.
 - **R3.2**: Distillery queries from `sdd-*` agents shall be scoped (via the
   `project` filter) to this repository's own ingested content, so retrieval
   cannot surface unrelated or private knowledge from a shared store into
   public specs, issues, or PRs.
 - **R3.3**: `workflows/distillery-sync.md` shall be a scheduled agentic
   workflow that keeps the store current through two mechanisms: this repo's
-  issues and PRs ingested via the Distillery `gh-sync` tool (which takes a
-  repository, not a file path), and the specs under `docs/specs/` and ADRs
-  under `decisions/` stored as Distillery knowledge entries via `store` after
-  a `find_similar` dedup check. Daily cron.
+  issues and PRs ingested via the Distillery `distillery_gh_sync` tool (which
+  takes a repository, not a file path), and the specs under `docs/specs/` and
+  ADRs under `decisions/` stored as Distillery knowledge entries via
+  `distillery_store` after a `distillery_find_similar` dedup check. Daily cron.
 - **R3.4**: `shared/sdd-mcp-serena.md` shall be an importable fragment that
   declares the Serena MCP server (`oraios/serena`) over the checked-out
   working tree and documents the symbol-level retrieval and editing tools
@@ -361,7 +362,7 @@ Demoable: a smoke run resolves both servers and returns a result from each.
 - File: `shared/sdd-mcp-distillery.md` and `shared/sdd-mcp-serena.md` exist and
   pass the `leak-scan` check.
 - CLI: `gh aw compile` succeeds with both MCP server declarations present.
-- Test: the smoke dispatch logs a non-empty `distillery.search` result
+- Test: the smoke dispatch logs a non-empty `distillery_search` result
   (scoped to this repo's project) and a non-empty Serena symbol-query result.
 
 ### Unit 4: `sdd-spec` agent
@@ -384,9 +385,10 @@ get a spec PR.
 - **R4.2**: Before authoring, the agent shall perform a context assessment of
   the target repo using Serena: map the modules, conventions, and code areas
   the feature touches, so the spec reflects the real codebase.
-- **R4.3**: The agent shall query Distillery (`search`, `find_similar`, scoped
-  per R3.2) for prior specs, ADRs, and issues, and cite load-bearing matches
-  inline as `(informed by #N)` or `(informed by ADR-0001)`.
+- **R4.3**: The agent shall query Distillery (`distillery_search`,
+  `distillery_find_similar`, scoped per R3.2) for prior specs, ADRs, and
+  issues, and cite load-bearing matches inline as `(informed by #N)` or
+  `(informed by ADR-0001)`.
 - **R4.4**: The agent shall produce a spec file at
   `docs/specs/NN-spec-<slug>/NN-spec-<slug>.md` following the section
   structure of this spec, and open it as a `create-pull-request` (max 1,
@@ -439,8 +441,9 @@ spec, get an architecture PR; merge that, get task sub-issues.
   `repo-conventions.md`.
 - **R5.2**: **Phase A, architecture.** On `sdd:triage` (or `/triage`): the
   agent shall map the affected code with Serena, query Distillery
-  (`find_similar`, `relations`, scoped per R3.2) for prior architecture
-  records and ADRs, and **always** produce a per-feature architecture record
+  (`distillery_find_similar`, `distillery_relations`, scoped per R3.2) for
+  prior architecture records and ADRs, and **always** produce a per-feature
+  architecture record
   at `docs/specs/NN-spec-<slug>/architecture.md` capturing the chosen
   approach, rationale, data and interface changes, and alternatives
   considered. It opens this as a `create-pull-request` titled
@@ -814,8 +817,9 @@ the commands above for Units 2 to 10.
   agent's own opinion.
 - MCP tooling. Distillery attaches over HTTP transport authenticated via OAuth
   for retrieval and memory; `distillery-sync` keeps its store current through
-  two mechanisms, `gh-sync` for issues and pull requests and direct `store`
-  for specs and ADRs. Because the store may be shared and may hold unrelated
+  two mechanisms, `distillery_gh_sync` for issues and pull requests and direct
+  `distillery_store` for specs and ADRs. Because the store may be shared and
+  may hold unrelated
   private
   content, every `sdd-*` Distillery query is scoped to this repo's own project
   so retrieval cannot surface private knowledge into public artifacts. Serena
