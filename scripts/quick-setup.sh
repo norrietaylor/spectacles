@@ -9,8 +9,10 @@
 # Nothing in this script is org-specific. The GitHub App identity, the
 # Distillery HTTP endpoint and OAuth credentials, and the Serena language-server
 # set are configuration, resolved at install time from operator-supplied
-# values; see docs/sdd/install.md. This script provisions placeholders and
-# detects the target stack, but writes no private literal of its own.
+# values; see docs/sdd/install.md. This script writes no private literal of
+# its own: the Distillery endpoint and token are read from the operator's
+# environment (DISTILLERY_MCP_URL, DISTILLERY_OAUTH_TOKEN) and provisioned
+# onto the target repo; DISTILLERY_PROJECT is derived from the repo name.
 set -euo pipefail
 
 usage() {
@@ -25,6 +27,16 @@ Options:
                  labels are synced.
   --dry-run      Print planned actions without applying them.
   -h, --help     Show this help.
+
+With --suite sdd the installer also provisions the target repo's Distillery
+configuration. DISTILLERY_PROJECT is set to the repo name. DISTILLERY_MCP_URL
+and the DISTILLERY_OAUTH_TOKEN secret are read from the environment of this
+script when set:
+
+  DISTILLERY_MCP_URL=https://host/mcp DISTILLERY_OAUTH_TOKEN=<token> \
+    quick-setup.sh --target-repo <owner>/<name> --suite sdd
+
+Either one absent is not an error — the installer reports what to set by hand.
 USAGE
 }
 
@@ -254,16 +266,54 @@ detect_serena_language_server() {
   fi
 }
 
-# Provision the configuration the suite resolves at install time. The GitHub
-# App identity, the Distillery endpoint and OAuth credentials, and the
-# leak-scan denylist are operator-supplied; this records the names the suite
-# expects so an operator fills them in. No value is hardcoded. See
-# docs/sdd/install.md for the full table.
+# Provision the target repo's Distillery configuration. DISTILLERY_PROJECT is
+# always the target repository's name. DISTILLERY_MCP_URL and the
+# DISTILLERY_OAUTH_TOKEN secret are operator-supplied: they are read from this
+# script's own environment so the token never appears in argv. When either is
+# absent the install does not fail — it reports what to set by hand, matching
+# the graceful-degradation style of the Serena step.
+provision_distillery_config() {
+  local project="${target_repo##*/}"
+  if [ "$dry_run" -eq 1 ]; then
+    echo "quick-setup: would set variable DISTILLERY_PROJECT=$project"
+  else
+    gh variable set DISTILLERY_PROJECT --repo "$target_repo" --body "$project"
+    echo "quick-setup: set variable DISTILLERY_PROJECT=$project"
+  fi
+
+  if [ -n "${DISTILLERY_MCP_URL:-}" ]; then
+    if [ "$dry_run" -eq 1 ]; then
+      echo "quick-setup: would set variable DISTILLERY_MCP_URL (from environment)"
+    else
+      gh variable set DISTILLERY_MCP_URL --repo "$target_repo" --body "$DISTILLERY_MCP_URL"
+      echo "quick-setup: set variable DISTILLERY_MCP_URL"
+    fi
+  else
+    echo "quick-setup: DISTILLERY_MCP_URL not in environment — set it by hand:"
+    echo "             gh variable set DISTILLERY_MCP_URL --repo $target_repo --body <url>"
+  fi
+
+  if [ -n "${DISTILLERY_OAUTH_TOKEN:-}" ]; then
+    if [ "$dry_run" -eq 1 ]; then
+      echo "quick-setup: would set secret DISTILLERY_OAUTH_TOKEN (from environment)"
+    else
+      printf '%s' "$DISTILLERY_OAUTH_TOKEN" \
+        | gh secret set DISTILLERY_OAUTH_TOKEN --repo "$target_repo"
+      echo "quick-setup: set secret DISTILLERY_OAUTH_TOKEN"
+    fi
+  else
+    echo "quick-setup: DISTILLERY_OAUTH_TOKEN not in environment — set it by hand:"
+    echo "             gh secret set DISTILLERY_OAUTH_TOKEN --repo $target_repo"
+  fi
+}
+
+# Report the remaining configuration the operator must supply by hand. The
+# Distillery values are provisioned by provision_distillery_config above; the
+# GitHub App identity, the Copilot engine token, and the leak-scan denylist
+# stay operator-supplied. See docs/sdd/install.md for the full table.
 report_configuration() {
   echo "quick-setup: configuration the operator must supply on $target_repo:"
   echo "  variables (gh variable set <NAME> --repo $target_repo):"
-  echo "    DISTILLERY_MCP_URL       Distillery HTTP MCP endpoint"
-  echo "    DISTILLERY_PROJECT       Distillery project slug for this repo"
   echo "    SERENA_LANGUAGE_SERVERS  Serena language server set (auto-detected"
   echo "                             above when the stack is recognised)"
   echo "  secrets (gh secret set <NAME> --repo $target_repo):"
@@ -271,7 +321,6 @@ report_configuration() {
   echo "    GH_AW_GITHUB_TOKEN       GitHub App installation token (agent"
   echo "                             write identity; App ID and private key"
   echo "                             configured per docs/sdd/install.md)"
-  echo "    DISTILLERY_OAUTH_TOKEN   Distillery OAuth bearer token"
   echo "    LEAK_DENYLIST            leak-scan denylist, one term per line"
 }
 
@@ -286,6 +335,7 @@ if [ "$suite" = "sdd" ]; then
   install_sdd_workflows
   install_issue_templates
   detect_serena_language_server
+  provision_distillery_config
   report_configuration
   echo "quick-setup: --suite sdd install complete."
   echo "quick-setup: next, supply the configuration listed above, then run"

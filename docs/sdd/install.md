@@ -26,12 +26,18 @@ values the operator supplies.
 
 Run the installer from a spectacles checkout. Always do a dry run first.
 
+Pass the Distillery endpoint and machine token in the installer's environment.
+`quick-setup.sh` provisions them onto the target repo and reads them from the
+environment, so the token never appears on a command line.
+
 ```sh
 # Preview every planned write without applying anything.
 bash scripts/quick-setup.sh --target-repo <owner>/<name> --suite sdd --dry-run
 
 # Apply the install.
-bash scripts/quick-setup.sh --target-repo <owner>/<name> --suite sdd
+DISTILLERY_MCP_URL=https://<distillery-host>/mcp \
+DISTILLERY_OAUTH_TOKEN=<machine-token> \
+  bash scripts/quick-setup.sh --target-repo <owner>/<name> --suite sdd
 ```
 
 `--suite sdd` installs, onto the target repository:
@@ -52,12 +58,19 @@ language and, when a Serena language server is known for it, sets the
 that no language server was provisioned and the agents degrade gracefully to
 text-level reading (see `shared/sdd-mcp-serena.md`).
 
+The installer also provisions the target repo's Distillery configuration:
+`DISTILLERY_PROJECT` is set to the repository name, and `DISTILLERY_MCP_URL`
+and the `DISTILLERY_OAUTH_TOKEN` secret are set from the installer's
+environment when present. A value absent from the environment is reported for
+a manual set; the install does not fail.
+
 ## Required configuration
 
-The installer provisions workflow files and labels, but the operator must
-supply the configuration values. None of these is hardcoded in any `sdd-*`
-source; they are read at run time from repository (or organization) variables
-and secrets.
+The installer provisions the workflow files, the labels, and — from its own
+environment — the Distillery configuration (see above). The operator still
+supplies the GitHub App identity, the Copilot engine token, and the leak-scan
+denylist. None of these is hardcoded in any `sdd-*` source; they are read at
+run time from repository (or organization) variables and secrets.
 
 ### Variables
 
@@ -65,8 +78,8 @@ Set with `gh variable set <NAME> --repo <owner>/<name> --body <value>`.
 
 | Variable | Purpose |
 |---|---|
-| `DISTILLERY_MCP_URL` | The Distillery HTTP MCP endpoint the agents query for retrieval and memory. |
-| `DISTILLERY_PROJECT` | The Distillery project slug for this repository. All queries are scoped to it so a shared store cannot surface unrelated content. |
+| `DISTILLERY_MCP_URL` | The Distillery HTTP MCP endpoint the agents query for retrieval and memory. The installer sets it from `DISTILLERY_MCP_URL` in its environment. |
+| `DISTILLERY_PROJECT` | The Distillery project slug for this repository. All queries are scoped to it so a shared store cannot surface unrelated content. The installer sets it to the target repository's name. |
 | `SERENA_LANGUAGE_SERVERS` | The Serena language server set for this repository's stack. The installer auto-detects and sets this when the stack is recognised; set it by hand otherwise, or leave it unset to run Serena in text-level fallback. |
 
 ### Secrets
@@ -77,7 +90,7 @@ Set with `gh secret set <NAME> --repo <owner>/<name>`.
 |---|---|
 | `COPILOT_GITHUB_TOKEN` | The token for the Copilot engine that runs the agents. |
 | `GH_AW_GITHUB_TOKEN` | The GitHub App installation token that is the agents' write identity. The agents open PRs, create issues, and apply labels through it. |
-| `DISTILLERY_OAUTH_TOKEN` | The Distillery machine token — a pre-shared static bearer credential the workflows present to the Distillery MCP endpoint. Operator-issued; see "The Distillery machine token" below. Despite the secret name, it is **not** a GitHub OAuth token. |
+| `DISTILLERY_OAUTH_TOKEN` | The Distillery machine token — a pre-shared static bearer credential the workflows present to the Distillery MCP endpoint. Operator-issued; the installer sets it from `DISTILLERY_OAUTH_TOKEN` in its environment. See "The Distillery machine token" below. Despite the secret name, it is **not** a GitHub OAuth token. |
 | `LEAK_DENYLIST` | The leak-scan denylist, one term per line. Supplied as a secret so the private terms are never themselves committed to the public tree. Comment lines begin with `#`. |
 
 ### The GitHub App identity
@@ -105,20 +118,14 @@ endpoint normally authenticates through an interactive browser OAuth flow;
 agentic workflows run unattended and cannot complete it, so Distillery accepts
 a static machine token as the credential for them.
 
-The token is **operator-issued** — the operator who runs the Distillery
-deployment generates it, configures it on the Distillery service, and
-distributes it. The two roles:
-
-- **Operator.** Generate a high-entropy token, set it as Distillery's
-  `DISTILLERY_MCP_MACHINE_TOKEN`, and hand the same value to each consumer
-  repository.
-- **Consumer.** You do not mint this token. Obtain it from your Distillery
-  operator and set it as the `DISTILLERY_OAUTH_TOKEN` secret.
-
-Set it once as an **organization** secret, scoped to the repositories that
-install the suite, rather than per repository: there is a single machine
-token, so an org-level secret is one grant for every consumer and one place to
-rotate.
+The token is **operator-issued**. The operator who runs the Distillery
+deployment generates a high-entropy token and sets it as Distillery's
+`DISTILLERY_MCP_MACHINE_TOKEN`. To install the suite onto a consumer
+repository, that operator runs `quick-setup.sh` with the same value in the
+environment as `DISTILLERY_OAUTH_TOKEN` (see "Install command"); the installer
+provisions it as the repo's `DISTILLERY_OAUTH_TOKEN` secret. Provisioning per
+repo, as the installer runs, scopes the token to exactly the repositories that
+install the suite.
 
 One shared token means one shared identity and one shared blast radius. A leak
 from any consumer repository exposes the token for all of them, and
