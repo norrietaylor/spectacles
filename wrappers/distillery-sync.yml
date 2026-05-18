@@ -30,7 +30,11 @@ jobs:
   distillery-sync:
     uses: norrietaylor/spectacles/.github/workflows/distillery-sync.lock.yml@main
     secrets: inherit
+    # Ceiling for the called reusable workflow. Must cover the union of every
+    # nested job's permissions: the gh-aw conclusion and safe_outputs jobs
+    # need issues: write, and activation needs actions: read.
     permissions:
+      actions: read
       contents: read
-      issues: read
+      issues: write
       pull-requests: read

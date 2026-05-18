@@ -190,7 +190,12 @@ jobs:
     with:
       aw_context: ${{ needs.route.outputs.aw_context }}
     secrets: inherit
+    # Ceiling for the called reusable workflow. Must cover the union of every
+    # nested job's permissions: the gh-aw conclusion and safe_outputs jobs
+    # need write scopes, and activation needs actions: read.
     permissions:
-      contents: read
+      actions: read
+      contents: write
+      discussions: write
       issues: write
       pull-requests: write
