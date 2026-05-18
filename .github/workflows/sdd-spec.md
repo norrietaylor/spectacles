@@ -189,7 +189,11 @@ is `spec(<slug>): <issue title>`; the `spec` title prefix is applied
 automatically, so write the title as `(<slug>): <issue title>` with no leading
 space. The branch follows the `spec/<slug>` convention from the imported
 repository-conventions fragment. The pull request body summarizes the spec,
-links the tracking issue, and lists the demoable units.
+references the tracking issue, and lists the demoable units. Reference the
+tracking issue with a bare `#<number>` or `Refs #<number>` — never a closing
+keyword (`Closes`, `Fixes`, `Resolves`). The tracking issue is the lifecycle
+anchor and must stay open until every task is done; a closing keyword would
+auto-close it the moment this spec pull request merges.
 
 For a `/revise` trigger, update the existing spec pull request on its existing
 branch rather than opening a new one. Apply only the change the `/revise` note

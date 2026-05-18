@@ -179,8 +179,12 @@ request is not a draft. Its title is `arch(<slug>): <issue title>`; the `arch`
 title prefix is applied automatically, so write the title as
 `(<slug>): <issue title>` with no leading space. The branch follows the
 `arch/<slug>` convention from the imported repository-conventions fragment.
-The pull request body summarizes the chosen approach, links the tracking
-issue, and notes whether an ADR was promoted. Then stop: phase A ends here.
+The pull request body summarizes the chosen approach, references the tracking
+issue, and notes whether an ADR was promoted. Reference the tracking issue
+with a bare `#<number>` or `Refs #<number>` — never a closing keyword
+(`Closes`, `Fixes`, `Resolves`). The tracking issue is the lifecycle anchor
+and must stay open until every task is done; a closing keyword would
+auto-close it the moment this architecture pull request merges. Then stop: phase A ends here.
 Phase B runs only when this pull request is merged.
 
 For a `/revise` trigger on an architecture pull request, update the existing
