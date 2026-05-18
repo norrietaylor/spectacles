@@ -85,7 +85,11 @@ jobs:
     uses: norrietaylor/spectacles/.github/workflows/sdd-review.lock.yml@main
     with:
       aw_context: ${{ needs.route.outputs.aw_context }}
-    secrets: inherit
+    # Mapped explicitly, not `secrets: inherit`: inherit does not pass secrets
+    # to a reusable workflow in a different owner than the caller.
+    secrets:
+      APP_PRIVATE_KEY: ${{ secrets.APP_PRIVATE_KEY }}
+      COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
     # Ceiling for the called reusable workflow. Must cover the union of every
     # nested job's permissions: the gh-aw conclusion and safe_outputs jobs
     # need issues and pull-requests write, and activation needs actions: read.
