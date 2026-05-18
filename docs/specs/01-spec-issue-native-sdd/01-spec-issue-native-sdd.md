@@ -68,9 +68,10 @@ issue and PR comments, with the `needs-human` label as the escalation lever.
 Two MCP servers were investigated and are adopted as complementary
 infrastructure, not alternatives:
 
-- **Distillery**, a semantic knowledge-store MCP server with a `gh-sync`
-  capability for ingesting issues and PRs. It is the retrieval and memory
-  layer of feature 1.
+- **Distillery**, a semantic knowledge-store MCP server. It is the retrieval
+  and memory layer of feature 1. Its `gh-sync` capability ingests a
+  repository's issues and pull requests; specs and ADRs are stored as
+  knowledge entries directly.
 - **Serena** (`oraios/serena`), an LSP-backed symbol-level code retrieval and
   editing MCP server. It is the code-intelligence layer: it lets an agent
   understand and edit an existing codebase by symbols and relations without
@@ -337,9 +338,11 @@ Demoable: a smoke run resolves both servers and returns a result from each.
   cannot surface unrelated or private knowledge from a shared store into
   public specs, issues, or PRs.
 - **R3.3**: `workflows/distillery-sync.md` shall be a scheduled agentic
-  workflow that keeps the store current by ingesting this repo's
-  `docs/specs/`, `decisions/`, and issues and PRs via Distillery `gh-sync`.
-  Daily cron.
+  workflow that keeps the store current through two mechanisms: this repo's
+  issues and PRs ingested via the Distillery `gh-sync` tool (which takes a
+  repository, not a file path), and the specs under `docs/specs/` and ADRs
+  under `decisions/` stored as Distillery knowledge entries via `store` after
+  a `find_similar` dedup check. Daily cron.
 - **R3.4**: `shared/sdd-mcp-serena.md` shall be an importable fragment that
   declares the Serena MCP server (`oraios/serena`) over the checked-out
   working tree and documents the symbol-level retrieval and editing tools
@@ -810,8 +813,10 @@ the commands above for Units 2 to 10.
   `needs-human`, never as a required check, so a draft is never wedged on the
   agent's own opinion.
 - MCP tooling. Distillery attaches over HTTP transport authenticated via OAuth
-  for retrieval and memory; `distillery-sync` keeps its store current via
-  `gh-sync`. Because the store may be shared and may hold unrelated private
+  for retrieval and memory; `distillery-sync` keeps its store current through
+  two mechanisms, `gh-sync` for issues and pull requests and direct `store`
+  for specs and ADRs. Because the store may be shared and may hold unrelated
+  private
   content, every `sdd-*` Distillery query is scoped to this repo's own project
   so retrieval cannot surface private knowledge into public artifacts. Serena
   attaches over the checked-out working tree for symbol-level code retrieval
