@@ -104,9 +104,14 @@ Set with `gh secret set <NAME> --repo <owner>/<name>`.
 The agents write through a configurable GitHub App, not a personal access
 token and not a hardcoded bot. Provision it once:
 
-1. Create a GitHub App with `contents: read`, `issues: write`, and
-   `pull-requests: write` repository permissions.
-2. Install the App on the target repository.
+1. Create a GitHub App with these repository permissions: `contents: write`,
+   `discussions: write`, `issues: write`, and `pull-requests: write`. The
+   agents' `safe-outputs` mint an installation token scoped to exactly this
+   set; a narrower grant fails the mint with "the permissions requested are
+   not granted to this installation."
+2. Install the App on the target repository. When the App's permissions
+   change later, the installation must approve the update before the next run
+   can mint a token.
 3. Set the App's ID as the `APP_ID` variable and its private key (PEM) as the
    `APP_PRIVATE_KEY` secret. Repository or organization level both work; an
    organization variable and secret cover every consumer at once. The agent
