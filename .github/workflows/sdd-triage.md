@@ -180,11 +180,12 @@ title prefix is applied automatically, so write the title as
 `(<slug>): <issue title>` with no leading space. The branch follows the
 `arch/<slug>` convention from the imported repository-conventions fragment.
 The pull request body summarizes the chosen approach, references the tracking
-issue, and notes whether an ADR was promoted. Reference the tracking issue
-with a bare `#<number>` or `Refs #<number>` — never a closing keyword
-(`Closes`, `Fixes`, `Resolves`). The tracking issue is the lifecycle anchor
-and must stay open until every task is done; a closing keyword would
-auto-close it the moment this architecture pull request merges. Then stop: phase A ends here.
+issue, and notes whether an ADR was promoted. Reference the tracking issue —
+in the pull request body and in every commit message — with a bare
+`#<number>` or `Refs #<number>`, never a closing keyword (`Closes`, `Fixes`,
+`Resolves`). GitHub auto-closes an issue named by a closing keyword in a
+merged pull request's body or in a merged commit message; the tracking issue
+is the lifecycle anchor and must stay open until every task is done. Then stop: phase A ends here.
 Phase B runs only when this pull request is merged.
 
 For a `/revise` trigger on an architecture pull request, update the existing
