@@ -1,10 +1,19 @@
 #!/usr/bin/env bash
 # quick-setup.sh - install the spectacles agent contract onto a consumer repo.
 #
-# Unit 1 provided the skeleton: argument parsing and label sync. Unit 9 adds
-# the --suite sdd option, which installs the full SDD agent suite (the sdd-*
-# thin wrappers and their reusable workflows, the distillery-sync workflow, the
-# sdd:* and model:* labels, and the issue templates) onto a target repo.
+# Unit 1 provided the skeleton: argument parsing and label sync. Unit 9 added
+# the --suite sdd option. ADR 0004 changed the distribution model: a consumer
+# repository no longer carries the compiled .lock.yml workflows. Each agent is
+# a hosted reusable workflow in the spectacles repository, and the consumer
+# installs only the thin wrappers, which call those reusable workflows
+# cross-repo with
+# `uses: norrietaylor/spectacles/.github/workflows/<agent>.lock.yml@<ref>`.
+#
+# --suite sdd therefore installs, onto the target repo: the eight thin
+# wrappers (the seven sdd-* agents and distillery-sync), the sdd:* and model:*
+# labels, and the issue templates. No .lock.yml, no agent .md source, and no
+# .github/aw/imports tree is copied — the locks are self-contained (compiled
+# with inlined-imports) and hosted, not vendored.
 #
 # Nothing in this script is org-specific. The GitHub App identity, the
 # Distillery HTTP endpoint and OAuth credentials, and the Serena language-server
@@ -17,14 +26,17 @@ set -euo pipefail
 
 usage() {
   cat <<'USAGE'
-Usage: quick-setup.sh --target-repo <owner>/<name> [--suite sdd] [--dry-run]
+Usage: quick-setup.sh --target-repo <owner>/<name> [--suite sdd] [--ref <ref>] [--dry-run]
 
 Options:
   --target-repo  Repository to install into (required).
-  --suite sdd    Install the full SDD agent suite (wrappers, reusable
-                 workflows, distillery-sync, sdd:* and model:* labels, and
-                 the issue templates). Without this flag only the base
-                 labels are synced.
+  --suite sdd    Install the full SDD agent suite: the eight thin wrappers
+                 (the seven sdd-* agents and distillery-sync), the sdd:* and
+                 model:* labels, and the issue templates. Without this flag
+                 only the base labels are synced.
+  --ref <ref>    The spectacles ref the installed wrappers pin their hosted
+                 reusable workflows to. Default: main. Set this to a release
+                 tag to pin a consumer to an immutable suite version.
   --dry-run      Print planned actions without applying them.
   -h, --help     Show this help.
 
@@ -42,6 +54,7 @@ USAGE
 
 target_repo=""
 suite=""
+ref="main"
 dry_run=0
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -63,6 +76,14 @@ while [ $# -gt 0 ]; do
         echo "error: --suite only supports 'sdd'" >&2
         exit 2
       fi
+      shift 2
+      ;;
+    --ref)
+      if [ $# -lt 2 ]; then
+        echo "error: --ref needs a value" >&2
+        exit 2
+      fi
+      ref="$2"
       shift 2
       ;;
     --dry-run)
@@ -90,22 +111,24 @@ fi
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 labels_file="$repo_root/templates/.github/labels.yml"
 wrappers_dir="$repo_root/wrappers"
-workflows_dir="$repo_root/.github/workflows"
 templates_dir="$repo_root/templates/.github/ISSUE_TEMPLATE"
 
 echo "quick-setup: target repo: $target_repo"
 if [ -n "$suite" ]; then
   echo "quick-setup: suite: $suite"
+  echo "quick-setup: pinned ref: $ref"
 fi
 if [ "$dry_run" -eq 1 ]; then
   echo "quick-setup: dry-run; no changes will be applied."
 fi
 
-# The seven sdd-* agents. Each has a thin wrapper in wrappers/ and an adjacent
-# reusable workflow (sdd-<agent>.lock.yml) in .github/workflows/. sdd-execute
-# ships in three model-tier variants. See workflows/README.md for the
-# distribution model.
-sdd_agents=(
+# The eight thin wrappers the --suite sdd install places on a consumer repo.
+# Each is a hand-written GitHub Actions workflow that carries the real event
+# triggers and calls a hosted reusable workflow in the spectacles repository
+# (see ADR 0004 and workflows/README.md). The seven sdd-* agents are
+# event-driven; distillery-sync is scheduled. sdd-execute ships in three
+# model-tier variants.
+wrappers=(
   "sdd-spec"
   "sdd-triage"
   "sdd-execute-haiku"
@@ -113,12 +136,6 @@ sdd_agents=(
   "sdd-execute-opus"
   "sdd-validate"
   "sdd-review"
-)
-
-# distillery-sync is a scheduled gh-aw workflow, not a workflow_call reusable
-# workflow, so it has no thin wrapper: the installer copies its compiled lock
-# file directly.
-standalone_workflows=(
   "distillery-sync"
 )
 
@@ -182,23 +199,36 @@ install_file() {
   echo "quick-setup: wrote $dest"
 }
 
-# Install the sdd-* thin wrappers and their adjacent reusable workflows.
+# Install one thin wrapper onto the target repo. The wrappers in wrappers/ pin
+# their hosted reusable workflows to @main; this rewrites that ref to --ref
+# before the wrapper is written, so a consumer can be pinned to a release tag
+# without the wrapper sources carrying a per-consumer literal. When --ref is
+# its default (main) the rewrite is a no-op.
+install_wrapper() {
+  local agent="$1"
+  local src="$wrappers_dir/$agent.yml"
+  if [ ! -f "$src" ]; then
+    echo "error: wrapper not found: $src" >&2
+    exit 1
+  fi
+  local rendered
+  rendered="$(mktemp)"
+  sed -E \
+    "s|(uses: norrietaylor/spectacles/\.github/workflows/[A-Za-z0-9_-]+\.lock\.yml)@[^[:space:]]+|\1@${ref}|" \
+    "$src" >"$rendered"
+  install_file "$rendered" ".github/workflows/$agent.yml" \
+    "chore: install $agent wrapper (spectacles quick-setup)"
+  rm -f "$rendered"
+}
+
+# Install the eight thin wrappers. No .lock.yml, .md source, or imports tree is
+# copied: under the ADR 0004 distribution model the wrappers call self-contained
+# hosted reusable workflows by pinned ref.
 install_sdd_workflows() {
-  echo "quick-setup: installing the sdd-* agent suite."
+  echo "quick-setup: installing the sdd-* agent suite wrappers (ref: $ref)."
   local agent
-  for agent in "${sdd_agents[@]}"; do
-    install_file "$wrappers_dir/$agent.yml" \
-      ".github/workflows/$agent.yml" \
-      "chore: install $agent wrapper (spectacles quick-setup)"
-    install_file "$workflows_dir/$agent.lock.yml" \
-      ".github/workflows/$agent.lock.yml" \
-      "chore: install $agent reusable workflow (spectacles quick-setup)"
-  done
-  local wf
-  for wf in "${standalone_workflows[@]}"; do
-    install_file "$workflows_dir/$wf.lock.yml" \
-      ".github/workflows/$wf.lock.yml" \
-      "chore: install $wf workflow (spectacles quick-setup)"
+  for agent in "${wrappers[@]}"; do
+    install_wrapper "$agent"
   done
 }
 
@@ -257,13 +287,9 @@ detect_serena_language_server() {
     return 0
   fi
   echo "quick-setup: matched Serena language server: $server"
-  if [ "$dry_run" -eq 1 ]; then
-    echo "quick-setup: would set variable SERENA_LANGUAGE_SERVERS=$server"
-  else
-    gh variable set SERENA_LANGUAGE_SERVERS \
-      --repo "$target_repo" --body "$server"
-    echo "quick-setup: set variable SERENA_LANGUAGE_SERVERS=$server"
-  fi
+  gh variable set SERENA_LANGUAGE_SERVERS \
+    --repo "$target_repo" --body "$server"
+  echo "quick-setup: set variable SERENA_LANGUAGE_SERVERS=$server"
 }
 
 # Provision the target repo's Distillery configuration. DISTILLERY_PROJECT is
@@ -316,11 +342,12 @@ report_configuration() {
   echo "  variables (gh variable set <NAME> --repo $target_repo):"
   echo "    SERENA_LANGUAGE_SERVERS  Serena language server set (auto-detected"
   echo "                             above when the stack is recognised)"
+  echo "    APP_ID                   ID of the GitHub App that is the agents'"
+  echo "                             write identity"
   echo "  secrets (gh secret set <NAME> --repo $target_repo):"
   echo "    COPILOT_GITHUB_TOKEN     token for the Copilot engine"
-  echo "    GH_AW_GITHUB_TOKEN       GitHub App installation token (agent"
-  echo "                             write identity; App ID and private key"
-  echo "                             configured per docs/sdd/install.md)"
+  echo "    APP_PRIVATE_KEY          private key (PEM) of the GitHub App; each"
+  echo "                             agent run mints its own token from it"
   echo "    LEAK_DENYLIST            leak-scan denylist, one term per line"
 }
 

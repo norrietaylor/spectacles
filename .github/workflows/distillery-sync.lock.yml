@@ -1,4 +1,4 @@
-# gh-aw-metadata: {"schema_version":"v3","frontmatter_hash":"282b4716739c70728deda03f156bbead7bc57905757e003b978af64744f2e95b","compiler_version":"v0.74.3","strict":true,"agent_id":"copilot"}
+# gh-aw-metadata: {"schema_version":"v3","frontmatter_hash":"ff56e7e5c491cbe75b74b6df33fc50fbdc2a8cec99e8aa5c49523904c84b7db4","compiler_version":"v0.74.3","agent_id":"copilot"}
 # gh-aw-manifest: {"version":1,"secrets":["COPILOT_GITHUB_TOKEN","DISTILLERY_OAUTH_TOKEN","GH_AW_GITHUB_MCP_SERVER_TOKEN","GH_AW_GITHUB_TOKEN","GITHUB_TOKEN"],"actions":[{"repo":"actions/checkout","sha":"de0fac2e4500dabe0009e67214ff5f5447ce83dd","version":"v6.0.2"},{"repo":"actions/download-artifact","sha":"3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c","version":"v8.0.1"},{"repo":"actions/github-script","sha":"3a2844b7e9c422d3c10d287c895573f7108da1b3","version":"v9.0.0"},{"repo":"actions/upload-artifact","sha":"043fb46d1a93c77aae656e7c1c64a875d1fc6a0a","version":"v7.0.1"},{"repo":"github/gh-aw-actions/setup","sha":"8a9a52673cb8f97ebb43b344618af2d6f2c9ac7f","version":"v0.74.3"}],"containers":[{"image":"ghcr.io/github/gh-aw-firewall/agent:0.25.46"},{"image":"ghcr.io/github/gh-aw-firewall/api-proxy:0.25.46"},{"image":"ghcr.io/github/gh-aw-firewall/squid:0.25.46"},{"image":"ghcr.io/github/gh-aw-mcpg:v0.3.9","digest":"sha256:64828b42a4482f58fab16509d7f8f495a6d97c972a98a68aff20543531ac0388","pinned_image":"ghcr.io/github/gh-aw-mcpg:v0.3.9@sha256:64828b42a4482f58fab16509d7f8f495a6d97c972a98a68aff20543531ac0388"},{"image":"ghcr.io/github/github-mcp-server:v1.0.4"},{"image":"node:lts-alpine","digest":"sha256:d1b3b4da11eefd5941e7f0b9cf17783fc99d9c6fc34884a665f40a06dbdfc94f","pinned_image":"node:lts-alpine@sha256:d1b3b4da11eefd5941e7f0b9cf17783fc99d9c6fc34884a665f40a06dbdfc94f"}]}
 #    ___                   _   _      
 #   / _ \                 | | (_)     
@@ -22,6 +22,8 @@
 #
 # For more information: https://github.github.com/gh-aw/introduction/overview/
 #
+#
+# inlined-imports: true
 #
 # Secrets used:
 #   - COPILOT_GITHUB_TOKEN
@@ -48,16 +50,29 @@
 
 name: "Distillery sync"
 on:
-  schedule:
-  - cron: "20 15 * * *"
-    # Friendly format: daily (scattered)
-  workflow_dispatch:
+  workflow_call:
     inputs:
       aw_context:
         default: ""
         description: Agent caller context (used internally by Agentic Workflows).
         required: false
         type: string
+    outputs:
+      created_issue_number:
+        description: Number of the first created issue
+        value: ${{ jobs.safe_outputs.outputs.created_issue_number }}
+      created_issue_url:
+        description: URL of the first created issue
+        value: ${{ jobs.safe_outputs.outputs.created_issue_url }}
+    secrets:
+      COPILOT_GITHUB_TOKEN:
+        required: false
+      DISTILLERY_OAUTH_TOKEN:
+        required: false
+      GH_AW_GITHUB_MCP_SERVER_TOKEN:
+        required: false
+      GH_AW_GITHUB_TOKEN:
+        required: false
 
 permissions: {}
 
@@ -68,11 +83,14 @@ run-name: "Distillery sync"
 
 jobs:
   activation:
+    needs: pre_activation
+    if: needs.pre_activation.outputs.activated == 'true'
     runs-on: ubuntu-slim
     permissions:
       actions: read
       contents: read
     outputs:
+      artifact_prefix: ${{ steps.artifact-prefix.outputs.prefix }}
       comment_id: ""
       comment_repo: ""
       engine_id: ${{ steps.generate_aw_info.outputs.engine_id }}
@@ -90,10 +108,18 @@ jobs:
         with:
           destination: ${{ runner.temp }}/gh-aw/actions
           job-name: ${{ github.job }}
+          trace-id: ${{ needs.pre_activation.outputs.setup-trace-id }}
+          parent-span-id: ${{ needs.pre_activation.outputs.setup-parent-span-id || needs.pre_activation.outputs.setup-span-id }}
         env:
           GH_AW_SETUP_WORKFLOW_NAME: "Distillery sync"
           GH_AW_CURRENT_WORKFLOW_REF: ${{ github.repository }}/.github/workflows/distillery-sync.lock.yml@${{ github.ref }}
           GH_AW_INFO_VERSION: "1.0.48"
+          GH_AW_SETUP_AW_CONTEXT: ${{ inputs.aw_context }}
+      - name: Compute artifact prefix
+        id: artifact-prefix
+        env:
+          INPUTS_JSON: ${{ toJSON(inputs) }}
+        run: bash "${RUNNER_TEMP}/gh-aw/actions/compute_artifact_prefix.sh"
       - name: Generate agentic run info
         id: generate_aw_info
         env:
@@ -112,7 +138,7 @@ jobs:
           GH_AW_INFO_AWF_VERSION: "v0.25.46"
           GH_AW_INFO_AWMG_VERSION: ""
           GH_AW_INFO_FIREWALL_TYPE: "squid"
-          GH_AW_COMPILED_STRICT: "true"
+          GH_AW_COMPILED_STRICT: "false"
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         with:
           script: |
@@ -184,23 +210,23 @@ jobs:
         run: |
           bash "${RUNNER_TEMP}/gh-aw/actions/create_prompt_first.sh"
           {
-          cat << 'GH_AW_PROMPT_691d8d65c4869863_EOF'
+          cat << 'GH_AW_PROMPT_9c9a849bb6b0a23c_EOF'
           <system>
-          GH_AW_PROMPT_691d8d65c4869863_EOF
+          GH_AW_PROMPT_9c9a849bb6b0a23c_EOF
           cat "${RUNNER_TEMP}/gh-aw/prompts/xpia.md"
           cat "${RUNNER_TEMP}/gh-aw/prompts/temp_folder_prompt.md"
           cat "${RUNNER_TEMP}/gh-aw/prompts/markdown.md"
           cat "${RUNNER_TEMP}/gh-aw/prompts/safe_outputs_prompt.md"
-          cat << 'GH_AW_PROMPT_691d8d65c4869863_EOF'
+          cat << 'GH_AW_PROMPT_9c9a849bb6b0a23c_EOF'
           <safe-output-tools>
           Tools: create_issue
-          GH_AW_PROMPT_691d8d65c4869863_EOF
+          GH_AW_PROMPT_9c9a849bb6b0a23c_EOF
           cat "${RUNNER_TEMP}/gh-aw/prompts/safe_outputs_auto_create_issue.md"
-          cat << 'GH_AW_PROMPT_691d8d65c4869863_EOF'
+          cat << 'GH_AW_PROMPT_9c9a849bb6b0a23c_EOF'
           </safe-output-tools>
-          GH_AW_PROMPT_691d8d65c4869863_EOF
+          GH_AW_PROMPT_9c9a849bb6b0a23c_EOF
           cat "${RUNNER_TEMP}/gh-aw/prompts/mcp_cli_tools_prompt.md"
-          cat << 'GH_AW_PROMPT_691d8d65c4869863_EOF'
+          cat << 'GH_AW_PROMPT_9c9a849bb6b0a23c_EOF'
           <github-context>
           The following GitHub context information is available for this workflow:
           {{#if github.actor}}
@@ -229,12 +255,99 @@ jobs:
           {{/if}}
           </github-context>
           
-          GH_AW_PROMPT_691d8d65c4869863_EOF
+          GH_AW_PROMPT_9c9a849bb6b0a23c_EOF
           cat "${RUNNER_TEMP}/gh-aw/prompts/github_mcp_tools_with_safeoutputs_prompt.md"
-          cat << 'GH_AW_PROMPT_691d8d65c4869863_EOF'
+          cat << 'GH_AW_PROMPT_9c9a849bb6b0a23c_EOF'
           </system>
-          {{#runtime-import .github/workflows/distillery-sync.md}}
-          GH_AW_PROMPT_691d8d65c4869863_EOF
+          # Distillery sync
+          
+          This scheduled agentic workflow keeps the Distillery knowledge store current
+          for this repository. It runs once per day and may also be dispatched manually.
+          
+          The Distillery MCP server attaches over HTTP transport, authenticated via
+          OAuth. The endpoint and the OAuth credential are configuration, read from
+          `vars.DISTILLERY_MCP_URL` and `secrets.DISTILLERY_OAUTH_TOKEN`; no endpoint,
+          host, or organization slug is a literal in this file.
+          
+          ## What to ingest
+          
+          This workflow keeps the Distillery knowledge store current for this repository
+          through two distinct mechanisms, because the store holds two distinct kinds of
+          content. Later `sdd-*` agents retrieve both.
+          
+          1. **Issues and pull requests.** The Distillery `distillery_gh_sync` tool.
+             `distillery_gh_sync` takes a repository, not a file path: it fetches that
+             repository's issues and pull requests, open and closed, and stores them as
+             `github` entries. `distillery_gh_sync` ingests issues and pull requests
+             only; it does not read, take, or ingest spec or ADR files.
+          2. **Specs and ADRs.** Stored as Distillery knowledge entries, one per file,
+             the way the `distill` skill stores knowledge: a `distillery_find_similar`
+             duplicate check followed by `distillery_store` (or `distillery_update` when
+             the check resolves to a merge). The spec files under `docs/specs/` and the
+             numbered ADR files under `decisions/` are read from the checked-out working
+             tree.
+          
+          The run is read-only with respect to GitHub: it adds no comment, opens no
+          issue, and opens no pull request. `distillery_gh_sync` is incremental on the
+          GitHub side, indexing new and changed issues and pull requests and leaving
+          unchanged content alone. The spec and ADR pass is made incremental by the
+          `distillery_find_similar` duplicate check described in the procedure below.
+          
+          ## Project scoping
+          
+          All ingested content is filed under this repository's own Distillery project
+          (the configured project slug). The store may be shared, so this workflow
+          ingests only this repository's content and files it under this repository's
+          project. It never ingests, reads, or writes another project's content.
+          
+          ## Procedure
+          
+          1. Determine the repository from the workflow context. Resolve the project
+             slug from `vars.DISTILLERY_PROJECT`; every entry is filed under it.
+          2. **Sync issues and pull requests.** Call `distillery_gh_sync` with this
+             repository (`owner/repo`, derived from the workflow context, not a file
+             path) and the resolved project. `distillery_gh_sync` fetches the
+             repository's issues and pull requests and stores them as `github` entries.
+          3. **Store specs and ADRs as entries.** Enumerate the spec files under
+             `docs/specs/` and the ADR files under `decisions/` in the checked-out
+             working tree. For each file, read its contents and:
+             - Call `distillery_find_similar` with the file contents and `dedup_action`
+               enabled to get a resolved `action`.
+             - Apply the resolved `action`. The workflow runs unattended in CI: it
+               cannot show a preview or prompt a human, so it acts on the `action` the
+               server returns rather than asking.
+               - `create`: call `distillery_store` with the file contents, the resolved
+                 `DISTILLERY_PROJECT`, `entry_type: reference` and `source: documentation`
+                 (Distillery has no `spec`, `decision`, or `document` entry type; a
+                 stored spec or ADR is a `reference` entry), and hierarchical tags
+                 (`project/<slug>/specs` for a file under `docs/specs/`,
+                 `project/<slug>/decisions` for an ADR under `decisions/`, where
+                 `<slug>` is this repository's name).
+               - `skip`: the entry already exists unchanged; leave it and move on.
+               - `merge`: call `distillery_update` on the most similar existing entry
+                 with the file contents.
+               - `link`: call `distillery_store` as for `create`, additionally passing
+                 the related entry identifiers as `related_entries`.
+          4. Log a short summary: how many issues and pull requests `distillery_gh_sync`
+             ingested or refreshed, and how many spec and ADR files were created,
+             updated, skipped, or linked.
+          5. If the Distillery store cannot be reached on either mechanism, log the
+             failure and exit. Do not retry in a loop and do not open an issue: a missed
+             daily sync is recovered by the next scheduled run.
+          
+          ## Verification
+          
+          - `gh aw compile` compiles this workflow with the Distillery MCP server
+            declared and reports zero errors.
+          - A manual `workflow_dispatch` run logs both mechanisms: a non-zero count of
+            issues and pull requests ingested by `distillery_gh_sync`, and a non-zero
+            count of spec and ADR files created, updated, skipped, or linked by the
+            `distillery_find_similar` and `distillery_store` pass.
+          - A follow-up `distillery_search` from an `sdd-*` agent, scoped to this
+            repository's project, returns a non-empty result for both an issue or pull
+            request and a spec or ADR this sync ingested.
+          
+          GH_AW_PROMPT_9c9a849bb6b0a23c_EOF
           } > "$GH_AW_PROMPT"
       - name: Interpolate variables and render templates
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
@@ -260,6 +373,7 @@ jobs:
           GH_AW_GITHUB_RUN_ID: ${{ github.run_id }}
           GH_AW_GITHUB_WORKSPACE: ${{ github.workspace }}
           GH_AW_MCP_CLI_SERVERS_LIST: '- `safeoutputs` — run `safeoutputs --help` to see available tools'
+          GH_AW_NEEDS_PRE_ACTIVATION_OUTPUTS_ACTIVATED: ${{ needs.pre_activation.outputs.activated }}
         with:
           script: |
             const { setupGlobals } = require('${{ runner.temp }}/gh-aw/actions/setup_globals.cjs');
@@ -279,7 +393,8 @@ jobs:
                 GH_AW_GITHUB_REPOSITORY: process.env.GH_AW_GITHUB_REPOSITORY,
                 GH_AW_GITHUB_RUN_ID: process.env.GH_AW_GITHUB_RUN_ID,
                 GH_AW_GITHUB_WORKSPACE: process.env.GH_AW_GITHUB_WORKSPACE,
-                GH_AW_MCP_CLI_SERVERS_LIST: process.env.GH_AW_MCP_CLI_SERVERS_LIST
+                GH_AW_MCP_CLI_SERVERS_LIST: process.env.GH_AW_MCP_CLI_SERVERS_LIST,
+                GH_AW_NEEDS_PRE_ACTIVATION_OUTPUTS_ACTIVATED: process.env.GH_AW_NEEDS_PRE_ACTIVATION_OUTPUTS_ACTIVATED
               }
             });
       - name: Validate prompt placeholders
@@ -296,7 +411,7 @@ jobs:
         if: success()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: activation
+          name: ${{ steps.artifact-prefix.outputs.prefix }}activation
           include-hidden-files: true
           path: |
             /tmp/gh-aw/aw_info.json
@@ -327,6 +442,7 @@ jobs:
       GH_AW_WORKFLOW_ID_SANITIZED: distillerysync
     outputs:
       agentic_engine_timeout: ${{ steps.detect-copilot-errors.outputs.agentic_engine_timeout || 'false' }}
+      artifact_prefix: ${{ needs.activation.outputs.artifact_prefix }}
       checkout_pr_success: ${{ steps.checkout-pr.outputs.checkout_pr_success || 'true' }}
       effective_tokens: ${{ steps.parse-mcp-gateway.outputs.effective_tokens }}
       effective_tokens_rate_limit_error: ${{ steps.parse-mcp-gateway.outputs.effective_tokens_rate_limit_error || 'false' }}
@@ -353,6 +469,7 @@ jobs:
           GH_AW_SETUP_WORKFLOW_NAME: "Distillery sync"
           GH_AW_CURRENT_WORKFLOW_REF: ${{ github.repository }}/.github/workflows/distillery-sync.lock.yml@${{ github.ref }}
           GH_AW_INFO_VERSION: "1.0.48"
+          GH_AW_SETUP_AW_CONTEXT: ${{ inputs.aw_context }}
       - name: Set runtime paths
         id: set-runtime-paths
         run: |
@@ -417,7 +534,7 @@ jobs:
       - name: Download activation artifact
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
-          name: activation
+          name: ${{ needs.activation.outputs.artifact_prefix }}activation
           path: /tmp/gh-aw
       - name: Restore agent config folders from base branch
         if: steps.checkout-pr.outcome == 'success'
@@ -437,9 +554,9 @@ jobs:
           mkdir -p "${RUNNER_TEMP}/gh-aw/safeoutputs"
           mkdir -p /tmp/gh-aw/safeoutputs
           mkdir -p /tmp/gh-aw/mcp-logs/safeoutputs
-          cat > "${RUNNER_TEMP}/gh-aw/safeoutputs/config.json" << 'GH_AW_SAFE_OUTPUTS_CONFIG_c72fcec688543330_EOF'
+          cat > "${RUNNER_TEMP}/gh-aw/safeoutputs/config.json" << 'GH_AW_SAFE_OUTPUTS_CONFIG_b2fe477aa7b20a28_EOF'
           {"create_issue":{"labels":["distillery-sync"],"max":1,"title_prefix":"[distillery-sync]"}}
-          GH_AW_SAFE_OUTPUTS_CONFIG_c72fcec688543330_EOF
+          GH_AW_SAFE_OUTPUTS_CONFIG_b2fe477aa7b20a28_EOF
       - name: Generate Safe Outputs Tools
         env:
           GH_AW_TOOLS_META_JSON: |
@@ -575,7 +692,7 @@ jobs:
           
           mkdir -p /home/runner/.copilot
           GH_AW_NODE=$(which node 2>/dev/null || command -v node 2>/dev/null || echo node)
-          cat << GH_AW_MCP_CONFIG_6abc0b95c29224bb_EOF | "$GH_AW_NODE" "${RUNNER_TEMP}/gh-aw/actions/start_mcp_gateway.cjs"
+          cat << GH_AW_MCP_CONFIG_b269b30bd8d7e537_EOF | "$GH_AW_NODE" "${RUNNER_TEMP}/gh-aw/actions/start_mcp_gateway.cjs"
           {
             "mcpServers": {
               "distillery": {
@@ -639,7 +756,7 @@ jobs:
               "payloadDir": "${MCP_GATEWAY_PAYLOAD_DIR}"
             }
           }
-          GH_AW_MCP_CONFIG_6abc0b95c29224bb_EOF
+          GH_AW_MCP_CONFIG_b269b30bd8d7e537_EOF
       - name: Mount MCP servers as CLIs
         id: mount-mcp-clis
         continue-on-error: true
@@ -845,7 +962,7 @@ jobs:
         continue-on-error: true
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: agent
+          name: ${{ needs.activation.outputs.artifact_prefix }}agent
           path: |
             /tmp/gh-aw/aw-prompts/prompt.txt
             /tmp/gh-aw/sandbox/agent/logs/
@@ -893,12 +1010,13 @@ jobs:
           GH_AW_SETUP_WORKFLOW_NAME: "Distillery sync"
           GH_AW_CURRENT_WORKFLOW_REF: ${{ github.repository }}/.github/workflows/distillery-sync.lock.yml@${{ github.ref }}
           GH_AW_INFO_VERSION: "1.0.48"
+          GH_AW_SETUP_AW_CONTEXT: ${{ inputs.aw_context }}
       - name: Download agent output artifact
         id: download-agent-output
         continue-on-error: true
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
-          name: agent
+          name: ${{ needs.activation.outputs.artifact_prefix }}agent
           path: /tmp/gh-aw/
       - name: Setup agent output environment variable
         id: setup-agent-output-env
@@ -944,6 +1062,39 @@ jobs:
             const { main } = require('${{ runner.temp }}/gh-aw/actions/handle_agent_failure.cjs');
             await main();
 
+  pre_activation:
+    runs-on: ubuntu-slim
+    outputs:
+      activated: ${{ steps.check_membership.outputs.is_team_member == 'true' }}
+      matched_command: ''
+      setup-parent-span-id: ${{ steps.setup.outputs.parent-span-id || steps.setup.outputs.span-id }}
+      setup-span-id: ${{ steps.setup.outputs.span-id }}
+      setup-trace-id: ${{ steps.setup.outputs.trace-id }}
+    steps:
+      - name: Setup Scripts
+        id: setup
+        uses: github/gh-aw-actions/setup@8a9a52673cb8f97ebb43b344618af2d6f2c9ac7f # v0.74.3
+        with:
+          destination: ${{ runner.temp }}/gh-aw/actions
+          job-name: ${{ github.job }}
+        env:
+          GH_AW_SETUP_WORKFLOW_NAME: "Distillery sync"
+          GH_AW_CURRENT_WORKFLOW_REF: ${{ github.repository }}/.github/workflows/distillery-sync.lock.yml@${{ github.ref }}
+          GH_AW_INFO_VERSION: "1.0.48"
+          GH_AW_SETUP_AW_CONTEXT: ${{ inputs.aw_context }}
+      - name: Check team membership for workflow
+        id: check_membership
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          GH_AW_REQUIRED_ROLES: "admin,maintainer,write"
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const { setupGlobals } = require('${{ runner.temp }}/gh-aw/actions/setup_globals.cjs');
+            setupGlobals(core, github, context, exec, io, getOctokit);
+            const { main } = require('${{ runner.temp }}/gh-aw/actions/check_membership.cjs');
+            await main();
+
   safe_outputs:
     needs:
       - activation
@@ -984,12 +1135,13 @@ jobs:
           GH_AW_SETUP_WORKFLOW_NAME: "Distillery sync"
           GH_AW_CURRENT_WORKFLOW_REF: ${{ github.repository }}/.github/workflows/distillery-sync.lock.yml@${{ github.ref }}
           GH_AW_INFO_VERSION: "1.0.48"
+          GH_AW_SETUP_AW_CONTEXT: ${{ inputs.aw_context }}
       - name: Download agent output artifact
         id: download-agent-output
         continue-on-error: true
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
-          name: agent
+          name: ${{ needs.activation.outputs.artifact_prefix }}agent
           path: /tmp/gh-aw/
       - name: Setup agent output environment variable
         id: setup-agent-output-env
@@ -1027,7 +1179,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: safe-outputs-items
+          name: ${{ needs.activation.outputs.artifact_prefix }}safe-outputs-items
           path: |
             /tmp/gh-aw/safe-output-items.jsonl
             /tmp/gh-aw/temporary-id-map.json

@@ -12,6 +12,16 @@ at `.github/workflows/`; shared fragments stay at `shared/` and are consumed
 via pinned-ref imports (`owner/repo/path@ref`). See
 `decisions/0002-workflow-layout-and-imports.md`.
 
+**Correction (2026-05-17):** ADR 0004 sets the suite's distribution model.
+The suite is distributed by cross-repo `uses:`: a consumer installs only the
+thin wrappers, which call self-contained reusable workflows hosted in the
+spectacles repository
+(`uses: norrietaylor/spectacles/.github/workflows/<agent>.lock.yml@<ref>`).
+No `.lock.yml` is copied onto a consumer; the agent locks compile
+self-contained with `inlined-imports: true` and `strict: false`. ADR 0002 §4
+(a consumer pulls shared fragments via pinned-ref `imports:`) is superseded.
+See `decisions/0004-uses-distribution-model.md`.
+
 ## Context
 
 This spec stands up a public, standalone repository hosting a spec-driven
@@ -652,9 +662,12 @@ end on it.
   (`on: workflow_call`) with a thin `wrappers/sdd-*.yml` caller, per the
   distribution model from Unit 1.
 - **R9.2**: `scripts/quick-setup.sh` shall gain an `--suite sdd` option that
-  installs the `sdd-*` wrappers (with `sdd-execute` in its three model-tier
-  variants), `distillery-sync`, the `sdd:*` and `model:*` labels, and the
-  issue templates on the target repo.
+  installs the eight thin wrappers (the seven `sdd-*` wrappers, with
+  `sdd-execute` in its three model-tier variants, and the `distillery-sync`
+  wrapper), the `sdd:*` and `model:*` labels, and the issue templates on the
+  target repo. The wrappers call reusable workflows hosted in the spectacles
+  repository; no `.lock.yml` is copied onto the consumer (ADR 0004). A
+  `--ref` option pins the installed wrappers to a spectacles ref.
 - **R9.3**: Install shall configure, not hardcode: the GitHub App identity,
   the Distillery HTTP endpoint and OAuth credentials, and the Serena
   language-server set are resolved at install time from operator-supplied

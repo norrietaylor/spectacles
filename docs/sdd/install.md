@@ -42,15 +42,20 @@ DISTILLERY_OAUTH_TOKEN=<machine-token> \
 
 `--suite sdd` installs, onto the target repository:
 
-- the seven `sdd-*` thin wrappers and their adjacent reusable workflows
-  (`sdd-spec`, `sdd-triage`, the three `sdd-execute` model-tier variants,
-  `sdd-validate`, `sdd-review`);
-- the `distillery-sync` scheduled workflow;
+- the eight thin wrappers — the seven `sdd-*` agents (`sdd-spec`,
+  `sdd-triage`, the three `sdd-execute` model-tier variants, `sdd-validate`,
+  `sdd-review`) and `distillery-sync`. Each wrapper calls a reusable workflow
+  hosted in the spectacles repository; no `.lock.yml` is copied onto the
+  consumer (see `workflows/README.md` and ADR 0004);
 - the `sdd:*` lifecycle labels and the `model:*` tier labels;
 - the `feature`, `bug`, and `chore` issue templates.
 
 Without `--suite sdd` the installer only syncs the base labels, which is the
 Unit 1 behavior and is left intact.
+
+The installed wrappers call the hosted reusable workflows at a pinned
+spectacles ref. `--ref <ref>` sets that ref (default `main`); pass a release
+tag to pin the consumer to an immutable suite version.
 
 During a real run the installer also detects the target repository's primary
 language and, when a Serena language server is known for it, sets the
@@ -81,6 +86,7 @@ Set with `gh variable set <NAME> --repo <owner>/<name> --body <value>`.
 | `DISTILLERY_MCP_URL` | The Distillery HTTP MCP endpoint the agents query for retrieval and memory. The installer sets it from `DISTILLERY_MCP_URL` in its environment. |
 | `DISTILLERY_PROJECT` | The Distillery project slug for this repository. All queries are scoped to it so a shared store cannot surface unrelated content. The installer sets it to the target repository's name. |
 | `SERENA_LANGUAGE_SERVERS` | The Serena language server set for this repository's stack. The installer auto-detects and sets this when the stack is recognised; set it by hand otherwise, or leave it unset to run Serena in text-level fallback. |
+| `APP_ID` | The ID of the GitHub App that is the agents' write identity. Each agent run mints its own short-lived installation token from it; see "The GitHub App identity" below. |
 
 ### Secrets
 
@@ -89,7 +95,7 @@ Set with `gh secret set <NAME> --repo <owner>/<name>`.
 | Secret | Purpose |
 |---|---|
 | `COPILOT_GITHUB_TOKEN` | The token for the Copilot engine that runs the agents. |
-| `GH_AW_GITHUB_TOKEN` | The GitHub App installation token that is the agents' write identity. The agents open PRs, create issues, and apply labels through it. |
+| `APP_PRIVATE_KEY` | The private key (PEM) of the GitHub App that is the agents' write identity. Each agent run mints its own installation token from `APP_ID` and this key; nothing static is stored. The agents open PRs, create issues, and apply labels through that token. |
 | `DISTILLERY_OAUTH_TOKEN` | The Distillery machine token — a pre-shared static bearer credential the workflows present to the Distillery MCP endpoint. Operator-issued; the installer sets it from `DISTILLERY_OAUTH_TOKEN` in its environment. See "The Distillery machine token" below. Despite the secret name, it is **not** a GitHub OAuth token. |
 | `LEAK_DENYLIST` | The leak-scan denylist, one term per line. Supplied as a secret so the private terms are never themselves committed to the public tree. Comment lines begin with `#`. |
 
@@ -98,16 +104,29 @@ Set with `gh secret set <NAME> --repo <owner>/<name>`.
 The agents write through a configurable GitHub App, not a personal access
 token and not a hardcoded bot. Provision it once:
 
-1. Create a GitHub App with `contents: read`, `issues: write`, and
-   `pull-requests: write` repository permissions.
-2. Install the App on the target repository.
-3. Mint an installation token for each run, or configure a token-minting step,
-   and expose it to the workflows as the `GH_AW_GITHUB_TOKEN` secret. The App
-   ID and the App private key are the operator's inputs to that step; they are
-   never written into a workflow source.
+1. Create a GitHub App with these repository permissions: `contents: write`,
+   `discussions: write`, `issues: write`, and `pull-requests: write`. The
+   agents' `safe-outputs` mint an installation token scoped to exactly this
+   set; a narrower grant fails the mint with "the permissions requested are
+   not granted to this installation."
+2. Install the App on the target repository. When the App's permissions
+   change later, the installation must approve the update before the next run
+   can mint a token.
+3. Set the App's ID as the `APP_ID` variable and its private key (PEM) as the
+   `APP_PRIVATE_KEY` secret. Repository or organization level both work; an
+   organization variable and secret cover every consumer at once. The agent
+   workflows declare `safe-outputs.github-app` with those two values, so each
+   run mints its own short-lived installation token, scopes it to the run's
+   permissions, and revokes it when the run ends. No long-lived token is
+   stored, and no token-minting is left to the operator. The App ID and the
+   private key are the only App inputs, and they are read at run time from the
+   repository's configuration — never written into a workflow source.
 
 The App identity is the only write identity the suite uses, and it is scoped
 to the repository it is installed on. `sdd-execute` opens same-repo PRs only.
+A write that carries the App identity, not the workflow's default token, is
+also what lets one agent's output (a label, a merged pull request) trigger the
+next agent.
 
 ### The Distillery machine token
 
@@ -143,6 +162,17 @@ history, not only a greenfield one. Before and after the install, confirm:
       build, test, and lint commands. Agents read the toolchain from there;
       they hardcode none. If neither file documents the toolchain, add the
       commands to `CLAUDE.md` first.
+- [ ] The target repository's package registry is reachable from the agent
+      sandbox. The agents run inside gh-aw's network-restricted firewall; its
+      allowlist covers the GitHub APIs, the npm registry, and the Ubuntu apt
+      mirrors, but not every language's registry — `pypi.org` is not on it. If
+      the build or test command the agents read from `CLAUDE.md` fetches from
+      a registry the firewall does not allow, `sdd-execute` and `sdd-validate`
+      cannot install the toolchain: the proof-artifact gate degrades to manual
+      inspection of the diff instead of executed tests. The run is not blocked
+      and verification still happens, but it is narrower. Extending the
+      firewall allowlist for a stack whose registry is not covered is a known
+      limitation.
 - [ ] The install did not overwrite any existing workflow. The `sdd-*` and
       `distillery-sync` workflow filenames do not collide with the target
       repository's own workflows. Review the dry-run output for any unexpected
@@ -166,9 +196,10 @@ history, not only a greenfield one. Before and after the install, confirm:
 Before running a feature through the pipeline, confirm the install resolved
 its dependencies:
 
-1. **Workflows present.** Confirm the seven `sdd-*` wrappers, their reusable
-   workflows, and `distillery-sync` appear under `.github/workflows/` on the
-   target repository.
+1. **Workflows present.** Confirm the eight wrappers — the seven `sdd-*`
+   wrappers and `distillery-sync.yml` — appear under `.github/workflows/` on
+   the target repository. The `.lock.yml` reusable workflows are hosted in the
+   spectacles repository and are not copied onto the consumer.
 2. **Labels present.** Confirm all six `sdd:*` labels and all three `model:*`
    labels exist on the target repository.
 3. **MCP reachable.** Dispatch `distillery-sync` once and confirm its run logs
@@ -215,7 +246,7 @@ operator's acceptance result, separate from this build PR.
 # 1. Preview the full SDD install without writing anything.
 bash scripts/quick-setup.sh --target-repo <owner>/<name> --suite sdd --dry-run
 
-# 2. Confirm the sdd-* wrappers and reusable workflows are present.
+# 2. Confirm the sdd-* and distillery-sync wrappers are present.
 gh api repos/<owner>/<name>/contents/.github/workflows \
   --jq '.[].name' | grep -E '^sdd-|^distillery-sync'
 
@@ -234,8 +265,8 @@ gh variable list --repo <owner>/<name>
 gh secret list --repo <owner>/<name>
 
 # 7. Dispatch distillery-sync and confirm the run starts.
-gh workflow run distillery-sync.lock.yml --repo <owner>/<name>
-gh run list --repo <owner>/<name> --workflow distillery-sync.lock.yml --limit 1
+gh workflow run distillery-sync.yml --repo <owner>/<name>
+gh run list --repo <owner>/<name> --workflow distillery-sync.yml --limit 1
 
 # 8. Open a test issue from the feature template and confirm its labels.
 gh issue create --repo <owner>/<name> --template feature.md \

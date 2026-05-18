@@ -6,11 +6,18 @@ on:
         description: The triggering pull request, resolved by the wrapper.
         required: true
         type: string
+  # roles: all — this agent is activated by an upstream agent's output
+  # (App-authored pull requests and labels), not only by humans. The default
+  # roles gate (admin/maintainer/write) cancels a bot-triggered run at
+  # pre_activation; the wrapper's route job is the real gate. See ADR 0004.
+  roles: all
 permissions:
   contents: read
   issues: read
   pull-requests: read
 engine: copilot
+inlined-imports: true
+strict: false
 imports:
   - norrietaylor/spectacles/shared/sdd-interaction.md@main
   - norrietaylor/spectacles/shared/sdd-mcp-serena.md@main
@@ -27,6 +34,16 @@ tools:
 # submit-pull-request-review and merge-pull-request safe-outputs are
 # deliberately absent.
 safe-outputs:
+  github-app:
+    client-id: ${{ vars.APP_ID }}
+    private-key: ${{ secrets.APP_PRIVATE_KEY }}
+    # Scope the minted token to the repository the workflow runs in. Without an
+    # explicit repositories value the compiler emits a reference to an
+    # activation output that strict: false does not produce, leaving the token
+    # scoped to every repository the App can reach. See ADR 0004.
+    owner: ${{ github.repository_owner }}
+    repositories:
+      - ${{ github.event.repository.name }}
   create-pull-request-review-comment:
     max: 30
   add-labels:

@@ -6,6 +6,8 @@ permissions:
   issues: read
   pull-requests: read
 engine: copilot
+inlined-imports: true
+strict: false
 imports:
   - norrietaylor/spectacles/shared/principles.md@main
   - norrietaylor/spectacles/shared/repo-conventions.md@main
@@ -17,6 +19,16 @@ tools:
   github:
     toolsets: [default]
 safe-outputs:
+  github-app:
+    client-id: ${{ vars.APP_ID }}
+    private-key: ${{ secrets.APP_PRIVATE_KEY }}
+    # Scope the minted token to the repository the workflow runs in. Without an
+    # explicit repositories value the compiler emits a reference to an
+    # activation output that strict: false does not produce, leaving the token
+    # scoped to every repository the App can reach. See ADR 0004.
+    owner: ${{ github.repository_owner }}
+    repositories:
+      - ${{ github.event.repository.name }}
   create-pull-request:
     max: 1
     draft: ${{ false }}
@@ -184,7 +196,14 @@ is `spec(<slug>): <issue title>`; the `spec` title prefix is applied
 automatically, so write the title as `(<slug>): <issue title>` with no leading
 space. The branch follows the `spec/<slug>` convention from the imported
 repository-conventions fragment. The pull request body summarizes the spec,
-links the tracking issue, and lists the demoable units.
+references the tracking issue, and lists the demoable units. It also states the
+next step for a human reader: merging this pull request advances the tracking
+issue from the spec phase into the architecture and triage phase. Reference the
+tracking issue — in the pull request body and in every commit message — with
+a bare `#<number>` or `Refs #<number>`, never a closing keyword (`Closes`,
+`Fixes`, `Resolves`). GitHub auto-closes an issue named by a closing keyword
+in a merged pull request's body or in a merged commit message; the tracking
+issue is the lifecycle anchor and must stay open until every task is done.
 
 For a `/revise` trigger, update the existing spec pull request on its existing
 branch rather than opening a new one. Apply only the change the `/revise` note

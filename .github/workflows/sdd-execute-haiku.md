@@ -6,13 +6,20 @@ on:
         description: The triggering entity, resolved by the wrapper.
         required: true
         type: string
+  # roles: all — this agent is activated by an upstream agent's output
+  # (App-authored pull requests and labels), not only by humans. The default
+  # roles gate (admin/maintainer/write) cancels a bot-triggered run at
+  # pre_activation; the wrapper's route job is the real gate. See ADR 0004.
+  roles: all
 permissions:
   contents: read
   issues: read
   pull-requests: read
 engine:
   id: copilot
-  model: claude-haiku-4-5
+  model: claude-haiku-4.5
+inlined-imports: true
+strict: false
 imports:
   - norrietaylor/spectacles/shared/principles.md@main
   - norrietaylor/spectacles/shared/runtime-setup.md@main
@@ -24,6 +31,16 @@ tools:
   github:
     toolsets: [default]
 safe-outputs:
+  github-app:
+    client-id: ${{ vars.APP_ID }}
+    private-key: ${{ secrets.APP_PRIVATE_KEY }}
+    # Scope the minted token to the repository the workflow runs in. Without an
+    # explicit repositories value the compiler emits a reference to an
+    # activation output that strict: false does not produce, leaving the token
+    # scoped to every repository the App can reach. See ADR 0004.
+    owner: ${{ github.repository_owner }}
+    repositories:
+      - ${{ github.event.repository.name }}
   create-pull-request:
     max: 1
     draft: ${{ false }}
@@ -51,7 +68,7 @@ authored once and compiled into three variants (`sdd-execute-haiku`,
 and the `model:*` tier this variant claims. gh-aw binds the engine model at
 compile time, so model-tier-by-complexity is realized as three compiled
 variants rather than one variant that switches models at run time. This
-variant runs the `claude-haiku-4-5` model and selects only tasks carrying the
+variant runs the `claude-haiku-4.5` model and selects only tasks carrying the
 `model:haiku` label.
 
 This workflow is a reusable workflow: it is invoked through `workflow_call`
@@ -123,6 +140,13 @@ test, and lint commands come from the target repository's own canonical doc.
 Identify the situation from the `aw_context` input and the triggers above. For
 a `/execute` comment the input names the task sub-issue. For a review-comment
 event the input names the pull request and the review comment.
+
+A `schedule` or `workflow_dispatch` run carries no issue or pull request in
+`aw_context` — only the trigger kind. That is **not** an empty or test run: it
+is the signal to scan the `sdd:ready` queue. Proceed to step 2 and select a
+task; if the queue yields no eligible task, proceed to step 8. Never emit
+`noop` from this step because `aw_context` names no item — a scheduled or
+dispatched run always continues to step 2, and then to step 8.
 
 ### 2. Select one eligible task
 
@@ -226,6 +250,9 @@ repository-conventions fragment. The pull request body **must** contain:
   closes the task.
 - The captured proof-artifact output, one block per artifact, so a reviewer
   sees the evidence without re-running anything.
+- The next step for a human reader: merging this pull request closes the task
+  sub-issue, and once every task sub-issue of the tracking issue is closed the
+  pipeline advances that tracking issue to `sdd:done` for a final human review.
 
 ### 7. Address review comments in place
 
@@ -288,7 +315,7 @@ completed tracking issue; the rest of the queue is handled by the next run.
 
 - `gh aw compile` compiles this workflow with the six imported shared
   fragments and the Serena MCP server declared, and reports zero errors.
-- This variant's frontmatter declares the `claude-haiku-4-5` engine model and
+- This variant's frontmatter declares the `claude-haiku-4.5` engine model and
   selects only `model:haiku` tasks; the `sonnet` and `opus` variants differ
   only in those two lines.
 - A `sdd:ready` task carrying `model:haiku` with a local `repo:` produces,

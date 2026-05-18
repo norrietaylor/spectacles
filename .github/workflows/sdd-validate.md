@@ -6,11 +6,18 @@ on:
         description: The triggering entity, resolved by the wrapper.
         required: true
         type: string
+  # roles: all — this agent is activated by an upstream agent's output
+  # (App-authored pull requests and labels), not only by humans. The default
+  # roles gate (admin/maintainer/write) cancels a bot-triggered run at
+  # pre_activation; the wrapper's route job is the real gate. See ADR 0004.
+  roles: all
 permissions:
   contents: read
   issues: read
   pull-requests: read
 engine: copilot
+inlined-imports: true
+strict: false
 imports:
   - norrietaylor/spectacles/shared/principles.md@main
   - norrietaylor/spectacles/shared/repo-conventions.md@main
@@ -20,6 +27,16 @@ tools:
   github:
     toolsets: [default]
 safe-outputs:
+  github-app:
+    client-id: ${{ vars.APP_ID }}
+    private-key: ${{ secrets.APP_PRIVATE_KEY }}
+    # Scope the minted token to the repository the workflow runs in. Without an
+    # explicit repositories value the compiler emits a reference to an
+    # activation output that strict: false does not produce, leaving the token
+    # scoped to every repository the App can reach. See ADR 0004.
+    owner: ${{ github.repository_owner }}
+    repositories:
+      - ${{ github.event.repository.name }}
   add-comment:
     max: 1
     hide-older-comments: true

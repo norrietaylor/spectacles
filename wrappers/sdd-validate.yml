@@ -106,11 +106,21 @@ jobs:
   sdd-validate:
     needs: route
     if: needs.route.outputs.should_run == 'true'
-    uses: ./.github/workflows/sdd-validate.lock.yml
+    uses: norrietaylor/spectacles/.github/workflows/sdd-validate.lock.yml@main
     with:
       aw_context: ${{ needs.route.outputs.aw_context }}
-    secrets: inherit
+    # Mapped explicitly, not `secrets: inherit`: inherit does not pass secrets
+    # to a reusable workflow in a different owner than the caller.
+    secrets:
+      APP_PRIVATE_KEY: ${{ secrets.APP_PRIVATE_KEY }}
+      COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
+    # Ceiling for the called reusable workflow. Must cover the union of every
+    # nested job's permissions: the gh-aw conclusion and safe_outputs jobs
+    # need write scopes, and activation needs actions: read. sdd-validate
+    # opens no pull request, so contents stays read.
     permissions:
+      actions: read
       contents: read
+      discussions: write
       issues: write
       pull-requests: write

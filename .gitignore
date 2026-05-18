@@ -6,3 +6,8 @@
 
 # mkdocs build output
 site/
+
+# gh-aw vendored import cache. `gh aw compile` regenerates this tree; with
+# inlined-imports the compiled .lock.yml workflows are self-contained and need
+# no committed copy of it (ADR 0004).
+.github/aw/imports/
