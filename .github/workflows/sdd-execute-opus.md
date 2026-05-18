@@ -6,6 +6,11 @@ on:
         description: The triggering entity, resolved by the wrapper.
         required: true
         type: string
+  # roles: all — this agent is activated by an upstream agent's output
+  # (App-authored pull requests and labels), not only by humans. The default
+  # roles gate (admin/maintainer/write) cancels a bot-triggered run at
+  # pre_activation; the wrapper's route job is the real gate. See ADR 0004.
+  roles: all
 permissions:
   contents: read
   issues: read
@@ -15,11 +20,6 @@ engine:
   model: claude-opus-4.6
 inlined-imports: true
 strict: false
-# Activated by an upstream agent's output (App-authored pull requests and
-# labels), not only by humans; the default roles gate would cancel those
-# bot-triggered runs at pre_activation. The wrapper's route job is the real
-# gate — it admits only SDD-pipeline entities. See ADR 0004.
-roles: all
 imports:
   - norrietaylor/spectacles/shared/principles.md@main
   - norrietaylor/spectacles/shared/runtime-setup.md@main
