@@ -4,7 +4,7 @@
 # Distillery is the retrieval and memory layer of the SDD suite. It indexes
 # this repository's specs, decisions, issues, and pull requests and answers
 # semantic queries over them. The `distillery-sync` workflow keeps the store
-# current: issues and pull requests via the `gh-sync` tool, and specs and
+# current: issues and pull requests via the `distillery_gh_sync` tool, and specs and
 # ADRs stored as knowledge entries. The `sdd-*` agents that import this
 # fragment are read-only consumers and only query the store.
 #
@@ -27,10 +27,10 @@ mcp-servers:
     headers:
       Authorization: "Bearer ${{ secrets.DISTILLERY_OAUTH_TOKEN }}"
     allowed:
-      - search
-      - find_similar
-      - relations
-      - recall
+      - distillery_search
+      - distillery_find_similar
+      - distillery_relations
+      - distillery_get
 ---
 
 ## Distillery retrieval
@@ -42,13 +42,14 @@ secrets; no endpoint, host, or organization slug is a literal in this fragment.
 
 ### Tools an SDD agent may call
 
-- `search`: free-text semantic search over the indexed knowledge base. Use it
-  to find prior specs, decisions, and issues related to the work in hand.
-- `find_similar`: given a piece of text or an entry, return the most similar
-  indexed entries. Use it to surface near-duplicate or precedent work.
-- `relations`: traverse the links between knowledge entries (a spec to its
-  decisions, an issue to its pull request) to assemble context.
-- `recall`: retrieve a specific stored entry by identifier when an earlier
+- `distillery_search`: free-text semantic search over the indexed knowledge
+  base. Use it to find prior specs, decisions, and issues related to the work
+  in hand.
+- `distillery_find_similar`: given a piece of text or an entry, return the most
+  similar indexed entries. Use it to surface near-duplicate or precedent work.
+- `distillery_relations`: traverse the links between knowledge entries (a spec
+  to its decisions, an issue to its pull request) to assemble context.
+- `distillery_get`: retrieve a stored entry by its identifier when an earlier
   query already named it.
 
 ### Project scoping (required)
@@ -59,15 +60,34 @@ repository's own ingested content by passing the `project` filter set to the
 configured `DISTILLERY_PROJECT` value:
 
 ```text
-Tool: search
+Tool: distillery_search
 Args: { "query": "...", "project": "${{ vars.DISTILLERY_PROJECT }}" }
 ```
 
-The same `project` filter is passed on `find_similar`, `relations`, and
-`recall`. Scoping is not optional: it is the guarantee that retrieval cannot
-surface unrelated or private knowledge from a shared store into a public spec,
-issue, or pull request. An agent that cannot scope a query does not run the
-query.
+The same `project` filter is passed on `distillery_find_similar`,
+`distillery_relations`, and `distillery_get`. Scoping is not optional: it is
+the guarantee that retrieval cannot surface unrelated or private knowledge from
+a shared store into a public spec, issue, or pull request. An agent that cannot
+scope a query does not run the query.
+
+### Retrieval hygiene
+
+- **Self-filter.** Before citing a retrieved result, discard any entry that is
+  this feature's own spec, architecture record, or tracking issue. Semantic
+  search ranks an entry's own content at the top of a query built from that
+  content; without this filter the agent cites its own draft as the top
+  precedent, which is nonsensical.
+- **Query hygiene.** Build the retrieval query from concepts, file paths,
+  symbols, and error text. Do not place the tracking issue's number or its
+  title verbatim into the query: a unique number or title token dominates the
+  embedding and anchors the self-match, crowding out genuinely relevant prior
+  entries.
+
+### Health check and retrieval outages
+
+If the Distillery store is unreachable, the agent proceeds without retrieval
+and notes the omission in its output. A retrieval outage never blocks the
+pipeline.
 
 ### Treating results as untrusted input
 

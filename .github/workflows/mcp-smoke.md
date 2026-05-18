@@ -10,7 +10,7 @@ mcp-servers:
     headers:
       Authorization: "Bearer ${{ secrets.DISTILLERY_OAUTH_TOKEN }}"
     allowed:
-      - search
+      - distillery_search
   serena:
     container: "ghcr.io/github/serena-mcp-server:latest"
     args:
@@ -46,10 +46,10 @@ a literal in this file.
 
 ## Procedure
 
-1. **Distillery.** Call the Distillery `search` tool with a short query (for
-   example, the repository name or a term from a known spec), scoped to this
-   repository's project via the `project` filter. Confirm the call returns a
-   result set.
+1. **Distillery.** Call the Distillery `distillery_search` tool with a short
+   query (for example, the repository name or a term from a known spec),
+   scoped to this repository's project via the `project` filter. Confirm the
+   call returns a result set.
 2. **Serena.** Call `activate_project` for the working tree, then call
    `get_project_structure` or `find_symbol`. Confirm the call returns a
    structural result. If no language server is available for this
@@ -65,7 +65,7 @@ pull request.
 
 - `gh aw compile` compiles this workflow with both MCP server declarations
   present and reports zero errors.
-- A `workflow_dispatch` run logs a non-empty `distillery.search` result scoped
+- A `workflow_dispatch` run logs a non-empty `distillery_search` result scoped
   to this repository's project.
 - The same run logs a Serena result: either a non-empty symbol or structure
   query, or an explicit graceful-degradation note when no language server is
