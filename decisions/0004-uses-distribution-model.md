@@ -80,6 +80,18 @@ Two gh-aw facts gate the `uses:` model:
    across the pipeline's human-gated phases, and the App-identity write — the
    write that lets one agent's output trigger the next — is automatic.
 
+7. **The downstream agents activate on automation events.** `sdd-validate`,
+   `sdd-review`, and the `sdd-execute` variants are triggered by an upstream
+   agent's output — a pull request or a label written by the App — not only
+   by human action. gh-aw's pre-activation gate (`roles:`, default `[admin,
+   maintainer, write]`) cancels a run whose triggering actor is the App's
+   bot, which silently stalled the pipeline at the validate and review
+   stages. These three set `roles: all`. The thin wrappers' route jobs remain
+   the real gate: they admit only SDD-pipeline entities (`sdd/*` branches,
+   `sdd:*` labels) and write-access `/`-commands. `sdd-spec` and `sdd-triage`
+   keep the default roles — they are reached only by human action (a feature
+   issue, a merged pull request, a `/`-command).
+
 ## Reasoning
 
 - The `uses:` model is the GitHub-native way to distribute reusable

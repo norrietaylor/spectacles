@@ -13,6 +13,11 @@ permissions:
 engine: copilot
 inlined-imports: true
 strict: false
+# Activated by an upstream agent's output (App-authored pull requests and
+# labels), not only by humans; the default roles gate would cancel those
+# bot-triggered runs at pre_activation. The wrapper's route job is the real
+# gate — it admits only SDD-pipeline entities. See ADR 0004.
+roles: all
 imports:
   - norrietaylor/spectacles/shared/sdd-interaction.md@main
   - norrietaylor/spectacles/shared/sdd-mcp-serena.md@main
