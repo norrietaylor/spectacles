@@ -4,7 +4,9 @@
 # Distillery is the retrieval and memory layer of the SDD suite. It indexes
 # this repository's specs, decisions, issues, and pull requests and answers
 # semantic queries over them. The `distillery-sync` workflow keeps the store
-# current.
+# current: issues and pull requests via the `gh-sync` tool, and specs and
+# ADRs stored as knowledge entries. The `sdd-*` agents that import this
+# fragment are read-only consumers and only query the store.
 #
 # Transport is HTTP, authenticated via OAuth. The endpoint and the OAuth
 # credentials are configuration: they are read from repository or organization
