@@ -141,6 +141,13 @@ Identify the situation from the `aw_context` input and the triggers above. For
 a `/execute` comment the input names the task sub-issue. For a review-comment
 event the input names the pull request and the review comment.
 
+A `schedule` or `workflow_dispatch` run carries no issue or pull request in
+`aw_context` — only the trigger kind. That is **not** an empty or test run: it
+is the signal to scan the `sdd:ready` queue. Proceed to step 2 and select a
+task; if the queue yields no eligible task, proceed to step 8. Never emit
+`noop` from this step because `aw_context` names no item — a scheduled or
+dispatched run always continues to step 2, and then to step 8.
+
 ### 2. Select one eligible task
 
 This step runs for a scheduled run, a `workflow_dispatch` run, or a `/execute`
@@ -243,6 +250,9 @@ repository-conventions fragment. The pull request body **must** contain:
   closes the task.
 - The captured proof-artifact output, one block per artifact, so a reviewer
   sees the evidence without re-running anything.
+- The next step for a human reader: merging this pull request closes the task
+  sub-issue, and once every task sub-issue of the tracking issue is closed the
+  pipeline advances that tracking issue to `sdd:done` for a final human review.
 
 ### 7. Address review comments in place
 

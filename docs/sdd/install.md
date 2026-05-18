@@ -162,6 +162,17 @@ history, not only a greenfield one. Before and after the install, confirm:
       build, test, and lint commands. Agents read the toolchain from there;
       they hardcode none. If neither file documents the toolchain, add the
       commands to `CLAUDE.md` first.
+- [ ] The target repository's package registry is reachable from the agent
+      sandbox. The agents run inside gh-aw's network-restricted firewall; its
+      allowlist covers the GitHub APIs, the npm registry, and the Ubuntu apt
+      mirrors, but not every language's registry — `pypi.org` is not on it. If
+      the build or test command the agents read from `CLAUDE.md` fetches from
+      a registry the firewall does not allow, `sdd-execute` and `sdd-validate`
+      cannot install the toolchain: the proof-artifact gate degrades to manual
+      inspection of the diff instead of executed tests. The run is not blocked
+      and verification still happens, but it is narrower. Extending the
+      firewall allowlist for a stack whose registry is not covered is a known
+      limitation.
 - [ ] The install did not overwrite any existing workflow. The `sdd-*` and
       `distillery-sync` workflow filenames do not collide with the target
       repository's own workflows. Review the dry-run output for any unexpected

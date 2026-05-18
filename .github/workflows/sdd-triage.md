@@ -187,7 +187,10 @@ title prefix is applied automatically, so write the title as
 `(<slug>): <issue title>` with no leading space. The branch follows the
 `arch/<slug>` convention from the imported repository-conventions fragment.
 The pull request body summarizes the chosen approach, references the tracking
-issue, and notes whether an ADR was promoted. Reference the tracking issue —
+issue, and notes whether an ADR was promoted. It also states the next step for
+a human reader: merging this pull request advances the tracking issue to phase
+B, where one parent task per demoable unit is created. Reference the tracking
+issue —
 in the pull request body and in every commit message — with a bare
 `#<number>` or `Refs #<number>`, never a closing keyword (`Closes`, `Fixes`,
 `Resolves`). GitHub auto-closes an issue named by a closing keyword in a

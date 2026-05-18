@@ -196,7 +196,9 @@ is `spec(<slug>): <issue title>`; the `spec` title prefix is applied
 automatically, so write the title as `(<slug>): <issue title>` with no leading
 space. The branch follows the `spec/<slug>` convention from the imported
 repository-conventions fragment. The pull request body summarizes the spec,
-references the tracking issue, and lists the demoable units. Reference the
+references the tracking issue, and lists the demoable units. It also states the
+next step for a human reader: merging this pull request advances the tracking
+issue from the spec phase into the architecture and triage phase. Reference the
 tracking issue — in the pull request body and in every commit message — with
 a bare `#<number>` or `Refs #<number>`, never a closing keyword (`Closes`,
 `Fixes`, `Resolves`). GitHub auto-closes an issue named by a closing keyword
