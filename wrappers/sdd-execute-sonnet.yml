@@ -54,6 +54,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      issues: read
     outputs:
       should_run: ${{ steps.decide.outputs.should_run }}
       aw_context: ${{ steps.decide.outputs.aw_context }}
@@ -67,6 +68,10 @@ jobs:
             const payload = context.payload;
             let run = false;
             let ctx = {};
+
+            // This wrapper is the sonnet model tier; the tier gate below
+            // skips a task another tier owns.
+            const TIER = 'sonnet';
 
             // A scheduled run or a manual dispatch: scan the task queue and
             // select one eligible task. There is no specific triggering item,
@@ -177,6 +182,50 @@ jobs:
                   item_type: 'pull_request',
                   item_number: payload.pull_request.number,
                 };
+              }
+            }
+
+            // Tier gate. sdd-triage assigns each task sub-issue exactly one
+            // model:* label. A schedule or dispatch has no specific task — the
+            // agent selects one from the queue — so it is never gated here.
+            // Every other trigger resolves to a task sub-issue, directly for an
+            // issue event or through the pull request's `Closes #<task>`
+            // reference for a pull-request event; this variant runs only when
+            // that sub-issue carries the model:<TIER> label. This stops the
+            // needless agent run, and its inference cost, on the two tiers a
+            // /execute or resume does not belong to.
+            if (run && ctx.trigger !== 'schedule'
+                && ctx.trigger !== 'workflow_dispatch') {
+              let taskIssue = 0;
+              if (ctx.item_type === 'issue') {
+                taskIssue = ctx.item_number;
+              } else if (ctx.item_type === 'pull_request') {
+                const prBody = (payload.pull_request
+                  && payload.pull_request.body) || '';
+                const m = prBody.match(
+                  /(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s+#(\d+)/i);
+                if (m) { taskIssue = parseInt(m[1], 10); }
+              }
+              let tierMatch = false;
+              if (taskIssue) {
+                try {
+                  const { data } = await github.rest.issues.get({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    issue_number: taskIssue,
+                  });
+                  tierMatch = (data.labels || []).some(
+                    (l) => (l.name || l) === 'model:' + TIER);
+                } catch (err) {
+                  core.info('Could not read labels for #' + taskIssue
+                    + ': ' + err.message);
+                }
+              }
+              if (!tierMatch) {
+                core.info('Task is not the model:' + TIER
+                  + ' tier; this variant skips it.');
+                run = false;
+                ctx = {};
               }
             }
 
