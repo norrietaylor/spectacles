@@ -1,4 +1,4 @@
-# gh-aw-metadata: {"schema_version":"v3","frontmatter_hash":"eff9a106c7bc854d945735f84e038f7dd0578b4ee9f7d3dad654180a98cd07b2","compiler_version":"v0.74.3","strict":true,"agent_id":"copilot"}
+# gh-aw-metadata: {"schema_version":"v3","frontmatter_hash":"ebcf8d56f4f90f9b7429f4af23b3e1faeb2944c2e51a1c73498e49123a32c4ee","compiler_version":"v0.74.3","agent_id":"copilot"}
 # gh-aw-manifest: {"version":1,"secrets":["COPILOT_GITHUB_TOKEN","GH_AW_GITHUB_MCP_SERVER_TOKEN","GH_AW_GITHUB_TOKEN","GITHUB_TOKEN"],"actions":[{"repo":"actions/checkout","sha":"de0fac2e4500dabe0009e67214ff5f5447ce83dd","version":"v6.0.2"},{"repo":"actions/download-artifact","sha":"3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c","version":"v8.0.1"},{"repo":"actions/github-script","sha":"3a2844b7e9c422d3c10d287c895573f7108da1b3","version":"v9.0.0"},{"repo":"actions/setup-node","sha":"48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e","version":"v6.4.0"},{"repo":"actions/upload-artifact","sha":"043fb46d1a93c77aae656e7c1c64a875d1fc6a0a","version":"v7.0.1"},{"repo":"github/gh-aw-actions/setup","sha":"8a9a52673cb8f97ebb43b344618af2d6f2c9ac7f","version":"v0.74.3"}],"containers":[{"image":"ghcr.io/github/gh-aw-firewall/agent:0.25.46"},{"image":"ghcr.io/github/gh-aw-firewall/api-proxy:0.25.46"},{"image":"ghcr.io/github/gh-aw-firewall/squid:0.25.46"},{"image":"ghcr.io/github/gh-aw-mcpg:v0.3.9","digest":"sha256:64828b42a4482f58fab16509d7f8f495a6d97c972a98a68aff20543531ac0388","pinned_image":"ghcr.io/github/gh-aw-mcpg:v0.3.9@sha256:64828b42a4482f58fab16509d7f8f495a6d97c972a98a68aff20543531ac0388"},{"image":"ghcr.io/github/github-mcp-server:v1.0.4"},{"image":"node:lts-alpine","digest":"sha256:d1b3b4da11eefd5941e7f0b9cf17783fc99d9c6fc34884a665f40a06dbdfc94f","pinned_image":"node:lts-alpine@sha256:d1b3b4da11eefd5941e7f0b9cf17783fc99d9c6fc34884a665f40a06dbdfc94f"}]}
 #    ___                   _   _      
 #   / _ \                 | | (_)     
@@ -29,6 +29,8 @@
 #     - norrietaylor/spectacles/shared/repo-conventions.md@main
 #     - norrietaylor/spectacles/shared/sdd-gates.md@main
 #     - norrietaylor/spectacles/shared/sdd-interaction.md@main
+#
+# inlined-imports: true
 #
 # Secrets used:
 #   - COPILOT_GITHUB_TOKEN
@@ -103,10 +105,6 @@ jobs:
       setup-span-id: ${{ steps.setup.outputs.span-id }}
       setup-trace-id: ${{ steps.setup.outputs.trace-id }}
       stale_lock_file_failed: ${{ steps.check-lock-file.outputs.stale_lock_file_failed == 'true' }}
-      target_checkout_ref: ${{ steps.resolve-host-repo.outputs.target_checkout_ref }}
-      target_ref: ${{ steps.resolve-host-repo.outputs.target_ref }}
-      target_repo: ${{ steps.resolve-host-repo.outputs.target_repo }}
-      target_repo_name: ${{ steps.resolve-host-repo.outputs.target_repo_name }}
     steps:
       - name: Setup Scripts
         id: setup
@@ -121,20 +119,6 @@ jobs:
           GH_AW_CURRENT_WORKFLOW_REF: ${{ github.repository }}/.github/workflows/sdd-validate.lock.yml@${{ github.ref }}
           GH_AW_INFO_VERSION: "1.0.48"
           GH_AW_SETUP_AW_CONTEXT: ${{ inputs.aw_context }}
-      - name: Resolve host repo for activation checkout
-        id: resolve-host-repo
-        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
-        env:
-          JOB_WORKFLOW_REPOSITORY: ${{ job.workflow_repository }}
-          JOB_WORKFLOW_SHA: ${{ job.workflow_sha }}
-          JOB_WORKFLOW_REF: ${{ job.workflow_ref }}
-          JOB_WORKFLOW_FILE_PATH: ${{ job.workflow_file_path }}
-        with:
-          script: |
-            const { setupGlobals } = require('${{ runner.temp }}/gh-aw/actions/setup_globals.cjs');
-            setupGlobals(core, github, context, exec, io, getOctokit);
-            const { main } = require('${{ runner.temp }}/gh-aw/actions/resolve_host_repo.cjs');
-            await main();
       - name: Compute artifact prefix
         id: artifact-prefix
         env:
@@ -158,8 +142,7 @@ jobs:
           GH_AW_INFO_AWF_VERSION: "v0.25.46"
           GH_AW_INFO_AWMG_VERSION: ""
           GH_AW_INFO_FIREWALL_TYPE: "squid"
-          GH_AW_COMPILED_STRICT: "true"
-          GH_AW_INFO_TARGET_REPO: ${{ steps.resolve-host-repo.outputs.target_repo }}
+          GH_AW_COMPILED_STRICT: "false"
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         with:
           script: |
@@ -172,19 +155,10 @@ jobs:
         run: bash "${RUNNER_TEMP}/gh-aw/actions/validate_multi_secret.sh" COPILOT_GITHUB_TOKEN 'GitHub Copilot CLI' https://github.github.com/gh-aw/reference/engines/#github-copilot-default
         env:
           COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
-      - name: Print cross-repo setup guidance
-        if: failure() && steps.resolve-host-repo.outputs.target_repo != github.repository
-        run: |
-          echo "::error::COPILOT_GITHUB_TOKEN must be configured in the CALLER repository's secrets."
-          echo "::error::For cross-repo workflow_call, secrets must be set in the repository that triggers the workflow."
-          echo "::error::See: https://github.github.com/gh-aw/patterns/central-repo-ops/#cross-repo-setup"
       - name: Checkout .github and .agents folders
-        if: steps.resolve-host-repo.outputs.target_repo == github.repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           persist-credentials: false
-          repository: ${{ steps.resolve-host-repo.outputs.target_repo }}
-          ref: ${{ steps.resolve-host-repo.outputs.target_checkout_ref }}
           sparse-checkout: |
             .github
             .agents
@@ -240,20 +214,20 @@ jobs:
         run: |
           bash "${RUNNER_TEMP}/gh-aw/actions/create_prompt_first.sh"
           {
-          cat << 'GH_AW_PROMPT_b2769f0a3951cadd_EOF'
+          cat << 'GH_AW_PROMPT_86ccd3de514bf9c5_EOF'
           <system>
-          GH_AW_PROMPT_b2769f0a3951cadd_EOF
+          GH_AW_PROMPT_86ccd3de514bf9c5_EOF
           cat "${RUNNER_TEMP}/gh-aw/prompts/xpia.md"
           cat "${RUNNER_TEMP}/gh-aw/prompts/temp_folder_prompt.md"
           cat "${RUNNER_TEMP}/gh-aw/prompts/markdown.md"
           cat "${RUNNER_TEMP}/gh-aw/prompts/safe_outputs_prompt.md"
-          cat << 'GH_AW_PROMPT_b2769f0a3951cadd_EOF'
+          cat << 'GH_AW_PROMPT_86ccd3de514bf9c5_EOF'
           <safe-output-tools>
           Tools: add_comment, add_labels, remove_labels, missing_tool, missing_data, noop
           </safe-output-tools>
-          GH_AW_PROMPT_b2769f0a3951cadd_EOF
+          GH_AW_PROMPT_86ccd3de514bf9c5_EOF
           cat "${RUNNER_TEMP}/gh-aw/prompts/mcp_cli_tools_prompt.md"
-          cat << 'GH_AW_PROMPT_b2769f0a3951cadd_EOF'
+          cat << 'GH_AW_PROMPT_86ccd3de514bf9c5_EOF'
           <github-context>
           The following GitHub context information is available for this workflow:
           {{#if github.actor}}
@@ -282,16 +256,519 @@ jobs:
           {{/if}}
           </github-context>
           
-          GH_AW_PROMPT_b2769f0a3951cadd_EOF
+          GH_AW_PROMPT_86ccd3de514bf9c5_EOF
           cat "${RUNNER_TEMP}/gh-aw/prompts/github_mcp_tools_with_safeoutputs_prompt.md"
-          cat << 'GH_AW_PROMPT_b2769f0a3951cadd_EOF'
+          cat << 'GH_AW_PROMPT_86ccd3de514bf9c5_EOF'
           </system>
-          {{#runtime-import .github/aw/imports/norrietaylor/spectacles/fbae3ca7e82fb22feab060c0fa59b5775a9da83f/shared_principles.md}}
-          {{#runtime-import .github/aw/imports/norrietaylor/spectacles/fbae3ca7e82fb22feab060c0fa59b5775a9da83f/shared_repo-conventions.md}}
-          {{#runtime-import .github/aw/imports/norrietaylor/spectacles/fbae3ca7e82fb22feab060c0fa59b5775a9da83f/shared_sdd-interaction.md}}
-          {{#runtime-import .github/aw/imports/norrietaylor/spectacles/fbae3ca7e82fb22feab060c0fa59b5775a9da83f/shared_sdd-gates.md}}
-          {{#runtime-import .github/workflows/sdd-validate.md}}
-          GH_AW_PROMPT_b2769f0a3951cadd_EOF
+          # Core principles
+          
+          Every spectacles agent imports this fragment. These behavioral principles
+          reduce the common failure modes of LLM coding agents. They are derived from
+          Andrej Karpathy's observations on LLM coding pitfalls, by way of
+          [andrej-karpathy-skills](https://github.com/norrietaylor/andrej-karpathy-skills).
+          
+          They bias toward caution over speed. For a trivial change, use judgment.
+          
+          ## 1. Think before acting
+          
+          Do not assume. Do not hide confusion. Surface tradeoffs.
+          
+          - State assumptions explicitly. If uncertain, ask. In spectacles, asking means
+            a comment plus the `needs-human` label, never a silent guess.
+          - If multiple interpretations exist, present them; do not pick one silently.
+          - If a simpler approach exists, say so. Push back when warranted.
+          - If something is unclear, stop, name what is confusing, and ask.
+          
+          ## 2. Simplicity first
+          
+          Write the minimum that solves the problem. Nothing speculative.
+          
+          - No features, abstractions, or configurability beyond what was asked.
+          - No error handling for impossible scenarios.
+          - If 200 lines could be 50, rewrite it.
+          - Ask: would a senior engineer call this overcomplicated? If yes, simplify.
+          
+          ## 3. Surgical changes
+          
+          Touch only what you must. Clean up only your own mess.
+          
+          - Do not improve adjacent code, comments, or formatting.
+          - Do not refactor what is not broken. Match the existing style.
+          - Remove imports, variables, and functions that your own change orphaned;
+            leave pre-existing dead code alone, but mention it.
+          - The test: every changed line traces directly to the task.
+          
+          ## 4. Goal-driven execution
+          
+          Define success criteria, then loop until verified.
+          
+          - Turn a task into a verifiable goal: "add validation" becomes "write tests
+            for invalid inputs, then make them pass".
+          - For multi-step work, state a brief plan with a verify step for each step.
+          - In spectacles this is the proof-artifact discipline: a change is not done
+            until its proof artifact has been executed and passes.
+          
+          Strong success criteria let an agent loop on its own; weak criteria such as
+          "make it work" force constant clarification.
+          
+          ---
+          
+          These principles are working when diffs carry fewer unnecessary changes, fewer
+          rewrites follow from overcomplication, and clarifying questions come before
+          implementation rather than after a mistake.
+          
+          # Repository conventions
+          
+          Every spectacles agent imports this fragment so it can apply repository
+          conventions without restating them in each workflow prompt.
+          
+          ## Canonical doc surface
+          
+          If the repository has a `CLAUDE.md` at its root, treat it as the authoritative
+          guide for build and test commands, code style, PR conventions, and
+          domain-specific constraints. Read it before any analysis or change. If
+          `CLAUDE.md` and the code disagree, flag the discrepancy rather than silently
+          preferring one. If there is no `CLAUDE.md`, fall back to `README.md`.
+          
+          ## Branch and commit conventions
+          
+          Unless `CLAUDE.md` says otherwise:
+          
+          - Branch names: `spec/<slug>` for spec PRs, `arch/<slug>` for architecture
+            PRs, `sdd/<task-id>-<slug>` for implementation PRs.
+          - Commit subjects: imperative mood, present tense, 72 characters or fewer.
+          - A fix PR closes its issue with `Closes #N` in the description.
+          - Never force-push a branch that has an open PR.
+          
+          ## No private or hardcoded identities
+          
+          No employer name, private org slug, internal repository name, internal URL,
+          cost figure, or contributor personal data belongs in any committed file,
+          issue, PR, or comment. The GitHub App identity, MCP endpoints, and org slug
+          are configuration, never literals in a workflow or fragment.
+          
+          # Human-interaction contract
+          
+          Every `sdd-*` agent imports this fragment so the interaction contract is
+          defined once and never restated per workflow. It states the lifecycle-label
+          state machine, the comment-command vocabulary, and the `needs-human` hand-off
+          contract.
+          
+          The pipeline is operated entirely through four GitHub primitives: issues,
+          comments, labels, and pull requests. There is no external task board and no
+          separate UI. A human steers; agents draft.
+          
+          ## Lifecycle-label state machine
+          
+          Lifecycle state lives as exactly one `sdd:*` label on the tracking issue. The
+          agent that completes a phase moves the label to the next state. The label set
+          is the GitHub-native task board.
+          
+          ```text
+          sdd:spec -> sdd:triage -> sdd:ready -> sdd:in-progress -> sdd:review -> sdd:done
+          ```
+          
+          | Label | Meaning | Set by | Advances on |
+          |---|---|---|---|
+          | `sdd:spec` | the feature is being specified | `feature`/`bug` template, or `/spec` | spec PR merged |
+          | `sdd:triage` | architecture and triage are running | `sdd-spec` on spec-PR merge | architecture PR merged, then `/approve` |
+          | `sdd:ready` | tasks are decomposed and queued | `sdd-triage` on phase C completion | a task is picked up |
+          | `sdd:in-progress` | a task is being implemented | `sdd-execute` on task selection | validation passes |
+          | `sdd:review` | the implementation awaits human review | `sdd-validate` on a clean implementation pass | all task sub-issues closed |
+          | `sdd:done` | every task is complete | `sdd-execute` when all tasks are closed | a human does the final close |
+          
+          Exactly one lifecycle label is present at a time. `sdd:triage` covers all
+          three `sdd-triage` phases (architecture, parent tasks, sub-tasks). The
+          `kind:*`, `priority:*`, and `model:{haiku,sonnet,opus}` labels are orthogonal
+          metadata and are not part of this state machine.
+          
+          ## Comment-command vocabulary
+          
+          A small command vocabulary steers the pipeline. Every command is gated, via
+          the gh-aw `command:` trigger, to comment authors with write access to the
+          repository. A command from a non-write user is a no-op.
+          
+          | Command | Where | Effect |
+          |---|---|---|
+          | `/spec` | tracking issue | trigger `sdd-spec` (also auto-applied by the `feature`/`bug` template label) |
+          | `/triage` | tracking issue, after the spec PR is merged | trigger `sdd-triage` phase A (architecture) |
+          | `/approve` | tracking issue | confirm the parent-task list; `sdd-triage` proceeds to sub-tasks |
+          | `/revise <note>` | spec PR, architecture PR, triage comment, or implementation PR | re-run the owning agent with the note as an added instruction |
+          | `/execute` | a task sub-issue | trigger `sdd-execute` for that task ahead of the cron |
+          
+          Merging the spec PR advances to the architecture phase; merging the
+          architecture PR advances to the parent-task phase. `/approve` is the one
+          non-PR decision point: it confirms the parent-task list before sub-task
+          decomposition.
+          
+          ## The `needs-human` contract
+          
+          `needs-human` is the uniform agent-to-human hand-off marker for the whole
+          pipeline. It is defined by ADR 0001 (`decisions/0001-needs-human.md`); the
+          four clauses below are repeated here so an importing workflow has the contract
+          inline.
+          
+          1. **Apply at the terminal state.** An agent applies `needs-human` (via the
+             `add-labels` safe-output) at the step where it decides it cannot safely
+             proceed, and posts exactly one comment stating the blocker and what it
+             needs.
+          2. **Treat a labelled item as off-limits.** Every agent skips
+             `needs-human`-labelled issues and pull requests during candidate
+             selection. This is the idempotency guarantee: the hand-off comment posts
+             once, never once per run.
+          3. **Never remove the label.** No agent ever clears `needs-human`. Only a
+             human clears it, which is the signal that the human has taken over or
+             resolved the blocker.
+          4. **Resume on removal.** Clearing `needs-human` fires an `unlabeled` event
+             that re-triggers the agent that applied it. The agent re-reads the thread,
+             including the human's new comment, and resumes.
+          
+          `needs-human` is a hand-off state, not a content category, and is kept
+          distinct from the `kind:*` labels. For the per-agent table of when each agent
+          applies `needs-human`, see `decisions/0001-needs-human.md`.
+          
+          ## Verification
+          
+          - `templates/.github/labels.yml` defines every `sdd:*` lifecycle label and
+            every `model:*` tier label named above.
+          - This fragment references `decisions/0001-needs-human.md`, the ADR that owns
+            the `needs-human` contract.
+          - Each `sdd-*` workflow imports this fragment, so the lifecycle state machine,
+            the command vocabulary, and the hand-off contract are stated once.
+          
+          # Validation gates
+          
+          The `sdd-validate` agent imports this fragment so the per-boundary gate sets
+          are defined once and never restated in the workflow prompt. A gate is a single
+          checkable property of an artifact. Each phase boundary has its own gate set;
+          the agent resolves the boundary first (see `.github/workflows/sdd-validate.md`)
+          and then applies only that boundary's gates.
+          
+          Validation is advisory by design. A gate that fails produces a finding, never
+          a failed required status check. Every finding carries a severity (Blocker,
+          Warning, Info) and `file:line` evidence per the imported evidence-rigor
+          standard. A Blocker finding triggers the `needs-human` hand-off; it never fails
+          the workflow.
+          
+          ## Severity
+          
+          - **Blocker.** The artifact has a defect that a human must resolve before the
+            phase can safely advance. A Blocker finding triggers `needs-human` on the
+            pull request or the tracking issue.
+          - **Warning.** The artifact has a weakness worth addressing but the phase can
+            proceed. No hand-off.
+          - **Info.** An observation for the author's awareness. No hand-off.
+          
+          A gate maps to a severity by how load-bearing the failure is: a gate that
+          guards a correctness property of the phase is a Blocker when it fails; a gate
+          that guards a quality property is a Warning. Apply the 80% confidence floor
+          from the evidence-rigor standard before filing any finding.
+          
+          ## Spec gates
+          
+          Applied at the spec boundary: a pull request that adds or changes a
+          `*-spec-*.md` file under `docs/specs/`.
+          
+          1. **Acceptance criteria testable.** Every acceptance criterion is a testable
+             statement, observable as pass or fail, not a vague aspiration. A criterion
+             that cannot be checked is a Blocker.
+          2. **No implementation leakage.** The spec states what the feature does and why,
+             not how it is coded. A criterion that prescribes a function, a class, a data
+             structure, or a file name where a behavioral statement belongs is
+             implementation leakage and is a Warning.
+          3. **Assumptions explicit.** Every assumption the spec rests on is stated
+             plainly. An unstated assumption that a reader must infer is a Warning.
+          4. **Proof artifacts present and behavioral.** Every demoable unit carries one
+             to three proof artifacts, each of one of the five types, and each passes the
+             empty-PR rule from the imported proof-artifacts fragment. A demoable unit
+             with no proof artifact, or a proof artifact that would pass against an empty
+             pull request, is a Blocker.
+          
+          ## Architecture gates
+          
+          Applied at the architecture boundary: a pull request that adds or changes an
+          `architecture.md` file under `docs/specs/`, or any file under `decisions/`.
+          
+          1. **Decision and rationale present.** The record states the chosen approach
+             and the reasoning behind it. A record that names an approach with no
+             rationale is a Blocker.
+          2. **Alternatives considered.** The record lists the alternatives that were
+             weighed and why each was not chosen. A decision presented with no
+             alternatives is a Warning; a feature with no significant decision is the
+             documented short "no significant architecture decision" note and is not
+             itself a finding.
+          3. **Consistent with existing decisions.** The record does not contradict an
+             accepted record under `decisions/`. A decision that reverses or conflicts
+             with an accepted ADR without saying so is a Blocker.
+          4. **No implementation detail masquerading as a decision.** The record captures
+             a cross-cutting choice, not a line-level coding detail. An entry that is a
+             coding preference dressed as an architecture decision is a Warning.
+          
+          ## Triage gates
+          
+          Applied at the triage boundary: an `sdd:ready` label event on a tracking issue.
+          The task graph is a set of linked sub-issues, not a pull request, so this
+          boundary validates the sub-issues of the tracking issue.
+          
+          1. **Every spec R-ID covered by a task.** Every requirement ID in the feature's
+             spec maps to at least one task sub-issue. A spec requirement that maps to no
+             task is a Blocker.
+          2. **Dependencies form a DAG.** The `blocked by` lines across the task
+             sub-issues form a directed acyclic graph. A dependency cycle is a Blocker.
+          3. **Each task single-session sized.** Every task is scoped to be implementable
+             in a single agent session. A task that is too large for one session is a
+             Warning.
+          4. **Every task has a `repo:` field.** Every task sub-issue's structured body
+             carries a `repo:` field. A task missing the `repo:` field is a Blocker:
+             `sdd-execute` reads that field to decide whether the task is local.
+          
+          ## Implementation gates
+          
+          Applied at the implementation boundary: any pull request change that is not a
+          spec file and not an architecture or decisions file.
+          
+          1. **Proof artifacts re-executed and passing.** Each proof artifact named in
+             the task is re-run and observed to pass. A proof artifact that fails on
+             re-execution, or that cannot be re-executed, is a Blocker.
+          2. **Changed files within task scope.** Every file the pull request changes is
+             within the files-in-scope block of the task it closes. A change outside that
+             scope is a Warning; a change to a protected path (`.github/`, `decisions/`,
+             `templates/.github/`, secrets) is a Blocker.
+          3. **No real credentials in the diff.** The diff introduces no real secret,
+             token, key, or other credential. A credential in the diff is a Blocker.
+          
+          ## Verification
+          
+          - This fragment names all four gate sets: spec gates, architecture gates,
+            triage gates, and implementation gates.
+          - `.github/workflows/sdd-validate.md` imports this fragment and resolves the
+            boundary before applying a gate set.
+          - Each gate set names the artifact it applies to and the boundary that selects
+            it.
+          
+          # sdd-validate
+          
+          `sdd-validate` is the validation agent of the issue-native SDD pipeline. It
+          runs the per-boundary gate sets at all four phase boundaries (spec,
+          architecture, triage, implementation) and posts the findings as a single
+          advisory comment. It never blocks a merge: validation is advisory by design.
+          
+          This workflow is a reusable workflow: it is invoked through `workflow_call`
+          from the thin wrapper `wrappers/sdd-validate.yml`, which carries the real event
+          triggers. The wrapper passes the triggering pull request or issue through the
+          `aw_context` input so this agent knows which entity it is operating on.
+          
+          ## Why this agent is advisory
+          
+          A merge is gated by human review and the consumer repository's own CI, never
+          by this agent. `sdd-validate` is therefore not a required status check, and it
+          exits successfully even when it reports a Blocker finding. A Blocker is
+          surfaced to a human through the `needs-human` hand-off, not through a failed
+          check. A draft is never wedged on the agent's own opinion.
+          
+          ## Triggers this agent handles
+          
+          The wrapper invokes this agent for one of three situations. Determine which one
+          applies from the `aw_context` input before doing anything else.
+          
+          1. **A pull request was opened or synchronized.** Validate the pull request at
+             the boundary its changed files resolve to (see step 2 of the procedure, the
+             boundary-resolution step).
+          2. **A tracking issue gained the `sdd:ready` label.** Validate the triage
+             boundary: the task graph is a set of linked sub-issues, not a pull request,
+             so the `sdd:ready` label event is the non-pull-request triage boundary.
+          3. **The `needs-human` label was removed from a tracking issue.** A human has
+             answered an earlier hand-off. Resume **only** when the open concern on that
+             tracking issue is a hand-off `sdd-validate` itself made: the tracking issue
+             is still in the `sdd:in-progress` lifecycle state, that is, it still carries
+             the `sdd:in-progress` label. `sdd-validate` hands off on a tracking issue
+             only at the implementation boundary, where a Blocker finding escalates and
+             the issue stays `sdd:in-progress` (it never reaches `sdd:review`); a clean
+             implementation pass would instead have moved it to `sdd:review`. So an
+             `sdd:in-progress` tracking issue is one whose open concern is this agent's
+             own validation finding. Re-read the whole thread, including the human's new
+             comments, then re-resolve the implementation boundary from the linked pull
+             request and re-run the implementation gate set. `needs-human` is shared by
+             all five SDD agents, so its removal can re-trigger this workflow for an item
+             another agent owns. If the tracking issue does not carry `sdd:in-progress`,
+             the hand-off belongs to another agent (`sdd-spec` at `sdd:spec`,
+             `sdd-triage` at `sdd:triage`, `sdd-execute` at `sdd:ready` or `sdd:done`):
+             do not re-validate and emit `noop`.
+          
+          A `needs-human` hand-off that `sdd-validate` made on a **pull request** (an
+          implementation-boundary Blocker escalated onto the PR rather than the tracking
+          issue) is not resumed through this `needs-human`-removal path: the wrapper does
+          not subscribe to `pull_request: unlabeled`. That hand-off is resumed instead by
+          a fresh `pull_request: synchronize`, which is the event the human's fix commit
+          naturally fires. Clearing `needs-human` on a PR without a code change would
+          re-run the same gate set against the unchanged diff and re-post the same
+          Blocker; resuming on `synchronize` ties re-validation to an actual fix. See the
+          wrapper comment in `wrappers/sdd-validate.yml` for the same rationale.
+          
+          When the triggering item already carries the `needs-human` label, stop
+          immediately and emit `noop`. A `needs-human`-labelled item is off-limits during
+          candidate selection (see the imported interaction contract); the hand-off
+          comment has already been posted and must not be posted again.
+          
+          ## What this agent produces
+          
+          For every run, this agent posts exactly one findings comment on the pull
+          request or the tracking issue. It applies `needs-human` when a gate produces a
+          Blocker finding. On a clean implementation-boundary pass it moves the linked
+          tracking issue from `sdd:in-progress` to `sdd:review`. It opens no pull
+          request and creates no issue.
+          
+          ## Procedure
+          
+          ### 1. Read the conventions and the triggering item
+          
+          Read `CLAUDE.md` (fallback `README.md`) for the target repository's build,
+          test, and convention guidance, per the imported repository-conventions
+          fragment. Read the triggering item resolved from `aw_context`: for a pull
+          request, its title, body, diff, and comments; for an `sdd:ready` issue, the
+          tracking issue and every linked task sub-issue.
+          
+          For situation 3 (a `needs-human` removal on a tracking issue), first apply the
+          resume guard: confirm the tracking issue still carries `sdd:in-progress`. If it
+          does not, this is another agent's hand-off; emit `noop` and stop. If it does,
+          read the tracking issue and its whole comment thread, including the human's new
+          comments, and read the linked implementation pull request resolved from the
+          issue's `Closes #N` reference: its title, body, diff, and comments. This is the
+          same implementation-boundary input as a pull request trigger, reached from the
+          tracking issue side.
+          
+          ### 2. Resolve the boundary
+          
+          The four phase boundaries each have their own gate set. Resolve which boundary
+          this run is validating before applying any gate:
+          
+          - **Spec boundary.** The pull request adds or changes a `*-spec-*.md` file
+            under `docs/specs/`.
+          - **Architecture boundary.** The pull request adds or changes an
+            `architecture.md` file under `docs/specs/`, or any file under `decisions/`.
+          - **Implementation boundary.** The pull request changes any other file, that
+            is, a change that is neither a spec file nor an architecture or decisions
+            file.
+          - **Triage boundary.** The trigger is an `sdd:ready` label event on a tracking
+            issue. The task graph is the set of linked sub-issues, not a pull request.
+          
+          A pull request resolves to exactly one boundary. When a pull request touches
+          files of more than one boundary, resolve to the boundary of the most
+          significant change in this order: spec, then architecture, then
+          implementation. State the resolved boundary in the findings comment.
+          
+          For situation 3 (a guarded `needs-human`-removal resume on a tracking issue),
+          the boundary is always the implementation boundary: `sdd-validate` hands off on
+          a tracking issue only at the implementation boundary. Resolve the changed-file
+          set from the linked implementation pull request read in step 1 and proceed as
+          an implementation-boundary run.
+          
+          ### 3. Apply that boundary's gate set
+          
+          Apply only the resolved boundary's gate set from the imported validation-gates
+          fragment. The four gate sets are defined there, not here:
+          
+          - **Spec gates:** acceptance criteria testable, no implementation leakage,
+            assumptions explicit, proof artifacts present and behavioral.
+          - **Architecture gates:** a decision and rationale present, alternatives
+            considered, consistent with existing `decisions/`, no implementation detail
+            masquerading as a decision.
+          - **Triage gates:** every spec R-ID covered by a task, dependencies form a
+            DAG, each task single-session sized, every task carries a `repo:` field.
+          - **Implementation gates:** proof artifacts re-executed and passing, changed
+            files within task scope, no real credentials in the diff.
+          
+          Apply each gate as one checkable property. Apply the 80% confidence floor from
+          the imported evidence-rigor standard before filing any finding: an uncertain
+          pattern is a note, not a Blocker.
+          
+          ### 4. Post the findings as a single comment
+          
+          Post exactly one comment, via the `add-comment` safe-output, on the triggering
+          item: the pull request for a pull request trigger (the spec, architecture, or
+          implementation boundary), or the tracking issue for a triage boundary or for a
+          guarded `needs-human`-removal resume (situation 3). The comment lists every
+          finding with:
+          
+          - A severity: **Blocker**, **Warning**, or **Info**, per the imported
+            validation-gates fragment.
+          - `file:line` evidence per the imported evidence-rigor standard: a file path
+            and line number, a command and its output, or a direct quote.
+          - The gate that produced the finding and the boundary that selected it.
+          
+          A re-run posts a fresh findings comment and the `hide-older-comments` option
+          minimizes the agent's earlier findings comments, so a single current findings
+          comment is what a reader sees. Do not post a second comment in one run.
+          
+          When the gate set produces no finding, post a short comment stating that the
+          boundary passed clean and naming the boundary and the gate set applied.
+          
+          ### 5. Escalate a Blocker, never fail the run
+          
+          When any gate produced a Blocker finding, apply the `needs-human` label to the
+          pull request or the tracking issue, via the `add-labels` safe-output, and make
+          sure the findings comment names the failed gate and its citing evidence. This
+          is the `needs-human` hand-off from the imported interaction contract and
+          ADR 0001: a human resolves the Blocker and clears the label.
+          
+          Do not fail the workflow on a Blocker finding and do not declare a required
+          status check. The run exits successfully regardless of severity. Warning and
+          Info findings are posted in the comment only and trigger no hand-off.
+          
+          Apply the hand-off once: when the triggering item already carries
+          `needs-human`, the off-limits check in the "Triggers this agent handles"
+          section has already stopped the run with `noop`.
+          
+          ### 6. Advance the lifecycle on a clean implementation pass
+          
+          When the boundary is the implementation boundary and the gate set produced no
+          Blocker finding, the implementation has passed validation. Move the linked
+          tracking issue to the next lifecycle state:
+          
+          - Remove the `sdd:in-progress` label from the tracking issue
+            (`remove-labels`).
+          - Add the `sdd:review` label to the tracking issue (`add-labels`).
+          
+          For a pull request trigger, resolve the tracking issue from the pull request's
+          `Closes #N` reference. For a guarded `needs-human`-removal resume (situation 3)
+          the tracking issue is the triggering item itself. Move the label only at the
+          implementation boundary and only on a clean pass: a spec, architecture, or
+          triage pass does not move a lifecycle label, and an implementation pass with a
+          Blocker finding hands off via `needs-human` instead. Exactly one lifecycle
+          label is present at a time, so the removal and the addition are a single move.
+          A clean resume run therefore both clears the earlier Blocker (the human already
+          removed `needs-human`) and advances the tracking issue from `sdd:in-progress`
+          to `sdd:review`.
+          
+          ## Boundaries
+          
+          - This agent never edits `.github/`, `decisions/`, `templates/.github/`, or
+            secrets. It writes only a comment and label moves through safe-outputs.
+          - This agent never opens a pull request and never creates an issue.
+          - This agent never merges or approves a pull request. Merge authority stays
+            with humans and the consumer repository's CI.
+          - This agent never removes the `needs-human` label. Only a human clears it.
+          - This agent is not a required status check and never fails the workflow on a
+            finding. All writes go through safe-outputs; the workflow permissions stay
+            read-only.
+          
+          ## Verification
+          
+          - `gh aw compile` compiles this workflow with the four imported shared
+            fragments declared, and reports zero errors.
+          - The compiled workflow shows no required status-check declaration and exits 0
+            even when a Blocker finding is reported.
+          - A pull request adding a `docs/specs/**` file with an untestable acceptance
+            criterion yields one comment carrying a Blocker finding and the
+            `needs-human` label, and the workflow run still concludes successfully.
+          - A clean implementation-boundary pass moves the linked tracking issue from
+            `sdd:in-progress` to `sdd:review`.
+          - Clearing `needs-human` from an `sdd:in-progress` tracking issue that
+            `sdd-validate` handed off re-runs the implementation gate set; clearing it
+            from an issue carrying `sdd:spec`, `sdd:triage`, `sdd:ready`, or `sdd:done`
+            emits `noop` because that hand-off belongs to another agent.
+          
+          GH_AW_PROMPT_86ccd3de514bf9c5_EOF
           } > "$GH_AW_PROMPT"
       - name: Interpolate variables and render templates
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
@@ -498,9 +975,9 @@ jobs:
           mkdir -p "${RUNNER_TEMP}/gh-aw/safeoutputs"
           mkdir -p /tmp/gh-aw/safeoutputs
           mkdir -p /tmp/gh-aw/mcp-logs/safeoutputs
-          cat > "${RUNNER_TEMP}/gh-aw/safeoutputs/config.json" << 'GH_AW_SAFE_OUTPUTS_CONFIG_ddfcebfca677ac9b_EOF'
+          cat > "${RUNNER_TEMP}/gh-aw/safeoutputs/config.json" << 'GH_AW_SAFE_OUTPUTS_CONFIG_b6ee0ea06c9d790a_EOF'
           {"add_comment":{"hide_older_comments":true,"max":1},"add_labels":{"allowed":["needs-human","sdd:review"],"max":1},"create_report_incomplete_issue":{},"missing_data":{},"missing_tool":{},"noop":{"max":1,"report-as-issue":"true"},"remove_labels":{"allowed":["sdd:in-progress"],"max":1},"report_incomplete":{}}
-          GH_AW_SAFE_OUTPUTS_CONFIG_ddfcebfca677ac9b_EOF
+          GH_AW_SAFE_OUTPUTS_CONFIG_b6ee0ea06c9d790a_EOF
       - name: Generate Safe Outputs Tools
         env:
           GH_AW_TOOLS_META_JSON: |
@@ -734,7 +1211,7 @@ jobs:
           
           mkdir -p /home/runner/.copilot
           GH_AW_NODE=$(which node 2>/dev/null || command -v node 2>/dev/null || echo node)
-          cat << GH_AW_MCP_CONFIG_00997575db77fced_EOF | "$GH_AW_NODE" "${RUNNER_TEMP}/gh-aw/actions/start_mcp_gateway.cjs"
+          cat << GH_AW_MCP_CONFIG_b88a0e7be6c240bc_EOF | "$GH_AW_NODE" "${RUNNER_TEMP}/gh-aw/actions/start_mcp_gateway.cjs"
           {
             "mcpServers": {
               "github": {
@@ -775,7 +1252,7 @@ jobs:
               "payloadDir": "${MCP_GATEWAY_PAYLOAD_DIR}"
             }
           }
-          GH_AW_MCP_CONFIG_00997575db77fced_EOF
+          GH_AW_MCP_CONFIG_b88a0e7be6c240bc_EOF
       - name: Mount MCP servers as CLIs
         id: mount-mcp-clis
         continue-on-error: true

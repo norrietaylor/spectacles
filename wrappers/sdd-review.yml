@@ -82,7 +82,7 @@ jobs:
   sdd-review:
     needs: route
     if: needs.route.outputs.should_run == 'true'
-    uses: ./.github/workflows/sdd-review.lock.yml
+    uses: norrietaylor/spectacles/.github/workflows/sdd-review.lock.yml@main
     with:
       aw_context: ${{ needs.route.outputs.aw_context }}
     secrets: inherit

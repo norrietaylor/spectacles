@@ -13,6 +13,8 @@ permissions:
 engine:
   id: copilot
   model: claude-opus-4-1
+inlined-imports: true
+strict: false
 imports:
   - norrietaylor/spectacles/shared/principles.md@main
   - norrietaylor/spectacles/shared/runtime-setup.md@main

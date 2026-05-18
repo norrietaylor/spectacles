@@ -1,12 +1,13 @@
 ---
 on:
-  schedule: daily
-  workflow_dispatch:
+  workflow_call:
 permissions:
   contents: read
   issues: read
   pull-requests: read
 engine: copilot
+inlined-imports: true
+strict: false
 mcp-servers:
   distillery:
     url: "${{ vars.DISTILLERY_MCP_URL }}"

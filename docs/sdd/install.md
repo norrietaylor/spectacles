@@ -42,15 +42,20 @@ DISTILLERY_OAUTH_TOKEN=<machine-token> \
 
 `--suite sdd` installs, onto the target repository:
 
-- the seven `sdd-*` thin wrappers and their adjacent reusable workflows
-  (`sdd-spec`, `sdd-triage`, the three `sdd-execute` model-tier variants,
-  `sdd-validate`, `sdd-review`);
-- the `distillery-sync` scheduled workflow;
+- the eight thin wrappers — the seven `sdd-*` agents (`sdd-spec`,
+  `sdd-triage`, the three `sdd-execute` model-tier variants, `sdd-validate`,
+  `sdd-review`) and `distillery-sync`. Each wrapper calls a reusable workflow
+  hosted in the spectacles repository; no `.lock.yml` is copied onto the
+  consumer (see `workflows/README.md` and ADR 0004);
 - the `sdd:*` lifecycle labels and the `model:*` tier labels;
 - the `feature`, `bug`, and `chore` issue templates.
 
 Without `--suite sdd` the installer only syncs the base labels, which is the
 Unit 1 behavior and is left intact.
+
+The installed wrappers call the hosted reusable workflows at a pinned
+spectacles ref. `--ref <ref>` sets that ref (default `main`); pass a release
+tag to pin the consumer to an immutable suite version.
 
 During a real run the installer also detects the target repository's primary
 language and, when a Serena language server is known for it, sets the
@@ -166,9 +171,10 @@ history, not only a greenfield one. Before and after the install, confirm:
 Before running a feature through the pipeline, confirm the install resolved
 its dependencies:
 
-1. **Workflows present.** Confirm the seven `sdd-*` wrappers, their reusable
-   workflows, and `distillery-sync` appear under `.github/workflows/` on the
-   target repository.
+1. **Workflows present.** Confirm the eight wrappers — the seven `sdd-*`
+   wrappers and `distillery-sync.yml` — appear under `.github/workflows/` on
+   the target repository. The `.lock.yml` reusable workflows are hosted in the
+   spectacles repository and are not copied onto the consumer.
 2. **Labels present.** Confirm all six `sdd:*` labels and all three `model:*`
    labels exist on the target repository.
 3. **MCP reachable.** Dispatch `distillery-sync` once and confirm its run logs
@@ -215,7 +221,7 @@ operator's acceptance result, separate from this build PR.
 # 1. Preview the full SDD install without writing anything.
 bash scripts/quick-setup.sh --target-repo <owner>/<name> --suite sdd --dry-run
 
-# 2. Confirm the sdd-* wrappers and reusable workflows are present.
+# 2. Confirm the sdd-* and distillery-sync wrappers are present.
 gh api repos/<owner>/<name>/contents/.github/workflows \
   --jq '.[].name' | grep -E '^sdd-|^distillery-sync'
 
@@ -234,8 +240,8 @@ gh variable list --repo <owner>/<name>
 gh secret list --repo <owner>/<name>
 
 # 7. Dispatch distillery-sync and confirm the run starts.
-gh workflow run distillery-sync.lock.yml --repo <owner>/<name>
-gh run list --repo <owner>/<name> --workflow distillery-sync.lock.yml --limit 1
+gh workflow run distillery-sync.yml --repo <owner>/<name>
+gh run list --repo <owner>/<name> --workflow distillery-sync.yml --limit 1
 
 # 8. Open a test issue from the feature template and confirm its labels.
 gh issue create --repo <owner>/<name> --template feature.md \

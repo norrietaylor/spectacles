@@ -13,6 +13,8 @@ permissions:
 engine:
   id: copilot
   model: claude-sonnet-4-5
+inlined-imports: true
+strict: false
 imports:
   - norrietaylor/spectacles/shared/principles.md@main
   - norrietaylor/spectacles/shared/runtime-setup.md@main

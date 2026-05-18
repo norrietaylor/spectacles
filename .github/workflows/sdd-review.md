@@ -11,6 +11,8 @@ permissions:
   issues: read
   pull-requests: read
 engine: copilot
+inlined-imports: true
+strict: false
 imports:
   - norrietaylor/spectacles/shared/sdd-interaction.md@main
   - norrietaylor/spectacles/shared/sdd-mcp-serena.md@main

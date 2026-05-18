@@ -146,7 +146,7 @@ jobs:
   sdd-triage:
     needs: route
     if: needs.route.outputs.should_run == 'true'
-    uses: ./.github/workflows/sdd-triage.lock.yml
+    uses: norrietaylor/spectacles/.github/workflows/sdd-triage.lock.yml@main
     with:
       aw_context: ${{ needs.route.outputs.aw_context }}
     secrets: inherit
