@@ -70,6 +70,16 @@ Two gh-aw facts gate the `uses:` model:
    `.github/aw/imports/` tree is a compile cache with no run-time role.
    `gh aw compile` regenerates it; it is git-ignored.
 
+6. **Each run mints its own write token.** The seven `sdd-*` agents set
+   `safe-outputs.github-app` with the App's ID and private key
+   (`APP_ID` variable, `APP_PRIVATE_KEY` secret on the consumer, or inherited
+   from the organization). Every
+   agent run mints a short-lived installation token scoped to that run and
+   revokes it when the run ends. No static installation token is stored. The
+   1-hour expiry of an installation token therefore never has to be managed
+   across the pipeline's human-gated phases, and the App-identity write — the
+   write that lets one agent's output trigger the next — is automatic.
+
 ## Reasoning
 
 - The `uses:` model is the GitHub-native way to distribute reusable

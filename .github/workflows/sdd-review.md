@@ -29,6 +29,9 @@ tools:
 # submit-pull-request-review and merge-pull-request safe-outputs are
 # deliberately absent.
 safe-outputs:
+  github-app:
+    client-id: ${{ vars.APP_ID }}
+    private-key: ${{ secrets.APP_PRIVATE_KEY }}
   create-pull-request-review-comment:
     max: 30
   add-labels:

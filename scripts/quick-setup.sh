@@ -342,11 +342,12 @@ report_configuration() {
   echo "  variables (gh variable set <NAME> --repo $target_repo):"
   echo "    SERENA_LANGUAGE_SERVERS  Serena language server set (auto-detected"
   echo "                             above when the stack is recognised)"
+  echo "    APP_ID                   ID of the GitHub App that is the agents'"
+  echo "                             write identity"
   echo "  secrets (gh secret set <NAME> --repo $target_repo):"
   echo "    COPILOT_GITHUB_TOKEN     token for the Copilot engine"
-  echo "    GH_AW_GITHUB_TOKEN       GitHub App installation token (agent"
-  echo "                             write identity; App ID and private key"
-  echo "                             configured per docs/sdd/install.md)"
+  echo "    APP_PRIVATE_KEY          private key (PEM) of the GitHub App; each"
+  echo "                             agent run mints its own token from it"
   echo "    LEAK_DENYLIST            leak-scan denylist, one term per line"
 }
 

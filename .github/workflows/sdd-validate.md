@@ -22,6 +22,9 @@ tools:
   github:
     toolsets: [default]
 safe-outputs:
+  github-app:
+    client-id: ${{ vars.APP_ID }}
+    private-key: ${{ secrets.APP_PRIVATE_KEY }}
   add-comment:
     max: 1
     hide-older-comments: true

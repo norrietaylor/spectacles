@@ -86,6 +86,7 @@ Set with `gh variable set <NAME> --repo <owner>/<name> --body <value>`.
 | `DISTILLERY_MCP_URL` | The Distillery HTTP MCP endpoint the agents query for retrieval and memory. The installer sets it from `DISTILLERY_MCP_URL` in its environment. |
 | `DISTILLERY_PROJECT` | The Distillery project slug for this repository. All queries are scoped to it so a shared store cannot surface unrelated content. The installer sets it to the target repository's name. |
 | `SERENA_LANGUAGE_SERVERS` | The Serena language server set for this repository's stack. The installer auto-detects and sets this when the stack is recognised; set it by hand otherwise, or leave it unset to run Serena in text-level fallback. |
+| `APP_ID` | The ID of the GitHub App that is the agents' write identity. Each agent run mints its own short-lived installation token from it; see "The GitHub App identity" below. |
 
 ### Secrets
 
@@ -94,7 +95,7 @@ Set with `gh secret set <NAME> --repo <owner>/<name>`.
 | Secret | Purpose |
 |---|---|
 | `COPILOT_GITHUB_TOKEN` | The token for the Copilot engine that runs the agents. |
-| `GH_AW_GITHUB_TOKEN` | The GitHub App installation token that is the agents' write identity. The agents open PRs, create issues, and apply labels through it. |
+| `APP_PRIVATE_KEY` | The private key (PEM) of the GitHub App that is the agents' write identity. Each agent run mints its own installation token from `APP_ID` and this key; nothing static is stored. The agents open PRs, create issues, and apply labels through that token. |
 | `DISTILLERY_OAUTH_TOKEN` | The Distillery machine token — a pre-shared static bearer credential the workflows present to the Distillery MCP endpoint. Operator-issued; the installer sets it from `DISTILLERY_OAUTH_TOKEN` in its environment. See "The Distillery machine token" below. Despite the secret name, it is **not** a GitHub OAuth token. |
 | `LEAK_DENYLIST` | The leak-scan denylist, one term per line. Supplied as a secret so the private terms are never themselves committed to the public tree. Comment lines begin with `#`. |
 
@@ -106,13 +107,21 @@ token and not a hardcoded bot. Provision it once:
 1. Create a GitHub App with `contents: read`, `issues: write`, and
    `pull-requests: write` repository permissions.
 2. Install the App on the target repository.
-3. Mint an installation token for each run, or configure a token-minting step,
-   and expose it to the workflows as the `GH_AW_GITHUB_TOKEN` secret. The App
-   ID and the App private key are the operator's inputs to that step; they are
-   never written into a workflow source.
+3. Set the App's ID as the `APP_ID` variable and its private key (PEM) as the
+   `APP_PRIVATE_KEY` secret. Repository or organization level both work; an
+   organization variable and secret cover every consumer at once. The agent
+   workflows declare `safe-outputs.github-app` with those two values, so each
+   run mints its own short-lived installation token, scopes it to the run's
+   permissions, and revokes it when the run ends. No long-lived token is
+   stored, and no token-minting is left to the operator. The App ID and the
+   private key are the only App inputs, and they are read at run time from the
+   repository's configuration — never written into a workflow source.
 
 The App identity is the only write identity the suite uses, and it is scoped
 to the repository it is installed on. `sdd-execute` opens same-repo PRs only.
+A write that carries the App identity, not the workflow's default token, is
+also what lets one agent's output (a label, a merged pull request) trigger the
+next agent.
 
 ### The Distillery machine token
 

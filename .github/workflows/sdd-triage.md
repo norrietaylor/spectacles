@@ -19,6 +19,9 @@ tools:
   github:
     toolsets: [default]
 safe-outputs:
+  github-app:
+    client-id: ${{ vars.APP_ID }}
+    private-key: ${{ secrets.APP_PRIVATE_KEY }}
   create-pull-request:
     max: 1
     draft: ${{ false }}
