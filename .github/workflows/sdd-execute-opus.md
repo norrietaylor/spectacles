@@ -12,7 +12,7 @@ permissions:
   pull-requests: read
 engine:
   id: copilot
-  model: claude-opus-4-1
+  model: claude-opus-4.6
 inlined-imports: true
 strict: false
 imports:
@@ -56,7 +56,7 @@ authored once and compiled into three variants (`sdd-execute-opus`,
 and the `model:*` tier this variant claims. gh-aw binds the engine model at
 compile time, so model-tier-by-complexity is realized as three compiled
 variants rather than one variant that switches models at run time. This
-variant runs the `claude-opus-4-1` model and selects only tasks carrying the
+variant runs the `claude-opus-4.6` model and selects only tasks carrying the
 `model:opus` label.
 
 This workflow is a reusable workflow: it is invoked through `workflow_call`
@@ -293,7 +293,7 @@ completed tracking issue; the rest of the queue is handled by the next run.
 
 - `gh aw compile` compiles this workflow with the six imported shared
   fragments and the Serena MCP server declared, and reports zero errors.
-- This variant's frontmatter declares the `claude-opus-4-1` engine model and
+- This variant's frontmatter declares the `claude-opus-4.6` engine model and
   selects only `model:opus` tasks; the `haiku` and `sonnet` variants differ
   only in those two lines.
 - A `sdd:ready` task carrying `model:opus` with a local `repo:` produces,
