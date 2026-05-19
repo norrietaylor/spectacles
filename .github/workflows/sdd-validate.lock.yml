@@ -1,4 +1,4 @@
-# gh-aw-metadata: {"schema_version":"v3","frontmatter_hash":"eebb620d5c06f045c1ad23058dd099253f8ef85048c3c6402fbdd9ccf47c673b","compiler_version":"v0.74.3","agent_id":"copilot"}
+# gh-aw-metadata: {"schema_version":"v3","frontmatter_hash":"7ec877dd689cb8fec88da04a06a56a381321a9e2326b6b9c141419bf3c7fdca3","compiler_version":"v0.74.3","agent_id":"copilot"}
 # gh-aw-manifest: {"version":1,"secrets":["APP_PRIVATE_KEY","COPILOT_GITHUB_TOKEN","GH_AW_GITHUB_MCP_SERVER_TOKEN","GH_AW_GITHUB_TOKEN","GITHUB_TOKEN"],"actions":[{"repo":"actions/checkout","sha":"de0fac2e4500dabe0009e67214ff5f5447ce83dd","version":"v6.0.2"},{"repo":"actions/create-github-app-token","sha":"bcd2ba49218906704ab6c1aa796996da409d3eb1","version":"v3.2.0"},{"repo":"actions/download-artifact","sha":"3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c","version":"v8.0.1"},{"repo":"actions/github-script","sha":"3a2844b7e9c422d3c10d287c895573f7108da1b3","version":"v9.0.0"},{"repo":"actions/setup-node","sha":"48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e","version":"v6.4.0"},{"repo":"actions/upload-artifact","sha":"043fb46d1a93c77aae656e7c1c64a875d1fc6a0a","version":"v7.0.1"},{"repo":"github/gh-aw-actions/setup","sha":"8a9a52673cb8f97ebb43b344618af2d6f2c9ac7f","version":"v0.74.3"}],"containers":[{"image":"ghcr.io/github/gh-aw-firewall/agent:0.25.46"},{"image":"ghcr.io/github/gh-aw-firewall/api-proxy:0.25.46"},{"image":"ghcr.io/github/gh-aw-firewall/squid:0.25.46"},{"image":"ghcr.io/github/gh-aw-mcpg:v0.3.9","digest":"sha256:64828b42a4482f58fab16509d7f8f495a6d97c972a98a68aff20543531ac0388","pinned_image":"ghcr.io/github/gh-aw-mcpg:v0.3.9@sha256:64828b42a4482f58fab16509d7f8f495a6d97c972a98a68aff20543531ac0388"},{"image":"ghcr.io/github/github-mcp-server:v1.0.4"},{"image":"node:lts-alpine","digest":"sha256:d1b3b4da11eefd5941e7f0b9cf17783fc99d9c6fc34884a665f40a06dbdfc94f","pinned_image":"node:lts-alpine@sha256:d1b3b4da11eefd5941e7f0b9cf17783fc99d9c6fc34884a665f40a06dbdfc94f"}]}
 #    ___                   _   _      
 #   / _ \                 | | (_)     
@@ -214,20 +214,20 @@ jobs:
         run: |
           bash "${RUNNER_TEMP}/gh-aw/actions/create_prompt_first.sh"
           {
-          cat << 'GH_AW_PROMPT_a19bf9224ae9a780_EOF'
+          cat << 'GH_AW_PROMPT_671eed3e6838175d_EOF'
           <system>
-          GH_AW_PROMPT_a19bf9224ae9a780_EOF
+          GH_AW_PROMPT_671eed3e6838175d_EOF
           cat "${RUNNER_TEMP}/gh-aw/prompts/xpia.md"
           cat "${RUNNER_TEMP}/gh-aw/prompts/temp_folder_prompt.md"
           cat "${RUNNER_TEMP}/gh-aw/prompts/markdown.md"
           cat "${RUNNER_TEMP}/gh-aw/prompts/safe_outputs_prompt.md"
-          cat << 'GH_AW_PROMPT_a19bf9224ae9a780_EOF'
+          cat << 'GH_AW_PROMPT_671eed3e6838175d_EOF'
           <safe-output-tools>
           Tools: add_comment, add_labels, remove_labels, missing_tool, missing_data, noop
           </safe-output-tools>
-          GH_AW_PROMPT_a19bf9224ae9a780_EOF
+          GH_AW_PROMPT_671eed3e6838175d_EOF
           cat "${RUNNER_TEMP}/gh-aw/prompts/mcp_cli_tools_prompt.md"
-          cat << 'GH_AW_PROMPT_a19bf9224ae9a780_EOF'
+          cat << 'GH_AW_PROMPT_671eed3e6838175d_EOF'
           <github-context>
           The following GitHub context information is available for this workflow:
           {{#if github.actor}}
@@ -256,9 +256,9 @@ jobs:
           {{/if}}
           </github-context>
           
-          GH_AW_PROMPT_a19bf9224ae9a780_EOF
+          GH_AW_PROMPT_671eed3e6838175d_EOF
           cat "${RUNNER_TEMP}/gh-aw/prompts/github_mcp_tools_with_safeoutputs_prompt.md"
-          cat << 'GH_AW_PROMPT_a19bf9224ae9a780_EOF'
+          cat << 'GH_AW_PROMPT_671eed3e6838175d_EOF'
           </system>
           # Core principles
           
@@ -568,7 +568,7 @@ jobs:
           
           ## Triggers this agent handles
           
-          The wrapper invokes this agent for one of three situations. Determine which one
+          The wrapper invokes this agent for one of two situations. Determine which one
           applies from the `aw_context` input before doing anything else.
           
           1. **A pull request was opened or synchronized.** Validate the pull request at
@@ -577,33 +577,17 @@ jobs:
           2. **A tracking issue gained the `sdd:ready` label.** Validate the triage
              boundary: the task graph is a set of linked sub-issues, not a pull request,
              so the `sdd:ready` label event is the non-pull-request triage boundary.
-          3. **The `needs-human` label was removed from a tracking issue.** A human has
-             answered an earlier hand-off. Resume **only** when the open concern on that
-             tracking issue is a hand-off `sdd-validate` itself made: the tracking issue
-             is still in the `sdd:in-progress` lifecycle state, that is, it still carries
-             the `sdd:in-progress` label. `sdd-validate` hands off on a tracking issue
-             only at the implementation boundary, where a Blocker finding escalates and
-             the issue stays `sdd:in-progress` (it never reaches `sdd:review`); a clean
-             implementation pass would instead have moved it to `sdd:review`. So an
-             `sdd:in-progress` tracking issue is one whose open concern is this agent's
-             own validation finding. Re-read the whole thread, including the human's new
-             comments, then re-resolve the implementation boundary from the linked pull
-             request and re-run the implementation gate set. `needs-human` is shared by
-             all five SDD agents, so its removal can re-trigger this workflow for an item
-             another agent owns. If the tracking issue does not carry `sdd:in-progress`,
-             the hand-off belongs to another agent (`sdd-spec` at `sdd:spec`,
-             `sdd-triage` at `sdd:triage`, `sdd-execute` at `sdd:ready` or `sdd:done`):
-             do not re-validate and emit `noop`.
           
-          A `needs-human` hand-off that `sdd-validate` made on a **pull request** (an
-          implementation-boundary Blocker escalated onto the PR rather than the tracking
-          issue) is not resumed through this `needs-human`-removal path: the wrapper does
-          not subscribe to `pull_request: unlabeled`. That hand-off is resumed instead by
-          a fresh `pull_request: synchronize`, which is the event the human's fix commit
-          naturally fires. Clearing `needs-human` on a PR without a code change would
-          re-run the same gate set against the unchanged diff and re-post the same
-          Blocker; resuming on `synchronize` ties re-validation to an actual fix. See the
-          wrapper comment in `wrappers/sdd-validate.yml` for the same rationale.
+          This agent has no `needs-human`-removal resume trigger. A Blocker it escalates
+          on a pull request is resumed by a fresh `pull_request: synchronize`: the human
+          clears `needs-human` and pushes a fix commit, and that event re-runs the gate
+          set against the corrected diff. Resuming on `synchronize` ties re-validation to
+          an actual fix — clearing `needs-human` alone would only re-run the same gates
+          against the unchanged diff and re-post the same Blocker. A Blocker at the
+          triage boundary is escalated on the tracking issue and is purely advisory:
+          validation never gates a merge or the `/approve` step, so the human reads the
+          findings, addresses the task graph as they judge fit, and proceeds — there is
+          no agent re-run. The wrapper therefore subscribes to no `unlabeled` event.
           
           When the triggering item already carries the `needs-human` label, stop
           immediately and emit `noop`. A `needs-human`-labelled item is off-limits during
@@ -628,15 +612,6 @@ jobs:
           request, its title, body, diff, and comments; for an `sdd:ready` issue, the
           tracking issue and every linked task sub-issue.
           
-          For situation 3 (a `needs-human` removal on a tracking issue), first apply the
-          resume guard: confirm the tracking issue still carries `sdd:in-progress`. If it
-          does not, this is another agent's hand-off; emit `noop` and stop. If it does,
-          read the tracking issue and its whole comment thread, including the human's new
-          comments, and read the linked implementation pull request resolved from the
-          issue's `Closes #N` reference: its title, body, diff, and comments. This is the
-          same implementation-boundary input as a pull request trigger, reached from the
-          tracking issue side.
-          
           ### 2. Resolve the boundary
           
           The four phase boundaries each have their own gate set. Resolve which boundary
@@ -656,12 +631,6 @@ jobs:
           files of more than one boundary, resolve to the boundary of the most
           significant change in this order: spec, then architecture, then
           implementation. State the resolved boundary in the findings comment.
-          
-          For situation 3 (a guarded `needs-human`-removal resume on a tracking issue),
-          the boundary is always the implementation boundary: `sdd-validate` hands off on
-          a tracking issue only at the implementation boundary. Resolve the changed-file
-          set from the linked implementation pull request read in step 1 and proceed as
-          an implementation-boundary run.
           
           ### 3. Apply that boundary's gate set
           
@@ -686,9 +655,8 @@ jobs:
           
           Post exactly one comment, via the `add-comment` safe-output, on the triggering
           item: the pull request for a pull request trigger (the spec, architecture, or
-          implementation boundary), or the tracking issue for a triage boundary or for a
-          guarded `needs-human`-removal resume (situation 3). The comment lists every
-          finding with:
+          implementation boundary), or the tracking issue for the triage boundary. The
+          comment lists every finding with:
           
           - A severity: **Blocker**, **Warning**, or **Info**, per the imported
             validation-gates fragment.
@@ -705,11 +673,18 @@ jobs:
           
           ### 5. Escalate a Blocker, never fail the run
           
-          When any gate produced a Blocker finding, apply the `needs-human` label to the
-          pull request or the tracking issue, via the `add-labels` safe-output, and make
-          sure the findings comment names the failed gate and its citing evidence. This
-          is the `needs-human` hand-off from the imported interaction contract and
-          ADR 0001: a human resolves the Blocker and clears the label.
+          When any gate produced a Blocker finding, apply the `needs-human` label via the
+          `add-labels` safe-output to the triggering item — the pull request for a spec,
+          architecture, or implementation boundary; the tracking issue for the triage
+          boundary — and make sure the findings comment names the failed gate and its
+          citing evidence. This is the `needs-human` hand-off from the imported
+          interaction contract and ADR 0001.
+          
+          A Blocker on a pull request is resumed when the human clears `needs-human` and
+          pushes a fix commit: the `pull_request: synchronize` event re-runs this agent
+          against the corrected diff. A Blocker at the triage boundary is advisory — this
+          agent gates neither a merge nor `/approve` — so it triggers no agent re-run;
+          the human acts on the findings and proceeds.
           
           Do not fail the workflow on a Blocker finding and do not declare a required
           status check. The run exits successfully regardless of severity. Warning and
@@ -735,9 +710,7 @@ jobs:
           sub-issue, so `Closes #N` names that task (ADR 0005 point 3). To reach the
           feature, resolve it from that task by walking the GitHub sub-issue parent links
           task → its parent Unit sub-issue → the Unit's parent feature, and move the
-          label on that feature. For a guarded `needs-human`-removal resume (situation 3)
-          the triggering item is itself the feature tracking issue, the item carrying
-          `sdd:in-progress`; move the label on it directly, no walk required.
+          label on that feature.
           
           Make the move idempotent. A feature with more than one task may already have
           been advanced to `sdd:review` by an earlier task's clean pass — `sdd-execute`
@@ -751,9 +724,9 @@ jobs:
           spec, architecture, or triage pass does not move a lifecycle label, and an
           implementation pass with a Blocker finding hands off via `needs-human` instead.
           Exactly one lifecycle label is present at a time, so the removal and the
-          addition are a single move. A clean resume run therefore both clears the
-          earlier Blocker (the human already removed `needs-human`) and advances the
-          feature tracking issue from `sdd:in-progress` to `sdd:review`.
+          addition are a single move. When the human pushes a fix for an earlier Blocker
+          and the `pull_request: synchronize` re-validation passes clean, this same step
+          advances the feature from `sdd:in-progress` to `sdd:review`.
           
           ## Boundaries
           
@@ -776,14 +749,14 @@ jobs:
           - A pull request adding a `docs/specs/**` file with an untestable acceptance
             criterion yields one comment carrying a Blocker finding and the
             `needs-human` label, and the workflow run still concludes successfully.
-          - A clean implementation-boundary pass moves the linked tracking issue from
+          - A clean implementation-boundary pass moves the feature tracking issue from
             `sdd:in-progress` to `sdd:review`.
-          - Clearing `needs-human` from an `sdd:in-progress` tracking issue that
-            `sdd-validate` handed off re-runs the implementation gate set; clearing it
-            from an issue carrying `sdd:spec`, `sdd:triage`, `sdd:ready`, or `sdd:done`
-            emits `noop` because that hand-off belongs to another agent.
+          - A Blocker on a pull request is re-validated when the human clears
+            `needs-human` and pushes a fix: the `pull_request: synchronize` event re-runs
+            the gate set. The wrapper subscribes to no `unlabeled` event, so clearing
+            `needs-human` on its own re-triggers nothing.
           
-          GH_AW_PROMPT_a19bf9224ae9a780_EOF
+          GH_AW_PROMPT_671eed3e6838175d_EOF
           } > "$GH_AW_PROMPT"
       - name: Interpolate variables and render templates
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
@@ -988,9 +961,9 @@ jobs:
           mkdir -p "${RUNNER_TEMP}/gh-aw/safeoutputs"
           mkdir -p /tmp/gh-aw/safeoutputs
           mkdir -p /tmp/gh-aw/mcp-logs/safeoutputs
-          cat > "${RUNNER_TEMP}/gh-aw/safeoutputs/config.json" << 'GH_AW_SAFE_OUTPUTS_CONFIG_40c6101e39d07598_EOF'
+          cat > "${RUNNER_TEMP}/gh-aw/safeoutputs/config.json" << 'GH_AW_SAFE_OUTPUTS_CONFIG_1096df98cc57f95c_EOF'
           {"add_comment":{"hide_older_comments":true,"max":1},"add_labels":{"allowed":["needs-human","sdd:review"],"max":1},"create_report_incomplete_issue":{},"missing_data":{},"missing_tool":{},"noop":{"max":1,"report-as-issue":"true"},"remove_labels":{"allowed":["sdd:in-progress"],"max":1},"report_incomplete":{}}
-          GH_AW_SAFE_OUTPUTS_CONFIG_40c6101e39d07598_EOF
+          GH_AW_SAFE_OUTPUTS_CONFIG_1096df98cc57f95c_EOF
       - name: Generate Safe Outputs Tools
         env:
           GH_AW_TOOLS_META_JSON: |
@@ -1224,7 +1197,7 @@ jobs:
           
           mkdir -p /home/runner/.copilot
           GH_AW_NODE=$(which node 2>/dev/null || command -v node 2>/dev/null || echo node)
-          cat << GH_AW_MCP_CONFIG_153a981afb5feb2f_EOF | "$GH_AW_NODE" "${RUNNER_TEMP}/gh-aw/actions/start_mcp_gateway.cjs"
+          cat << GH_AW_MCP_CONFIG_c5e6c365befa5668_EOF | "$GH_AW_NODE" "${RUNNER_TEMP}/gh-aw/actions/start_mcp_gateway.cjs"
           {
             "mcpServers": {
               "github": {
@@ -1265,7 +1238,7 @@ jobs:
               "payloadDir": "${MCP_GATEWAY_PAYLOAD_DIR}"
             }
           }
-          GH_AW_MCP_CONFIG_153a981afb5feb2f_EOF
+          GH_AW_MCP_CONFIG_c5e6c365befa5668_EOF
       - name: Mount MCP servers as CLIs
         id: mount-mcp-clis
         continue-on-error: true
