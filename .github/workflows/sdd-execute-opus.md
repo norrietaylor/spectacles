@@ -90,7 +90,7 @@ between the three variants.
 
 ## Triggers this agent handles
 
-The wrapper invokes this agent for one of five situations. Determine which one
+The wrapper invokes this agent for one of six situations. Determine which one
 applies from the `aw_context` input before doing anything else.
 
 1. **A scheduled run.** The wrapper fires on a daily cron. Select one eligible
@@ -116,6 +116,13 @@ applies from the `aw_context` input before doing anything else.
    pull request, resume **only** when its head branch follows the
    `sdd/<task-id>-<slug>` convention; re-read the review thread and resume
    step 7. If the item is not one this agent handed off, emit `noop`.
+6. **A write-access author commented `/revise <note>` on an implementation
+   pull request this agent opened.** Address the note by pushing further
+   commits to the same branch, exactly as for a review comment (step 7). The
+   `aw_context` input carries `trigger: 'revise'`, the pull request number,
+   and the comment id. Confirm ownership — the head branch follows
+   `sdd/<task-id>-<slug>` — before acting; if it is not such a branch, emit
+   `noop`.
 
 When the triggering item already carries the `needs-human` label, stop
 immediately and emit `noop`. A `needs-human`-labelled item is off-limits
@@ -261,8 +268,9 @@ repository-conventions fragment. The pull request body **must** contain:
 
 ### 7. Address review comments in place
 
-This step runs for a `pull_request_review_comment` event on a pull request
-this agent opened. First confirm ownership: the wrapper routes **every**
+This step runs for a `pull_request_review_comment` event, and for a
+`/revise <note>` comment (`trigger: 'revise'`), on a pull request this agent
+opened. First confirm ownership: the wrapper routes **every**
 review comment to this agent, including comments on a `sdd-spec` `spec/<slug>`
 pull request, an `arch/<slug>` pull request, or any human pull request, so
 verify that the pull request's head branch follows the `sdd/<task-id>-<slug>`
@@ -275,6 +283,10 @@ anchors to. Address every **actionable** review comment by pushing further
 commits to the **same branch**: do not open a second pull request, and do not
 open a new branch. The pull request already carries `Closes #<task>`; the
 follow-up commits land on its existing branch.
+
+For a `/revise` trigger there is no anchored diff: treat the text after
+`/revise` in the triggering comment as the instruction, and push the
+follow-up commits to the same branch the same way.
 
 A review comment this agent **cannot** resolve mechanically, for example one
 that asks for a decision a human must make, triggers the `needs-human`
