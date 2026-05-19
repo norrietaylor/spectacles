@@ -318,6 +318,10 @@ lifecycle state:
 - Add the `sdd:ready` label to the tracking issue (`add-labels`).
 - Apply the `sdd:ready` label to every task sub-issue that has no open
   `blocked by` dependency, so `sdd-execute` can pick those tasks up first.
+- Post one comment on the tracking issue stating the next step: the task
+  sub-issues are labelled `sdd:ready`; `sdd-execute` implements a ready task
+  on its daily schedule, and a write-access author may comment `/execute` on
+  a task sub-issue to run one immediately.
 
 Exactly one lifecycle label is present on the tracking issue at a time, so the
 removal and the addition are a single move. A task sub-issue with an open
