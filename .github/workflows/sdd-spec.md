@@ -41,6 +41,14 @@ safe-outputs:
   remove-labels:
     allowed: [sdd:spec]
     max: 1
+  create-issue:
+    max: 1
+  link-sub-issue:
+    max: 1
+  update-issue:
+    status:
+    target: "*"
+    max: 1
   noop:
 ---
 
@@ -94,9 +102,11 @@ hand-off comment has already been posted and must not be posted again.
 ## What this agent produces
 
 For a tracking issue that can be specified with confidence, this agent opens
-exactly one pull request adding a spec file and stops. For a tracking issue
-that cannot, it posts one clarifying-questions comment, applies `needs-human`,
-and exits `noop`. It never guesses and never authors a partial spec.
+a **spec sub-issue** under the tracking issue and one pull request adding a
+spec file, and stops; when that pull request later merges, it closes the spec
+sub-issue. For a tracking issue that cannot be specified, it posts one
+clarifying-questions comment, applies `needs-human`, and exits `noop`. It
+never guesses and never authors a partial spec.
 
 ## Procedure
 
@@ -188,22 +198,31 @@ pass against an empty pull request is a health check, not a proof, and must be
 dropped. Do not pad a unit to three artifacts with overlapping or
 health-check checks; one strong artifact is enough when it is unambiguous.
 
-### 7. Open the pull request
+### 7. Create the spec sub-issue and open the pull request
 
-Open exactly one pull request adding the spec file, via the
+First create the **spec sub-issue**, the pull request's deliverable, per the
+issue model in ADR 0005. Emit a `create-issue` safe-output titled
+`spec: <issue title>` with a one-line body, `Spec deliverable for the
+tracking issue #<tracking-issue>.`, then a `link-sub-issue` safe-output that
+makes it a sub-issue of the tracking issue. The tracking issue itself stays open as the
+feature's lifecycle anchor. On a `/revise` trigger the spec sub-issue already
+exists — reuse it, do not create a second.
+
+Then open exactly one pull request adding the spec file, via the
 `create-pull-request` safe-output. The pull request is not a draft. Its title
 is `spec(<slug>): <issue title>`; the `spec` title prefix is applied
 automatically, so write the title as `(<slug>): <issue title>` with no leading
 space. The branch follows the `spec/<slug>` convention from the imported
 repository-conventions fragment. The pull request body summarizes the spec,
-references the tracking issue, and lists the demoable units. It also states the
-next step for a human reader: merging this pull request advances the tracking
-issue from the spec phase into the architecture and triage phase. Reference the
-tracking issue — in the pull request body and in every commit message — with
-a bare `#<number>` or `Refs #<number>`, never a closing keyword (`Closes`,
-`Fixes`, `Resolves`). GitHub auto-closes an issue named by a closing keyword
-in a merged pull request's body or in a merged commit message; the tracking
-issue is the lifecycle anchor and must stay open until every task is done.
+lists the demoable units, and states the next step for a human reader:
+merging this pull request advances the tracking issue from the spec phase
+into the architecture and triage phase.
+
+Reference the tracking issue, in the pull request body and in every commit
+message, only as a bare `#<number>` — never with a closing keyword (`Closes`,
+`Fixes`, `Resolves`). A closing keyword in a merged pull request closes the
+issue it names, and the tracking issue must stay open. This pull request
+closes nothing on merge; step 8 closes the spec sub-issue.
 
 For a `/revise` trigger, update the existing spec pull request on its existing
 branch rather than opening a new one. Apply only the change the `/revise` note
@@ -214,14 +233,18 @@ asks for; do not rewrite untouched sections.
 When the trigger is a spec pull request that has been closed and merged, the
 spec phase is complete. Move the tracking issue to the next lifecycle state:
 
+- Close the **spec sub-issue** with an `update-issue` safe-output that sets
+  its status to closed. The merged pull request delivered the spec, so its
+  sub-issue is done (ADR 0005).
 - Remove the `sdd:spec` label from the tracking issue (`remove-labels`).
 - Add the `sdd:triage` label to the tracking issue (`add-labels`).
 - Post one comment on the tracking issue noting that the spec is merged,
   linking the merged spec file, and stating that triage is next.
 
 Do not author a new spec or open a pull request on this trigger; it is a
-lifecycle transition only. Exactly one lifecycle label is present at a time,
-so the removal and the addition are a single move.
+lifecycle transition only. Never close the tracking issue itself (ADR 0001);
+only its spec sub-issue closes here. Exactly one lifecycle label is present at
+a time, so the removal and the addition are a single move.
 
 ## Boundaries
 

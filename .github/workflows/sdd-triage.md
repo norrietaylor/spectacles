@@ -45,6 +45,10 @@ safe-outputs:
   remove-labels:
     allowed: [sdd:triage]
     max: 1
+  update-issue:
+    status:
+    target: "*"
+    max: 1
   noop:
 ---
 
@@ -108,13 +112,15 @@ hand-off comment has already been posted and must not be posted again.
 
 ## What this agent produces
 
-Phase A produces exactly one pull request adding the per-feature architecture
-record, and, when the decision is cross-cutting, a numbered ADR in the same
-pull request. Phase B produces one parent task sub-issue per demoable unit and
-one summary comment. Phase C produces one implementation sub-task sub-issue per
-single-session unit of work, each with a structured body block, and moves the
-tracking issue to `sdd:ready`. When a phase cannot proceed safely it posts one
-comment, applies `needs-human`, and exits `noop`. It never guesses.
+Phase A produces an **architecture sub-issue** under the tracking issue and
+one pull request adding the per-feature architecture record — plus, when the
+decision is cross-cutting, a numbered ADR in the same pull request. Phase B
+closes the architecture sub-issue and produces one Unit sub-issue per demoable
+unit and one summary comment. Phase C produces one implementation task
+sub-issue per single-session unit of work, each nested under its Unit and
+carrying a structured body block, and moves the tracking issue to `sdd:ready`.
+When a phase cannot proceed safely it posts one comment, applies `needs-human`,
+and exits `noop`. It never guesses.
 
 ## Procedure
 
@@ -178,25 +184,34 @@ structure of the existing decision records: Status, Date, Context, Decision,
 Reasoning, Verification, Consequences. A decision that only affects this
 feature stays in the architecture record and does not become an ADR.
 
-### 4. Phase A: open the architecture pull request
+### 4. Phase A: open the architecture sub-issue and pull request
 
-Open exactly one pull request via the `create-pull-request` safe-output,
+First create the **architecture sub-issue**, the pull request's deliverable,
+per the issue model in ADR 0005. Emit a `create-issue` safe-output titled
+`architecture: <issue title>` with a one-line body, `Architecture deliverable
+for #<tracking-issue>.`, then a `link-sub-issue` safe-output that makes it a
+sub-issue of the tracking issue. On a `/revise` trigger the architecture
+sub-issue already exists — reuse it, do not create a second.
+
+Then open exactly one pull request via the `create-pull-request` safe-output,
 adding `architecture.md` and, when applicable, the numbered ADR. The pull
 request is not a draft. Its title is `arch(<slug>): <issue title>`; the `arch`
 title prefix is applied automatically, so write the title as
 `(<slug>): <issue title>` with no leading space. The branch follows the
 `arch/<slug>` convention from the imported repository-conventions fragment.
-The pull request body summarizes the chosen approach, references the tracking
-issue, and notes whether an ADR was promoted. It also states the next step for
-a human reader: merging this pull request advances the tracking issue to phase
-B, where one parent task per demoable unit is created. Reference the tracking
-issue —
-in the pull request body and in every commit message — with a bare
-`#<number>` or `Refs #<number>`, never a closing keyword (`Closes`, `Fixes`,
-`Resolves`). GitHub auto-closes an issue named by a closing keyword in a
-merged pull request's body or in a merged commit message; the tracking issue
-is the lifecycle anchor and must stay open until every task is done. Then stop: phase A ends here.
-Phase B runs only when this pull request is merged.
+The pull request body summarizes the chosen approach, notes whether an ADR was
+promoted, and states the next step for a human reader: merging this pull
+request advances the tracking issue to phase B, where one Unit sub-issue per
+demoable unit is created.
+
+Reference the tracking issue, in the pull request body and in every commit
+message, only as a bare `#<number>` — never with a closing keyword (`Closes`,
+`Fixes`, `Resolves`). A closing keyword in a merged pull request closes the
+issue it names, and the tracking issue must stay open. This pull request
+closes nothing on merge; phase B closes the architecture sub-issue.
+
+Then stop: phase A ends here. Phase B runs only when this pull request is
+merged.
 
 For a `/revise` trigger on an architecture pull request, update the existing
 pull request on its existing branch rather than opening a new one. Apply only
@@ -206,10 +221,14 @@ the change the `/revise` note asks for; do not rewrite untouched sections.
 
 This phase runs on the merge of the architecture pull request.
 
+First close the **architecture sub-issue** with an `update-issue` safe-output
+that sets its status to closed: the merged pull request delivered the
+architecture, so its sub-issue is done (ADR 0005).
+
 Read the merged spec file's Demoable Units of Work section. For each demoable
-unit, create one parent task sub-issue via the `create-issue` safe-output and
-link it to the tracking issue via the `link-sub-issue` safe-output. Each parent
-task issue's title names the unit (for example `Unit 1: Repository
+unit, create one Unit sub-issue via the `create-issue` safe-output and link it
+as a sub-issue of the tracking issue via the `link-sub-issue` safe-output. Each
+Unit issue's title names the unit (for example `Unit 1: Repository
 foundation`) and its body summarizes the unit's purpose, the requirement IDs it
 covers, and the units it depends on.
 
@@ -223,11 +242,12 @@ only on `/approve`.
 
 This phase runs on a `/approve` comment from a write-access author.
 
-For each parent task, decompose the demoable unit into implementation sub-tasks
-sized for a single agent session. Create each sub-task via the `create-issue`
-safe-output and link it to the tracking issue via the `link-sub-issue`
-safe-output. Every sub-task issue body carries a structured block with these
-fields:
+For each Unit, decompose the demoable unit into implementation sub-tasks sized
+for a single agent session. Create each sub-task via the `create-issue`
+safe-output and link it via the `link-sub-issue` safe-output as a sub-issue of
+its **Unit** issue — not of the tracking issue — so the tree nests Feature →
+Unit → task (ADR 0005). Every sub-task issue body carries a structured block
+with these fields:
 
 ```text
 ## Task
@@ -312,7 +332,9 @@ dependency does not get `sdd:ready` until its dependency closes.
   `templates/.github/`, or secrets.
 - This agent never merges or approves a pull request. A human merges the
   architecture pull request; merging is the signal that advances to phase B.
-- This agent never closes the tracking issue or any task sub-issue.
+- This agent never closes the tracking issue or any task sub-issue. It does
+  close the architecture sub-issue it created, once the architecture pull
+  request has merged (ADR 0005).
 - This agent never removes the `needs-human` label. Only a human clears it.
 - All writes go through safe-outputs. The workflow permissions stay
   read-only.
