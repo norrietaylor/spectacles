@@ -47,9 +47,10 @@ DISTILLERY_OAUTH_TOKEN=<machine-token> \
   `sdd-review`) and `distillery-sync`. Each wrapper calls a reusable workflow
   hosted in the spectacles repository; no `.lock.yml` is copied onto the
   consumer (see `workflows/README.md` and ADR 0004);
-- the `sdd-pr-sanitize` utility workflow, which keeps a stray issue-closing
-  keyword in a spec or architecture pull request from auto-closing the feature
-  tracking issue (ADR 0006);
+- the `sdd-pr-sanitize` utility workflow, which corrects the issue references
+  in a spec or architecture pull request body: it keeps a stray closing
+  keyword from auto-closing the feature tracking issue, and adds the
+  `Closes #<sub-issue>` link to the deliverable sub-issue (ADR 0005, ADR 0006);
 - the `sdd:*` lifecycle labels and the `model:*` tier labels;
 - the `feature`, `bug`, and `chore` issue templates.
 

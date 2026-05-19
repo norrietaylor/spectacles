@@ -45,10 +45,6 @@ safe-outputs:
     max: 1
   create-issue:
     max: 1
-  update-issue:
-    status:
-    target: "*"
-    max: 1
   noop:
 ---
 
@@ -104,8 +100,8 @@ hand-off comment has already been posted and must not be posted again.
 
 For a tracking issue that can be specified with confidence, this agent opens
 a **spec sub-issue** under the tracking issue and one pull request adding a
-spec file, and stops; when that pull request later merges, it closes the spec
-sub-issue. On a `/revise` it edits the spec file and pushes the commit onto
+spec file, and stops; the spec sub-issue closes when that pull request merges
+(ADR 0005). On a `/revise` it edits the spec file and pushes the commit onto
 that same pull request's branch, opening no second pull request. For a
 tracking issue that cannot be specified, it posts one clarifying-questions
 comment, applies `needs-human`, and exits `noop`. It never guesses and never
@@ -225,8 +221,12 @@ into the architecture and triage phase.
 Reference the tracking issue, in the pull request body and in every commit
 message, only as a bare `#<number>` — never with a closing keyword (`Closes`,
 `Fixes`, `Resolves`). A closing keyword in a merged pull request closes the
-issue it names, and the tracking issue must stay open. This pull request
-closes nothing on merge; step 8 closes the spec sub-issue.
+issue it names, and the tracking issue must stay open. Do not write a closing
+keyword for the spec sub-issue either: this agent cannot know the sub-issue
+number when it writes the body. The `sdd-pr-sanitize` workflow adds
+`Closes #<spec-sub-issue>` after both the sub-issue and the pull request
+exist, so merging the pull request closes the spec sub-issue (ADR 0005,
+ADR 0006).
 
 For a `/revise` trigger, do not emit `create-pull-request`: that safe-output
 always opens a fresh branch and a second pull request, and the `/revise`
@@ -256,9 +256,6 @@ the change actually pushed in this run — never a change that was not made.
 When the trigger is a spec pull request that has been closed and merged, the
 spec phase is complete. Move the tracking issue to the next lifecycle state:
 
-- Close the **spec sub-issue** with an `update-issue` safe-output that sets
-  its status to closed. The merged pull request delivered the spec, so its
-  sub-issue is done (ADR 0005).
 - Remove the `sdd:spec` label from the tracking issue (`remove-labels`).
 - Add the `sdd:triage` label to the tracking issue (`add-labels`).
 - Post one comment on the tracking issue: note that the spec is merged, link
@@ -267,10 +264,12 @@ spec phase is complete. Move the tracking issue to the next lifecycle state:
   architecture phase. Name the `/triage` command explicitly; "triage is next"
   alone leaves the reader without the action.
 
-Do not author a new spec or open a pull request on this trigger; it is a
-lifecycle transition only. Never close the tracking issue itself (ADR 0001);
-only its spec sub-issue closes here. Exactly one lifecycle label is present at
-a time, so the removal and the addition are a single move.
+Do not close the spec sub-issue here: the merged pull request carries
+`Closes #<spec-sub-issue>` (added by `sdd-pr-sanitize`), so the spec sub-issue
+closes on merge without an agent step (ADR 0005). Do not author a new spec or
+open a pull request on this trigger; it is a lifecycle transition only. Never
+close the tracking issue itself (ADR 0001). Exactly one lifecycle label is
+present at a time, so the removal and the addition are a single move.
 
 ## Boundaries
 
@@ -296,5 +295,7 @@ a time, so the removal and the addition are a single move.
 - A `/revise` comment on an open spec pull request adds a commit to that pull
   request's existing branch applying the requested change, and opens no
   second pull request.
-- Merging a spec pull request moves the tracking issue label from `sdd:spec`
-  to `sdd:triage` and posts a comment linking the spec.
+- Merging a spec pull request closes the spec sub-issue (via the
+  `Closes #<spec-sub-issue>` keyword `sdd-pr-sanitize` added), moves the
+  tracking issue label from `sdd:spec` to `sdd:triage`, and posts a comment
+  linking the spec.
