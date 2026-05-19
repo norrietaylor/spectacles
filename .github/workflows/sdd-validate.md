@@ -225,23 +225,38 @@ section has already stopped the run with `noop`.
 ### 6. Advance the lifecycle on a clean implementation pass
 
 When the boundary is the implementation boundary and the gate set produced no
-Blocker finding, the implementation has passed validation. Move the linked
-tracking issue to the next lifecycle state:
+Blocker finding, the implementation has passed validation. Move the **feature
+tracking issue** to the next lifecycle state:
 
-- Remove the `sdd:in-progress` label from the tracking issue
+- Remove the `sdd:in-progress` label from the feature tracking issue
   (`remove-labels`).
-- Add the `sdd:review` label to the tracking issue (`add-labels`).
+- Add the `sdd:review` label to the feature tracking issue (`add-labels`).
 
-For a pull request trigger, resolve the tracking issue from the pull request's
-`Closes #N` reference. For a guarded `needs-human`-removal resume (situation 3)
-the tracking issue is the triggering item itself. Move the label only at the
-implementation boundary and only on a clean pass: a spec, architecture, or
-triage pass does not move a lifecycle label, and an implementation pass with a
-Blocker finding hands off via `needs-human` instead. Exactly one lifecycle
-label is present at a time, so the removal and the addition are a single move.
-A clean resume run therefore both clears the earlier Blocker (the human already
-removed `needs-human`) and advances the tracking issue from `sdd:in-progress`
-to `sdd:review`.
+The lifecycle label lives on the feature tracking issue, never on a task
+sub-issue. For a pull request trigger the pull request's `Closes #N` reference
+is **not** the feature: an implementation pull request closes its own task
+sub-issue, so `Closes #N` names that task (ADR 0005 point 3). To reach the
+feature, resolve it from that task by walking the GitHub sub-issue parent links
+task → its parent Unit sub-issue → the Unit's parent feature, and move the
+label on that feature. For a guarded `needs-human`-removal resume (situation 3)
+the triggering item is itself the feature tracking issue, the item carrying
+`sdd:in-progress`; move the label on it directly, no walk required.
+
+Make the move idempotent. A feature with more than one task may already have
+been advanced to `sdd:review` by an earlier task's clean pass — `sdd-execute`
+moved the feature to `sdd:in-progress` when the first of its tasks was picked
+up, and the first task to validate clean carries it to `sdd:review`. Move the
+feature **only** when it still carries `sdd:in-progress`; if it already carries
+`sdd:review` (or any later state), change nothing. This still moves exactly one
+issue's labels per run — the feature — never the task sub-issue.
+
+Move the label only at the implementation boundary and only on a clean pass: a
+spec, architecture, or triage pass does not move a lifecycle label, and an
+implementation pass with a Blocker finding hands off via `needs-human` instead.
+Exactly one lifecycle label is present at a time, so the removal and the
+addition are a single move. A clean resume run therefore both clears the
+earlier Blocker (the human already removed `needs-human`) and advances the
+feature tracking issue from `sdd:in-progress` to `sdd:review`.
 
 ## Boundaries
 

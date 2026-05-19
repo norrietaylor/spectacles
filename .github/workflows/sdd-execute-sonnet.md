@@ -53,7 +53,7 @@ safe-outputs:
     max: 2
   remove-labels:
     allowed: [sdd:ready, sdd:review]
-    max: 1
+    max: 2
   update-issue:
     status:
     target: "*"
@@ -195,6 +195,22 @@ Having selected a task, move it to `sdd:in-progress`: remove its `sdd:ready`
 label (`remove-labels`) and add `sdd:in-progress` (`add-labels`). Exactly one
 lifecycle label is present at a time, so the removal and the addition are a
 single move.
+
+Then advance the **feature tracking issue** the same way. The selected task is
+a leaf of the issue tree (ADR 0005); the feature is its grandparent, reached by
+walking the GitHub sub-issue parent links task → its parent Unit sub-issue →
+the Unit's parent feature. The state-machine table credits `sdd-execute` on
+task selection with the feature's `sdd:ready → sdd:in-progress` transition, so
+once the task is `sdd:in-progress` move the feature there too: remove its
+`sdd:ready` label (`remove-labels`) and add `sdd:in-progress` (`add-labels`).
+Make this move idempotent — a feature with more than one task is advanced by
+the first task picked up, and a later pickup must leave it alone. Move the
+feature **only** when it still carries `sdd:ready`; if it already carries
+`sdd:in-progress` (an earlier task of the same feature has already advanced
+it), change nothing on the feature and move only the task. This step therefore
+moves one issue's labels when the feature was already `sdd:in-progress`, and
+two — the task and the feature — when the selected task is the first of its
+feature to be picked up.
 
 ### 3. Skip a non-local task, do not error
 
