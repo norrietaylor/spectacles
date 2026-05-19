@@ -96,10 +96,12 @@ the `sdd-pr-sanitize` utility workflow — and nothing else under that
 directory. No `.lock.yml`, no agent `.md` source, and no `.github/aw/imports/`
 tree is copied: the locks are hosted, and they are self-contained.
 
-`sdd-pr-sanitize` is not an agent wrapper: it is a plain workflow that, on
-every `spec/*` and `arch/*` pull request, rewrites a stray issue-closing
-keyword in the body to `Refs` so a merge cannot auto-close the feature
-tracking issue (ADR 0006).
+`sdd-pr-sanitize` is not an agent wrapper: it is a plain workflow that corrects
+the issue references in every `spec/*` and `arch/*` pull request body. It
+rewrites a stray issue-closing keyword aimed at the feature to `Refs` so a
+merge cannot auto-close the feature tracking issue, and it adds
+`Closes #<sub-issue>` for the deliverable spec or architecture sub-issue so the
+merge closes it (ADR 0005, ADR 0006).
 
 The installer also syncs the `sdd:*` and `model:*` labels and installs the
 issue templates. `--ref <ref>` pins the `uses:` lines in the installed

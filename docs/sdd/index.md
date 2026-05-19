@@ -45,13 +45,13 @@ flowchart TD
 
     subgraph s_spec [Tracking issue state: sdd:spec]
         a_spec[sdd-spec drafts the spec<br/>opens a spec sub-issue and a spec PR]:::agent
-        h_spec([Human: review and merge the spec PR<br/>sdd-spec then closes the spec sub-issue]):::human
+        h_spec([Human: review and merge the spec PR<br/>the spec sub-issue closes on merge]):::human
     end
 
     subgraph s_triage [Tracking issue state: sdd:triage]
         h_triage([Human: comment /triage]):::human
         a_arch[sdd-triage phase A: maps the code<br/>opens an architecture sub-issue and PR]:::agent
-        h_arch([Human: review and merge the architecture PR<br/>sdd-triage then closes the architecture sub-issue]):::human
+        h_arch([Human: review and merge the architecture PR<br/>the architecture sub-issue closes on merge]):::human
         a_units[sdd-triage phase B: opens one Unit sub-issue<br/>per demoable unit, posts the task list]:::agent
         h_approve([Human: comment /approve]):::human
     end

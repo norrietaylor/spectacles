@@ -45,10 +45,6 @@ safe-outputs:
   remove-labels:
     allowed: [sdd:triage]
     max: 1
-  update-issue:
-    status:
-    target: "*"
-    max: 1
   noop:
 ---
 
@@ -117,11 +113,11 @@ Phase A produces an **architecture sub-issue** under the tracking issue and
 one pull request adding the per-feature architecture record — plus, when the
 decision is cross-cutting, a numbered ADR in the same pull request. A `/revise`
 re-run of phase A produces no new pull request: it pushes a follow-up commit
-onto the existing architecture pull request's branch. Phase B
-closes the architecture sub-issue and produces one Unit sub-issue per demoable
-unit and one summary comment. Phase C produces one implementation task
-sub-issue per single-session unit of work, each nested under its Unit and
-carrying a structured body block, and moves the tracking issue to `sdd:ready`.
+onto the existing architecture pull request's branch. Phase B produces one
+Unit sub-issue per demoable unit and one summary comment. Phase C produces one
+implementation task sub-issue per single-session unit of work, each nested
+under its Unit and carrying a structured body block, and moves the tracking
+issue to `sdd:ready`.
 When a phase cannot proceed safely it posts one comment, applies `needs-human`,
 and exits `noop`. It never guesses.
 
@@ -211,8 +207,12 @@ demoable unit is created.
 Reference the tracking issue, in the pull request body and in every commit
 message, only as a bare `#<number>` — never with a closing keyword (`Closes`,
 `Fixes`, `Resolves`). A closing keyword in a merged pull request closes the
-issue it names, and the tracking issue must stay open. This pull request
-closes nothing on merge; phase B closes the architecture sub-issue.
+issue it names, and the tracking issue must stay open. Do not write a closing
+keyword for the architecture sub-issue either: this agent cannot know the
+sub-issue number when it writes the body. The `sdd-pr-sanitize` workflow adds
+`Closes #<architecture-sub-issue>` after both the sub-issue and the pull
+request exist, so merging the pull request closes the architecture sub-issue
+(ADR 0005, ADR 0006).
 
 Then stop: phase A ends here. Phase B runs only when this pull request is
 merged.
@@ -233,11 +233,10 @@ request updates in place.
 
 ### 5. Phase B: create one parent task per demoable unit
 
-This phase runs on the merge of the architecture pull request.
-
-First close the **architecture sub-issue** with an `update-issue` safe-output
-that sets its status to closed: the merged pull request delivered the
-architecture, so its sub-issue is done (ADR 0005).
+This phase runs on the merge of the architecture pull request. The merged pull
+request carries `Closes #<architecture-sub-issue>` (added by
+`sdd-pr-sanitize`), so the architecture sub-issue closes on merge without an
+agent step (ADR 0005); this phase does not close it.
 
 Read the merged spec file's Demoable Units of Work section. For each demoable
 unit, create one Unit sub-issue with a single `create-issue` safe-output whose
@@ -355,9 +354,10 @@ dependency does not get `sdd:ready` until its dependency closes.
   `templates/.github/`, or secrets.
 - This agent never merges or approves a pull request. A human merges the
   architecture pull request; merging is the signal that advances to phase B.
-- This agent never closes the tracking issue or any task sub-issue. It does
-  close the architecture sub-issue it created, once the architecture pull
-  request has merged (ADR 0005).
+- This agent never closes the tracking issue or any sub-issue. The
+  architecture sub-issue closes on the merge of its own pull request, via the
+  `Closes` keyword `sdd-pr-sanitize` adds (ADR 0005); this agent emits no
+  issue-closing safe-output.
 - This agent never removes the `needs-human` label. Only a human clears it.
 - All writes go through safe-outputs. The workflow permissions stay
   read-only.
@@ -373,8 +373,10 @@ dependency does not get `sdd:ready` until its dependency closes.
 - Commenting `/revise <note>` on that architecture pull request pushes a
   follow-up commit to its existing branch, updating the same pull request, and
   opens no second architecture pull request.
-- Merging that architecture pull request creates one parent task sub-issue per
-  demoable unit and a phase-B summary comment, and creates no sub-tasks.
+- Merging that architecture pull request closes the architecture sub-issue
+  (via the `Closes #<architecture-sub-issue>` keyword `sdd-pr-sanitize`
+  added), creates one parent task sub-issue per demoable unit and a phase-B
+  summary comment, and creates no sub-tasks.
 - Commenting `/approve` produces sub-task issues, each carrying a `repo:`
   field, a `model:*` label, and a structured body block with requirement IDs
   and proof artifacts.
