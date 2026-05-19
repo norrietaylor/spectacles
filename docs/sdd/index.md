@@ -30,7 +30,9 @@ feature is at any moment.
 
 The diagram traces that path end to end. Amber nodes are the steps a human
 takes; blue nodes are automated agent runs; the red node is a `needs-human`
-hand-off, which any agent can raise and only a human clears.
+hand-off, which any agent can raise and only a human clears. Dotted edges run
+backward: a `/revise` comment sends a pull request back to its agent for
+changes, and clearing `needs-human` resumes a stalled hand-off.
 
 ```mermaid
 flowchart TD
@@ -83,6 +85,10 @@ flowchart TD
     a_tasks -.-> hand
     a_exec -.-> hand
     hand --> ans
+
+    h_spec -.->|changes needed? comment /revise| a_spec
+    h_arch -.->|changes needed? comment /revise| a_arch
+    h_merge -.->|changes needed? /revise or a review comment| a_exec
 ```
 
 | Step | Who acts | What happens | Lifecycle label |
@@ -112,6 +118,21 @@ Across the whole pipeline a human takes only four kinds of action:
   the `needs-human` label and posts one comment with the blocker. Answer in a
   comment and clear the label; the agent re-reads the thread and resumes. See
   ADR 0001 (`decisions/0001-needs-human.md` in the repository root).
+
+## Giving feedback on a pull request
+
+Every pull request the pipeline opens can be sent back for changes instead of
+merged. Feedback never opens a second pull request; the owning agent updates
+the existing one.
+
+- **A spec PR or an architecture PR.** Comment `/revise <note>` on the pull
+  request. The owning agent — `sdd-spec` or `sdd-triage` — re-runs with the
+  note as an added instruction and updates the same pull request. Repeat until
+  it is right, then merge.
+- **An implementation PR.** Leave an inline review comment on the diff, or
+  comment `/revise <note>` on the pull request. `sdd-execute` pushes follow-up
+  commits to the same branch addressing it. A comment that needs a human
+  decision is escalated through `needs-human` instead.
 
 ## Where state lives
 
