@@ -81,9 +81,11 @@ the Unit issue above it. The issue tree is left half-open.
 
 ## Consequences
 
-- `sdd-spec` gains the `create-issue`, `link-sub-issue`, and `update-issue`
-  safe-outputs. `sdd-triage` gains `update-issue`. `sdd-execute` gains
-  `update-issue`. Each `update-issue` enables `status` only.
+- `sdd-spec` gains the `create-issue` and `update-issue` safe-outputs.
+  `sdd-triage` gains `update-issue`. `sdd-execute` gains `update-issue`. Each
+  `update-issue` enables `status` only. Sub-issues were originally nested with
+  a separate `link-sub-issue` safe-output; ADR 0007 replaces that with the
+  `create-issue` `parent` field.
 - ADR 0004's correction — reference the tracking issue with `Refs #N`, never a
   closing keyword — stands and is reinforced here: the rule now also has a
   structural backstop.
