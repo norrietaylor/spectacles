@@ -45,8 +45,9 @@ The consumer does not carry the `.lock.yml`. It calls the copy hosted in the
 spectacles repository by cross-repo `uses:`. This is the GitHub-native way to
 distribute a reusable workflow, and it has three consequences:
 
-- A consumer carries eight small, auditable wrappers, not ~700 KB of
-  generated locks plus a vendored import cache.
+- A consumer carries eight small, auditable wrappers — plus the
+  `sdd-pr-sanitize` utility workflow — not ~700 KB of generated locks plus a
+  vendored import cache.
 - A suite update is a ref bump, not a re-install on every consumer.
 - The compiled locks must be self-contained. A lock that resolves imports or
   re-checks itself at run time fails when called cross-repo, because that
@@ -90,10 +91,15 @@ reusable workflow fronted by a thin wrapper.
 ## What the installer places on a consumer repository
 
 `scripts/quick-setup.sh --suite sdd` writes, under the consumer repository's
-`.github/workflows/`, the eight thin wrappers listed in the table above — and
-nothing else under that directory. No `.lock.yml`, no agent `.md` source, and
-no `.github/aw/imports/` tree is copied: the locks are hosted, and they are
-self-contained.
+`.github/workflows/`, the eight thin wrappers listed in the table above and
+the `sdd-pr-sanitize` utility workflow — and nothing else under that
+directory. No `.lock.yml`, no agent `.md` source, and no `.github/aw/imports/`
+tree is copied: the locks are hosted, and they are self-contained.
+
+`sdd-pr-sanitize` is not an agent wrapper: it is a plain workflow that, on
+every `spec/*` and `arch/*` pull request, rewrites a stray issue-closing
+keyword in the body to `Refs` so a merge cannot auto-close the feature
+tracking issue (ADR 0006).
 
 The installer also syncs the `sdd:*` and `model:*` labels and installs the
 issue templates. `--ref <ref>` pins the `uses:` lines in the installed
