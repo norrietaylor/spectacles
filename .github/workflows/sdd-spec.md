@@ -238,8 +238,11 @@ spec phase is complete. Move the tracking issue to the next lifecycle state:
   sub-issue is done (ADR 0005).
 - Remove the `sdd:spec` label from the tracking issue (`remove-labels`).
 - Add the `sdd:triage` label to the tracking issue (`add-labels`).
-- Post one comment on the tracking issue noting that the spec is merged,
-  linking the merged spec file, and stating that triage is next.
+- Post one comment on the tracking issue: note that the spec is merged, link
+  the merged spec file, and state the next step in exact terms — a
+  write-access author comments `/triage` on this tracking issue to start the
+  architecture phase. Name the `/triage` command explicitly; "triage is next"
+  alone leaves the reader without the action.
 
 Do not author a new spec or open a pull request on this trigger; it is a
 lifecycle transition only. Never close the tracking issue itself (ADR 0001);
