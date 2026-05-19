@@ -35,8 +35,6 @@ safe-outputs:
     title-prefix: "arch"
   create-issue:
     max: 20
-  link-sub-issue:
-    max: 20
   add-comment:
     max: 1
   add-labels:
@@ -187,11 +185,12 @@ feature stays in the architecture record and does not become an ADR.
 ### 4. Phase A: open the architecture sub-issue and pull request
 
 First create the **architecture sub-issue**, the pull request's deliverable,
-per the issue model in ADR 0005. Emit a `create-issue` safe-output titled
+per the issue model in ADR 0005. Emit one `create-issue` safe-output titled
 `architecture: <issue title>` with a one-line body, `Architecture deliverable
-for #<tracking-issue>.`, then a `link-sub-issue` safe-output that makes it a
-sub-issue of the tracking issue. On a `/revise` trigger the architecture
-sub-issue already exists — reuse it, do not create a second.
+for #<tracking-issue>.`, and its `parent` field set to the tracking issue
+number. The `parent` field nests the new issue as a sub-issue of the tracking
+issue in the same step. On a `/revise` trigger the architecture sub-issue
+already exists — reuse it, do not create a second.
 
 Then open exactly one pull request via the `create-pull-request` safe-output,
 adding `architecture.md` and, when applicable, the numbered ADR. The pull
@@ -226,9 +225,13 @@ that sets its status to closed: the merged pull request delivered the
 architecture, so its sub-issue is done (ADR 0005).
 
 Read the merged spec file's Demoable Units of Work section. For each demoable
-unit, create one Unit sub-issue via the `create-issue` safe-output and link it
-as a sub-issue of the tracking issue via the `link-sub-issue` safe-output. Each
-Unit issue's title names the unit (for example `Unit 1: Repository
+unit, create one Unit sub-issue with a single `create-issue` safe-output whose
+`parent` field is set to the tracking issue number. The `parent` field nests
+the new issue under the tracking issue in the same step — there is no separate
+link safe-output to emit, and none to forget. Every Unit `create-issue` must
+carry `parent`; an unparented Unit breaks the feature tree and `sdd-execute`'s
+completion check, which finds Units through the tracking issue's sub-issue
+list. Each Unit issue's title names the unit (for example `Unit 1: Repository
 foundation`) and its body summarizes the unit's purpose, the requirement IDs it
 covers, and the units it depends on.
 
@@ -243,11 +246,12 @@ only on `/approve`.
 This phase runs on a `/approve` comment from a write-access author.
 
 For each Unit, decompose the demoable unit into implementation sub-tasks sized
-for a single agent session. Create each sub-task via the `create-issue`
-safe-output and link it via the `link-sub-issue` safe-output as a sub-issue of
-its **Unit** issue — not of the tracking issue — so the tree nests Feature →
-Unit → task (ADR 0005). Every sub-task issue body carries a structured block
-with these fields:
+for a single agent session. Create each sub-task with a single `create-issue`
+safe-output whose `parent` field is set to its **Unit** issue number — not the
+tracking issue number — so the tree nests Feature → Unit → task (ADR 0005). The
+`parent` field nests the sub-task in the same step; every sub-task
+`create-issue` must carry it. Every sub-task issue body carries a structured
+block with these fields:
 
 ```text
 ## Task
