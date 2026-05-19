@@ -1,0 +1,61 @@
+name: sdd-pr-sanitize
+
+# Neutralizes an accidental issue-closing keyword in a spec or architecture
+# pull request body.
+#
+# A spec pull request (sdd-spec) and an architecture pull request (sdd-triage)
+# must close nothing on merge: the pipeline closes the matching sub-issue
+# itself (ADR 0005). The agents are told never to write a closing keyword for
+# the feature tracking issue, but across three acceptance runs the agent
+# slipped `Closes`/`Fixes`/`Resolves #<feature>` into the pull request body
+# anyway. Merging such a pull request auto-closes the feature tracking issue
+# mid-pipeline. A prompt rule cannot be relied on; this workflow is the
+# deterministic backstop (ADR 0006).
+#
+# It rewrites every closing keyword that precedes an issue reference to `Refs`,
+# which GitHub does not treat as a closing keyword. The issue number is left
+# intact, so the human-readable reference survives. Only spec/* and arch/*
+# pull requests are touched; an sdd-execute implementation pull request on an
+# sdd/* branch keeps its `Closes #<task>`, which is correct.
+
+on:
+  pull_request:
+    types: [opened, edited, reopened]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  sanitize:
+    # Only spec and architecture pull requests close nothing. An sdd/*
+    # implementation pull request is left alone.
+    if: >-
+      startsWith(github.event.pull_request.head.ref, 'spec/') ||
+      startsWith(github.event.pull_request.head.ref, 'arch/')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Rewrite closing keywords to Refs
+        uses: actions/github-script@v9
+        with:
+          script: |
+            const pr = context.payload.pull_request;
+            const body = pr.body || '';
+            // GitHub auto-closes an issue when a merged pull request body
+            // names it after close/fix/resolve (with an optional s/d/ed).
+            // Rewrite only the keyword, and only when an issue reference
+            // follows it; the issue number itself is kept.
+            const sanitized = body.replace(
+              /\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\b(?=\s+(?:[\w.-]+\/[\w.-]+)?#\d+)/gi,
+              'Refs');
+            if (sanitized === body) {
+              core.info('No closing keyword in the pull request body.');
+              return;
+            }
+            await github.rest.pulls.update({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: pr.number,
+              body: sanitized,
+            });
+            core.info('Rewrote a closing keyword to Refs in PR #' + pr.number);
