@@ -28,17 +28,18 @@ The steps below trace one feature from idea to close. The lifecycle label on
 the tracking issue, listed in the right-hand column, tells you where the
 feature is at any moment.
 
-The diagram traces that path end to end. Amber nodes are the steps a human
-takes; blue nodes are automated agent runs; the red node is a `needs-human`
-hand-off, which any agent can raise and only a human clears. Dotted edges run
+The diagram traces that path end to end. Amber-bordered nodes are the steps a
+human takes; blue-bordered nodes are automated agent runs; the red-bordered
+node is a `needs-human` hand-off, which any agent can raise and only a human
+clears. Dotted edges run
 backward: a `/revise` comment sends a pull request back to its agent for
 changes, and clearing `needs-human` resumes a stalled hand-off.
 
 ```mermaid
 flowchart TD
-    classDef human fill:#fef3c7,stroke:#b45309,color:#1c1917;
-    classDef agent fill:#dbeafe,stroke:#1d4ed8,color:#1c1917;
-    classDef handoff fill:#fee2e2,stroke:#b91c1c,color:#1c1917;
+    classDef human stroke:#e0a82e,stroke-width:4px;
+    classDef agent stroke:#4493f8,stroke-width:4px;
+    classDef handoff stroke:#f85149,stroke-width:4px;
 
     open([Human: open a feature or bug issue<br/>the template applies sdd:spec]):::human
 
