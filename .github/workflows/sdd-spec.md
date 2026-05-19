@@ -33,6 +33,8 @@ safe-outputs:
     max: 1
     draft: ${{ false }}
     title-prefix: "spec"
+  push-to-pull-request-branch:
+    max: 1
   add-comment:
     max: 1
   add-labels:
@@ -73,8 +75,9 @@ applies from the workflow context before doing anything else.
    above: author a spec for that issue.
 3. **A write-access author commented `/revise <note>` on a spec pull
    request.** Re-run the spec for the linked tracking issue, treating the
-   note after `/revise` as an added instruction, and update the same spec
-   pull request rather than opening a second one.
+   note after `/revise` as an added instruction. Make the real edit the note
+   asks for in the spec file and push that commit onto the existing spec
+   pull request's branch — never open a second pull request.
 4. **The `needs-human` label was removed from a tracking issue.** A human has
    answered an earlier hand-off. Re-read the whole thread, including the
    human's new comments, and resume: author the spec now that the open
@@ -102,9 +105,11 @@ hand-off comment has already been posted and must not be posted again.
 For a tracking issue that can be specified with confidence, this agent opens
 a **spec sub-issue** under the tracking issue and one pull request adding a
 spec file, and stops; when that pull request later merges, it closes the spec
-sub-issue. For a tracking issue that cannot be specified, it posts one
-clarifying-questions comment, applies `needs-human`, and exits `noop`. It
-never guesses and never authors a partial spec.
+sub-issue. On a `/revise` it edits the spec file and pushes the commit onto
+that same pull request's branch, opening no second pull request. For a
+tracking issue that cannot be specified, it posts one clarifying-questions
+comment, applies `needs-human`, and exits `noop`. It never guesses and never
+authors a partial spec.
 
 ## Procedure
 
@@ -223,9 +228,28 @@ message, only as a bare `#<number>` — never with a closing keyword (`Closes`,
 issue it names, and the tracking issue must stay open. This pull request
 closes nothing on merge; step 8 closes the spec sub-issue.
 
-For a `/revise` trigger, update the existing spec pull request on its existing
-branch rather than opening a new one. Apply only the change the `/revise` note
-asks for; do not rewrite untouched sections.
+For a `/revise` trigger, do not emit `create-pull-request`: that safe-output
+always opens a fresh branch and a second pull request, and the `/revise`
+contract is to update the *existing* spec pull request. Instead, update that
+pull request in place:
+
+- First make the real edit in the spec file under `docs/specs/`. Apply only
+  the change the `/revise` note asks for; do not rewrite untouched sections.
+  An edit to the working tree is mandatory — a `/revise` that changes no file
+  is a no-op masquerading as a change.
+- Then emit one `push-to-pull-request-branch` safe-output to commit that edit
+  onto the existing spec pull request's branch. The triggering `/revise`
+  comment is on the spec pull request, so this safe-output updates that pull
+  request in place from the triggering-PR context — it lands the commit on
+  that pull request's branch, never on a new one. Supply a concrete commit
+  `message` that names the `/revise` change.
+
+A `/revise` that posts only an `add-comment` and pushes no commit is the
+defect this path exists to prevent: the comment would assert a change the
+pull request does not contain. The file edit and the
+`push-to-pull-request-branch` emission are both required on every `/revise`.
+An `add-comment` on a `/revise` is optional, and when posted it must describe
+the change actually pushed in this run — never a change that was not made.
 
 ### 8. Advance the lifecycle on a merged spec pull request
 
@@ -269,5 +293,8 @@ a time, so the removal and the addition are a single move.
   and at least one `(informed by` citation.
 - A tracking issue with a deliberately vague body yields no pull request, one
   clarifying-questions comment, and the `needs-human` label.
+- A `/revise` comment on an open spec pull request adds a commit to that pull
+  request's existing branch applying the requested change, and opens no
+  second pull request.
 - Merging a spec pull request moves the tracking issue label from `sdd:spec`
   to `sdd:triage` and posts a comment linking the spec.
