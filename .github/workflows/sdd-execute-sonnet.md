@@ -303,9 +303,10 @@ the issue tree (ADR 0005) for two completion transitions:
 - **Idle.** Neither transition applies. Emit `noop` and exit 0. This is the
   normal outcome of most scheduled runs.
 
-When more than one transition applies across the queue in one run, perform
-each one whose inputs are already satisfied; the rest is handled by the next
-run.
+When more than one transition applies in one run, perform exactly one:
+feature completion first, otherwise the oldest completed Unit. The
+`update-issue` and `add-comment` safe-outputs are capped at one call per run,
+so the rest is handled by subsequent runs.
 
 ## Boundaries
 
