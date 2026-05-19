@@ -52,6 +52,10 @@ safe-outputs:
   remove-labels:
     allowed: [sdd:ready, sdd:review]
     max: 1
+  update-issue:
+    status:
+    target: "*"
+    max: 1
   noop:
 ---
 
@@ -124,9 +128,10 @@ For an eligible task, this agent opens exactly one implementation pull request
 with the captured proof output in the body, and moves the task sub-issue to
 `sdd:in-progress`. For a review comment, it pushes commits to the existing
 branch. When no eligible task exists, it emits `noop` and exits 0. When every
-task sub-issue of a tracking issue is closed, it moves the tracking issue to
-`sdd:done` and applies `needs-human` for a human to do the final review and
-close. It never closes any issue itself.
+task under a Unit is closed it closes that Unit sub-issue; when a feature's
+spec, architecture, and every Unit sub-issue is closed it moves the feature to
+`sdd:done` and applies `needs-human` for a human's final review and close. It
+closes completed Unit sub-issues but never the feature tracking issue.
 
 ## Procedure
 
@@ -278,25 +283,30 @@ exactly one comment stating which comment could not be resolved and why. Do
 not guess. A human resolves the comment and clears the label, which
 re-triggers this agent to resume (situation 5 above).
 
-### 8. Idle, and the all-tasks-closed transition
+### 8. Idle, and the completion transitions
 
 When step 2 found no eligible task, this agent has nothing to implement. Check
-whether this is a plain idle run or the all-tasks-closed transition:
+the issue tree (ADR 0005) for two completion transitions:
 
-- **Idle.** No tracking issue has all its task sub-issues closed. Emit `noop`
-  and exit 0. This is the normal outcome of most scheduled runs.
-- **All tasks closed.** Every task sub-issue linked to a tracking issue is
-  closed. Move that tracking issue to `sdd:done`: remove its `sdd:review`
-  label (`remove-labels`) and add `sdd:done` (`add-labels`). Then apply
-  `needs-human` to the tracking issue (`add-labels`) and post exactly one
-  comment stating that every task is complete and a human should do the final
-  review and close. The agent **never** closes the tracking issue itself; a
-  human closes it. This hand-off is the one in ADR 0001 beyond the blocker
-  cases: it routes the final close to a human.
+- **A Unit is complete.** A Unit sub-issue is still open but every task
+  sub-issue nested under it is closed. Close the Unit with an `update-issue`
+  safe-output that sets its status to closed.
+- **A feature is complete.** A feature tracking issue's spec sub-issue,
+  architecture sub-issue, and every Unit sub-issue is closed. Move the feature
+  to `sdd:done`: remove its `sdd:review` label (`remove-labels`) and add
+  `sdd:done` (`add-labels`). Then apply `needs-human` (`add-labels`) and post
+  exactly one comment stating that every unit is complete and a human should
+  do the final review and close. The agent closes Unit sub-issues but
+  **never** closes the feature tracking issue itself; a human closes it. This
+  hand-off is the one in ADR 0001 beyond the blocker cases: it routes the
+  final close to a human.
+- **Idle.** Neither transition applies. Emit `noop` and exit 0. This is the
+  normal outcome of most scheduled runs.
 
-When both an `sdd:done` move and the idle path could apply across different
-tracking issues in one run, perform the `sdd:done` transition for the
-completed tracking issue; the rest of the queue is handled by the next run.
+When more than one transition applies in one run, perform exactly one:
+feature completion first, otherwise the oldest completed Unit. The
+`update-issue` and `add-comment` safe-outputs are capped at one call per run,
+so the rest is handled by subsequent runs.
 
 ## Boundaries
 
@@ -306,8 +316,9 @@ completed tracking issue; the rest of the queue is handled by the next run.
   field names another repository is skipped, not executed.
 - This agent never merges or approves a pull request. Merge authority stays
   with humans and the consumer repository's CI.
-- This agent never closes an issue. A task sub-issue is closed by merging its
-  pull request; a tracking issue is closed by a human.
+- This agent closes a completed Unit sub-issue. It never closes the feature
+  tracking issue — a human does that (ADR 0001) — and it never closes a task
+  sub-issue, which closes when its pull request merges.
 - This agent never removes the `needs-human` label. Only a human clears it.
 - All writes go through safe-outputs. The workflow permissions stay read-only.
 
