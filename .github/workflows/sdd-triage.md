@@ -33,6 +33,8 @@ safe-outputs:
     max: 1
     draft: ${{ false }}
     title-prefix: "arch"
+  push-to-pull-request-branch:
+    max: 1
   create-issue:
     max: 20
   add-comment:
@@ -90,9 +92,10 @@ applies from the workflow context before doing anything else.
 4. **A write-access author commented `/approve` on a tracking issue.** Run
    phase C: decompose each parent task into implementation sub-tasks. A
    write-access author commented `/revise <note>` on an architecture pull
-   request or a triage comment: re-run the owning phase with the note after
-   `/revise` as an added instruction, updating the same architecture pull
-   request rather than opening a second one.
+   request: re-run phase A with the note after `/revise` as an added
+   instruction, make the architecture edit it asks for, and push that commit
+   onto the existing architecture pull request's branch — never open a second
+   pull request.
 5. **The `needs-human` label was removed from a tracking issue.** A human has
    answered an earlier hand-off. Re-read the whole thread, including the
    human's new comments, and resume the phase that handed off. Resume **only**
@@ -112,7 +115,9 @@ hand-off comment has already been posted and must not be posted again.
 
 Phase A produces an **architecture sub-issue** under the tracking issue and
 one pull request adding the per-feature architecture record — plus, when the
-decision is cross-cutting, a numbered ADR in the same pull request. Phase B
+decision is cross-cutting, a numbered ADR in the same pull request. A `/revise`
+re-run of phase A produces no new pull request: it pushes a follow-up commit
+onto the existing architecture pull request's branch. Phase B
 closes the architecture sub-issue and produces one Unit sub-issue per demoable
 unit and one summary comment. Phase C produces one implementation task
 sub-issue per single-session unit of work, each nested under its Unit and
@@ -212,9 +217,19 @@ closes nothing on merge; phase B closes the architecture sub-issue.
 Then stop: phase A ends here. Phase B runs only when this pull request is
 merged.
 
-For a `/revise` trigger on an architecture pull request, update the existing
-pull request on its existing branch rather than opening a new one. Apply only
-the change the `/revise` note asks for; do not rewrite untouched sections.
+The `create-pull-request` safe-output is for the initial phase A run only. A
+`/revise` trigger on an architecture pull request must **not** emit
+`create-pull-request`: that safe-output always opens a fresh branch and a fresh
+pull request, which would leave a duplicate architecture pull request open for
+the same feature. Instead, for a `/revise` trigger on an architecture pull
+request, make the real edit to `architecture.md` (and the ADR, when one
+applies) that the `/revise` note asks for, then emit one
+`push-to-pull-request-branch` safe-output to commit that edit onto the existing
+architecture pull request's branch. Apply only the change the note asks for; do
+not rewrite untouched sections, and do not create the architecture sub-issue
+again. The triggering `/revise` comment is on the architecture pull request, so
+the safe-output pushes to that pull request's own branch and the same pull
+request updates in place.
 
 ### 5. Phase B: create one parent task per demoable unit
 
@@ -355,6 +370,9 @@ dependency does not get `sdd:ready` until its dependency closes.
 - Commenting `/triage` on a tracking issue whose spec pull request is merged
   produces an `arch(<slug>)` pull request adding
   `docs/specs/NN-spec-*/architecture.md`.
+- Commenting `/revise <note>` on that architecture pull request pushes a
+  follow-up commit to its existing branch, updating the same pull request, and
+  opens no second architecture pull request.
 - Merging that architecture pull request creates one parent task sub-issue per
   demoable unit and a phase-B summary comment, and creates no sub-tasks.
 - Commenting `/approve` produces sub-task issues, each carrying a `repo:`
