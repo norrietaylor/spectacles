@@ -43,8 +43,6 @@ safe-outputs:
     max: 1
   create-issue:
     max: 1
-  link-sub-issue:
-    max: 1
   update-issue:
     status:
     target: "*"
@@ -201,10 +199,11 @@ health-check checks; one strong artifact is enough when it is unambiguous.
 ### 7. Create the spec sub-issue and open the pull request
 
 First create the **spec sub-issue**, the pull request's deliverable, per the
-issue model in ADR 0005. Emit a `create-issue` safe-output titled
+issue model in ADR 0005. Emit one `create-issue` safe-output titled
 `spec: <issue title>` with a one-line body, `Spec deliverable for the
-tracking issue #<tracking-issue>.`, then a `link-sub-issue` safe-output that
-makes it a sub-issue of the tracking issue. The tracking issue itself stays open as the
+tracking issue #<tracking-issue>.`, and its `parent` field set to the tracking
+issue number. The `parent` field nests the new issue as a sub-issue of the
+tracking issue in the same step. The tracking issue itself stays open as the
 feature's lifecycle anchor. On a `/revise` trigger the spec sub-issue already
 exists — reuse it, do not create a second.
 
@@ -238,8 +237,11 @@ spec phase is complete. Move the tracking issue to the next lifecycle state:
   sub-issue is done (ADR 0005).
 - Remove the `sdd:spec` label from the tracking issue (`remove-labels`).
 - Add the `sdd:triage` label to the tracking issue (`add-labels`).
-- Post one comment on the tracking issue noting that the spec is merged,
-  linking the merged spec file, and stating that triage is next.
+- Post one comment on the tracking issue: note that the spec is merged, link
+  the merged spec file, and state the next step in exact terms — a
+  write-access author comments `/triage` on this tracking issue to start the
+  architecture phase. Name the `/triage` command explicitly; "triage is next"
+  alone leaves the reader without the action.
 
 Do not author a new spec or open a pull request on this trigger; it is a
 lifecycle transition only. Never close the tracking issue itself (ADR 0001);
