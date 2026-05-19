@@ -44,6 +44,8 @@ safe-outputs:
   create-pull-request:
     max: 1
     draft: ${{ false }}
+  push-to-pull-request-branch:
+    max: 1
   add-comment:
     max: 1
   add-labels:
@@ -133,8 +135,10 @@ hand-off comment has already been posted and must not be posted again.
 
 For an eligible task, this agent opens exactly one implementation pull request
 with the captured proof output in the body, and moves the task sub-issue to
-`sdd:in-progress`. For a review comment, it pushes commits to the existing
-branch. When no eligible task exists, it emits `noop` and exits 0. When every
+`sdd:in-progress`. For a review comment or a `/revise` note on a pull request
+it owns, it pushes follow-up commits to that pull request's existing branch
+with `push-to-pull-request-branch` — it never opens a second pull request.
+When no eligible task exists, it emits `noop` and exits 0. When every
 task under a Unit is closed it closes that Unit sub-issue; when a feature's
 spec, architecture, and every Unit sub-issue is closed it moves the feature to
 `sdd:done` and applies `needs-human` for a human's final review and close. It
@@ -279,14 +283,21 @@ reference this agent wrote). If the pull request is not one this agent opened,
 emit `noop` and exit; do not push any commit.
 
 For a pull request this agent owns, read the review comment and the diff it
-anchors to. Address every **actionable** review comment by pushing further
-commits to the **same branch**: do not open a second pull request, and do not
-open a new branch. The pull request already carries `Closes #<task>`; the
-follow-up commits land on its existing branch.
+anchors to. Address every **actionable** review comment by editing the
+in-scope files at the symbol level, then push the follow-up commits to the
+pull request's **existing branch** with the `push-to-pull-request-branch`
+safe-output. Do not emit `create-pull-request` on this path: that safe-output
+always opens a fresh branch and a fresh pull request, which would leave two
+pull requests racing to close the same task. `create-pull-request` belongs to
+step 6, the initial implementation pull request, alone. The pull request
+already carries `Closes #<task>`; the follow-up commits land on its existing
+branch, and that single pull request stays the one that closes the task.
 
-For a `/revise` trigger there is no anchored diff: treat the text after
-`/revise` in the triggering comment as the instruction, and push the
-follow-up commits to the same branch the same way.
+For a `/revise` trigger (situation 6) there is no anchored diff: treat the
+text after `/revise` in the triggering comment as the instruction, edit the
+in-scope files to satisfy it, and push the follow-up commits to the same
+branch with `push-to-pull-request-branch` exactly as for a review comment.
+Here too, never emit `create-pull-request`.
 
 A review comment this agent **cannot** resolve mechanically, for example one
 that asks for a decision a human must make, triggers the `needs-human`
@@ -346,6 +357,9 @@ so the rest is handled by subsequent runs.
   block in the body, and the task sub-issue moves to `sdd:in-progress`.
 - A `sdd:ready` task whose `repo:` field names a different repository is
   skipped and logged, and no pull request is opened for it.
+- A review comment, or a `/revise` note, on an implementation pull request
+  this agent owns produces follow-up commits on that pull request's existing
+  branch via `push-to-pull-request-branch`; no second pull request is opened.
 - When every task sub-issue of a tracking issue is closed, the tracking issue
   moves to `sdd:done` and gains `needs-human`, and the tracking issue is not
   closed by the agent.
