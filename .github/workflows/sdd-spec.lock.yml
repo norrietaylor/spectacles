@@ -1,4 +1,4 @@
-# gh-aw-metadata: {"schema_version":"v3","frontmatter_hash":"2544bc7f4982ccce51e0525651b4e7acb89b03df2e229c4b96174f0e1a191ee3","compiler_version":"v0.74.3","agent_id":"copilot"}
+# gh-aw-metadata: {"schema_version":"v3","frontmatter_hash":"39d8647a40ab0bf172ed594324a8af23a0ea91179b8c38af04a314237bca500f","compiler_version":"v0.74.3","agent_id":"copilot"}
 # gh-aw-manifest: {"version":1,"secrets":["APP_PRIVATE_KEY","COPILOT_GITHUB_TOKEN","DISTILLERY_OAUTH_TOKEN","GH_AW_CI_TRIGGER_TOKEN","GH_AW_GITHUB_MCP_SERVER_TOKEN","GH_AW_GITHUB_TOKEN","GITHUB_TOKEN"],"actions":[{"repo":"actions/checkout","sha":"de0fac2e4500dabe0009e67214ff5f5447ce83dd","version":"v6.0.2"},{"repo":"actions/create-github-app-token","sha":"bcd2ba49218906704ab6c1aa796996da409d3eb1","version":"v3.2.0"},{"repo":"actions/download-artifact","sha":"3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c","version":"v8.0.1"},{"repo":"actions/github-script","sha":"3a2844b7e9c422d3c10d287c895573f7108da1b3","version":"v9.0.0"},{"repo":"actions/setup-node","sha":"48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e","version":"v6.4.0"},{"repo":"actions/upload-artifact","sha":"043fb46d1a93c77aae656e7c1c64a875d1fc6a0a","version":"v7.0.1"},{"repo":"github/gh-aw-actions/setup","sha":"8a9a52673cb8f97ebb43b344618af2d6f2c9ac7f","version":"v0.74.3"}],"containers":[{"image":"ghcr.io/github/gh-aw-firewall/agent:0.25.46"},{"image":"ghcr.io/github/gh-aw-firewall/api-proxy:0.25.46"},{"image":"ghcr.io/github/gh-aw-firewall/squid:0.25.46"},{"image":"ghcr.io/github/gh-aw-mcpg:v0.3.9","digest":"sha256:64828b42a4482f58fab16509d7f8f495a6d97c972a98a68aff20543531ac0388","pinned_image":"ghcr.io/github/gh-aw-mcpg:v0.3.9@sha256:64828b42a4482f58fab16509d7f8f495a6d97c972a98a68aff20543531ac0388"},{"image":"ghcr.io/github/github-mcp-server:v1.0.4"},{"image":"ghcr.io/github/serena-mcp-server:latest","digest":"sha256:bf343399e3725c45528f531a230f3a04521d4cdef29f9a5af6282ff0d3c393c5","pinned_image":"ghcr.io/github/serena-mcp-server:latest@sha256:bf343399e3725c45528f531a230f3a04521d4cdef29f9a5af6282ff0d3c393c5"},{"image":"node:lts-alpine","digest":"sha256:d1b3b4da11eefd5941e7f0b9cf17783fc99d9c6fc34884a665f40a06dbdfc94f","pinned_image":"node:lts-alpine@sha256:d1b3b4da11eefd5941e7f0b9cf17783fc99d9c6fc34884a665f40a06dbdfc94f"}]}
 #    ___                   _   _      
 #   / _ \                 | | (_)     
@@ -90,6 +90,12 @@ on:
       created_pr_url:
         description: URL of the first created pull request
         value: ${{ jobs.safe_outputs.outputs.created_pr_url }}
+      push_commit_sha:
+        description: SHA of the pushed commit
+        value: ${{ jobs.safe_outputs.outputs.push_commit_sha }}
+      push_commit_url:
+        description: URL of the pushed commit
+        value: ${{ jobs.safe_outputs.outputs.push_commit_url }}
     secrets:
       APP_PRIVATE_KEY:
         required: false
@@ -241,23 +247,24 @@ jobs:
         run: |
           bash "${RUNNER_TEMP}/gh-aw/actions/create_prompt_first.sh"
           {
-          cat << 'GH_AW_PROMPT_75c26eb78edf6c90_EOF'
+          cat << 'GH_AW_PROMPT_ca21370a0cbb0f78_EOF'
           <system>
-          GH_AW_PROMPT_75c26eb78edf6c90_EOF
+          GH_AW_PROMPT_ca21370a0cbb0f78_EOF
           cat "${RUNNER_TEMP}/gh-aw/prompts/xpia.md"
           cat "${RUNNER_TEMP}/gh-aw/prompts/temp_folder_prompt.md"
           cat "${RUNNER_TEMP}/gh-aw/prompts/markdown.md"
           cat "${RUNNER_TEMP}/gh-aw/prompts/safe_outputs_prompt.md"
-          cat << 'GH_AW_PROMPT_75c26eb78edf6c90_EOF'
+          cat << 'GH_AW_PROMPT_ca21370a0cbb0f78_EOF'
           <safe-output-tools>
-          Tools: add_comment, create_issue, update_issue, create_pull_request, add_labels(max:2), remove_labels, missing_tool, missing_data, noop
-          GH_AW_PROMPT_75c26eb78edf6c90_EOF
+          Tools: add_comment, create_issue, update_issue, create_pull_request, add_labels(max:2), remove_labels, push_to_pull_request_branch, missing_tool, missing_data, noop
+          GH_AW_PROMPT_ca21370a0cbb0f78_EOF
           cat "${RUNNER_TEMP}/gh-aw/prompts/safe_outputs_create_pull_request.md"
-          cat << 'GH_AW_PROMPT_75c26eb78edf6c90_EOF'
+          cat "${RUNNER_TEMP}/gh-aw/prompts/safe_outputs_push_to_pr_branch.md"
+          cat << 'GH_AW_PROMPT_ca21370a0cbb0f78_EOF'
           </safe-output-tools>
-          GH_AW_PROMPT_75c26eb78edf6c90_EOF
+          GH_AW_PROMPT_ca21370a0cbb0f78_EOF
           cat "${RUNNER_TEMP}/gh-aw/prompts/mcp_cli_tools_prompt.md"
-          cat << 'GH_AW_PROMPT_75c26eb78edf6c90_EOF'
+          cat << 'GH_AW_PROMPT_ca21370a0cbb0f78_EOF'
           <github-context>
           The following GitHub context information is available for this workflow:
           {{#if github.actor}}
@@ -286,9 +293,9 @@ jobs:
           {{/if}}
           </github-context>
           
-          GH_AW_PROMPT_75c26eb78edf6c90_EOF
+          GH_AW_PROMPT_ca21370a0cbb0f78_EOF
           cat "${RUNNER_TEMP}/gh-aw/prompts/github_mcp_tools_with_safeoutputs_prompt.md"
-          cat << 'GH_AW_PROMPT_75c26eb78edf6c90_EOF'
+          cat << 'GH_AW_PROMPT_ca21370a0cbb0f78_EOF'
           </system>
           # Core principles
           
@@ -657,8 +664,9 @@ jobs:
              above: author a spec for that issue.
           3. **A write-access author commented `/revise <note>` on a spec pull
              request.** Re-run the spec for the linked tracking issue, treating the
-             note after `/revise` as an added instruction, and update the same spec
-             pull request rather than opening a second one.
+             note after `/revise` as an added instruction. Make the real edit the note
+             asks for in the spec file and push that commit onto the existing spec
+             pull request's branch — never open a second pull request.
           4. **The `needs-human` label was removed from a tracking issue.** A human has
              answered an earlier hand-off. Re-read the whole thread, including the
              human's new comments, and resume: author the spec now that the open
@@ -686,9 +694,11 @@ jobs:
           For a tracking issue that can be specified with confidence, this agent opens
           a **spec sub-issue** under the tracking issue and one pull request adding a
           spec file, and stops; when that pull request later merges, it closes the spec
-          sub-issue. For a tracking issue that cannot be specified, it posts one
-          clarifying-questions comment, applies `needs-human`, and exits `noop`. It
-          never guesses and never authors a partial spec.
+          sub-issue. On a `/revise` it edits the spec file and pushes the commit onto
+          that same pull request's branch, opening no second pull request. For a
+          tracking issue that cannot be specified, it posts one clarifying-questions
+          comment, applies `needs-human`, and exits `noop`. It never guesses and never
+          authors a partial spec.
           
           ## Procedure
           
@@ -807,9 +817,28 @@ jobs:
           issue it names, and the tracking issue must stay open. This pull request
           closes nothing on merge; step 8 closes the spec sub-issue.
           
-          For a `/revise` trigger, update the existing spec pull request on its existing
-          branch rather than opening a new one. Apply only the change the `/revise` note
-          asks for; do not rewrite untouched sections.
+          For a `/revise` trigger, do not emit `create-pull-request`: that safe-output
+          always opens a fresh branch and a second pull request, and the `/revise`
+          contract is to update the *existing* spec pull request. Instead, update that
+          pull request in place:
+          
+          - First make the real edit in the spec file under `docs/specs/`. Apply only
+            the change the `/revise` note asks for; do not rewrite untouched sections.
+            An edit to the working tree is mandatory — a `/revise` that changes no file
+            is a no-op masquerading as a change.
+          - Then emit one `push-to-pull-request-branch` safe-output to commit that edit
+            onto the existing spec pull request's branch. The triggering `/revise`
+            comment is on the spec pull request, so this safe-output updates that pull
+            request in place from the triggering-PR context — it lands the commit on
+            that pull request's branch, never on a new one. Supply a concrete commit
+            `message` that names the `/revise` change.
+          
+          A `/revise` that posts only an `add-comment` and pushes no commit is the
+          defect this path exists to prevent: the comment would assert a change the
+          pull request does not contain. The file edit and the
+          `push-to-pull-request-branch` emission are both required on every `/revise`.
+          An `add-comment` on a `/revise` is optional, and when posted it must describe
+          the change actually pushed in this run — never a change that was not made.
           
           ### 8. Advance the lifecycle on a merged spec pull request
           
@@ -853,10 +882,13 @@ jobs:
             and at least one `(informed by` citation.
           - A tracking issue with a deliberately vague body yields no pull request, one
             clarifying-questions comment, and the `needs-human` label.
+          - A `/revise` comment on an open spec pull request adds a commit to that pull
+            request's existing branch applying the requested change, and opens no
+            second pull request.
           - Merging a spec pull request moves the tracking issue label from `sdd:spec`
             to `sdd:triage` and posts a comment linking the spec.
           
-          GH_AW_PROMPT_75c26eb78edf6c90_EOF
+          GH_AW_PROMPT_ca21370a0cbb0f78_EOF
           } > "$GH_AW_PROMPT"
       - name: Interpolate variables and render templates
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
@@ -1066,9 +1098,9 @@ jobs:
           mkdir -p "${RUNNER_TEMP}/gh-aw/safeoutputs"
           mkdir -p /tmp/gh-aw/safeoutputs
           mkdir -p /tmp/gh-aw/mcp-logs/safeoutputs
-          cat > "${RUNNER_TEMP}/gh-aw/safeoutputs/config.json" << 'GH_AW_SAFE_OUTPUTS_CONFIG_43ef93ecfe2701b0_EOF'
-          {"add_comment":{"max":1},"add_labels":{"allowed":["sdd:triage","needs-human"],"max":2},"create_issue":{"max":1},"create_pull_request":{"draft":"${{ false }}","max":1,"max_patch_files":100,"max_patch_size":1024,"protect_top_level_dot_folders":true,"protected_files":["package.json","bun.lockb","bunfig.toml","deno.json","deno.jsonc","deno.lock","global.json","NuGet.Config","Directory.Packages.props","mix.exs","mix.lock","go.mod","go.sum","stack.yaml","stack.yaml.lock","pom.xml","build.gradle","build.gradle.kts","settings.gradle","settings.gradle.kts","gradle.properties","package-lock.json","yarn.lock","pnpm-lock.yaml","npm-shrinkwrap.json","requirements.txt","Pipfile","Pipfile.lock","pyproject.toml","setup.py","setup.cfg","Gemfile","Gemfile.lock","uv.lock","CODEOWNERS","DESIGN.md","README.md","CONTRIBUTING.md","CHANGELOG.md","SECURITY.md","CODE_OF_CONDUCT.md","AGENTS.md","CLAUDE.md","GEMINI.md"],"title_prefix":"spec"},"create_report_incomplete_issue":{},"missing_data":{},"missing_tool":{},"noop":{"max":1,"report-as-issue":"true"},"remove_labels":{"allowed":["sdd:spec"],"max":1},"report_incomplete":{},"update_issue":{"allow_body":true,"allow_status":true,"max":1,"target":"*"}}
-          GH_AW_SAFE_OUTPUTS_CONFIG_43ef93ecfe2701b0_EOF
+          cat > "${RUNNER_TEMP}/gh-aw/safeoutputs/config.json" << 'GH_AW_SAFE_OUTPUTS_CONFIG_cccc344669121999_EOF'
+          {"add_comment":{"max":1},"add_labels":{"allowed":["sdd:triage","needs-human"],"max":2},"create_issue":{"max":1},"create_pull_request":{"draft":"${{ false }}","max":1,"max_patch_files":100,"max_patch_size":1024,"protect_top_level_dot_folders":true,"protected_files":["package.json","bun.lockb","bunfig.toml","deno.json","deno.jsonc","deno.lock","global.json","NuGet.Config","Directory.Packages.props","mix.exs","mix.lock","go.mod","go.sum","stack.yaml","stack.yaml.lock","pom.xml","build.gradle","build.gradle.kts","settings.gradle","settings.gradle.kts","gradle.properties","package-lock.json","yarn.lock","pnpm-lock.yaml","npm-shrinkwrap.json","requirements.txt","Pipfile","Pipfile.lock","pyproject.toml","setup.py","setup.cfg","Gemfile","Gemfile.lock","uv.lock","CODEOWNERS","DESIGN.md","README.md","CONTRIBUTING.md","CHANGELOG.md","SECURITY.md","CODE_OF_CONDUCT.md","AGENTS.md","CLAUDE.md","GEMINI.md"],"title_prefix":"spec"},"create_report_incomplete_issue":{},"missing_data":{},"missing_tool":{},"noop":{"max":1,"report-as-issue":"true"},"push_to_pull_request_branch":{"if_no_changes":"warn","max":1,"max_patch_size":1024,"protect_top_level_dot_folders":true,"protected_files":["package.json","bun.lockb","bunfig.toml","deno.json","deno.jsonc","deno.lock","global.json","NuGet.Config","Directory.Packages.props","mix.exs","mix.lock","go.mod","go.sum","stack.yaml","stack.yaml.lock","pom.xml","build.gradle","build.gradle.kts","settings.gradle","settings.gradle.kts","gradle.properties","package-lock.json","yarn.lock","pnpm-lock.yaml","npm-shrinkwrap.json","requirements.txt","Pipfile","Pipfile.lock","pyproject.toml","setup.py","setup.cfg","Gemfile","Gemfile.lock","uv.lock","CODEOWNERS","DESIGN.md","README.md","CONTRIBUTING.md","CHANGELOG.md","SECURITY.md","CODE_OF_CONDUCT.md","AGENTS.md","CLAUDE.md","GEMINI.md"]},"remove_labels":{"allowed":["sdd:spec"],"max":1},"report_incomplete":{},"update_issue":{"allow_body":true,"allow_status":true,"max":1,"target":"*"}}
+          GH_AW_SAFE_OUTPUTS_CONFIG_cccc344669121999_EOF
       - name: Generate Safe Outputs Tools
         env:
           GH_AW_TOOLS_META_JSON: |
@@ -1078,6 +1110,7 @@ jobs:
                 "add_labels": " CONSTRAINTS: Maximum 2 label(s) can be added. Only these labels are allowed: [\"sdd:triage\" \"needs-human\"].",
                 "create_issue": " CONSTRAINTS: Maximum 1 issue(s) can be created.",
                 "create_pull_request": " CONSTRAINTS: Maximum 1 pull request(s) can be created. Title will be prefixed with \"spec\".",
+                "push_to_pull_request_branch": " CONSTRAINTS: Maximum 1 push(es) can be made.",
                 "remove_labels": " CONSTRAINTS: Maximum 1 label(s) can be removed. Only these labels can be removed: [sdd:spec].",
                 "update_issue": " CONSTRAINTS: Maximum 1 issue(s) can be updated. Target: *."
               },
@@ -1261,6 +1294,26 @@ jobs:
                   }
                 }
               },
+              "push_to_pull_request_branch": {
+                "defaultMax": 1,
+                "fields": {
+                  "branch": {
+                    "required": true,
+                    "type": "string",
+                    "sanitize": true,
+                    "maxLength": 256
+                  },
+                  "message": {
+                    "required": true,
+                    "type": "string",
+                    "sanitize": true,
+                    "maxLength": 65000
+                  },
+                  "pull_request_number": {
+                    "issueOrPRNumber": true
+                  }
+                }
+              },
               "remove_labels": {
                 "defaultMax": 5,
                 "fields": {
@@ -1437,7 +1490,7 @@ jobs:
           
           mkdir -p /home/runner/.copilot
           GH_AW_NODE=$(which node 2>/dev/null || command -v node 2>/dev/null || echo node)
-          cat << GH_AW_MCP_CONFIG_7128c058b8fcd049_EOF | "$GH_AW_NODE" "${RUNNER_TEMP}/gh-aw/actions/start_mcp_gateway.cjs"
+          cat << GH_AW_MCP_CONFIG_a47bd49e23d548fb_EOF | "$GH_AW_NODE" "${RUNNER_TEMP}/gh-aw/actions/start_mcp_gateway.cjs"
           {
             "mcpServers": {
               "distillery": {
@@ -1538,7 +1591,7 @@ jobs:
               "payloadDir": "${MCP_GATEWAY_PAYLOAD_DIR}"
             }
           }
-          GH_AW_MCP_CONFIG_7128c058b8fcd049_EOF
+          GH_AW_MCP_CONFIG_a47bd49e23d548fb_EOF
       - name: Mount MCP servers as CLIs
         id: mount-mcp-clis
         continue-on-error: true
@@ -1812,6 +1865,7 @@ jobs:
           owner: ${{ github.repository_owner }}
           repositories: ${{ github.event.repository.name }}
           github-api-url: ${{ github.api_url }}
+          permission-administration: read
           permission-contents: write
           permission-discussions: write
           permission-issues: write
@@ -2214,6 +2268,8 @@ jobs:
       created_pr_url: ${{ steps.process_safe_outputs.outputs.created_pr_url }}
       process_safe_outputs_processed_count: ${{ steps.process_safe_outputs.outputs.processed_count }}
       process_safe_outputs_temporary_id_map: ${{ steps.process_safe_outputs.outputs.temporary_id_map }}
+      push_commit_sha: ${{ steps.process_safe_outputs.outputs.push_commit_sha }}
+      push_commit_url: ${{ steps.process_safe_outputs.outputs.push_commit_url }}
     steps:
       - name: Setup Scripts
         id: setup
@@ -2257,6 +2313,7 @@ jobs:
           owner: ${{ github.repository_owner }}
           repositories: ${{ github.event.repository.name }}
           github-api-url: ${{ github.api_url }}
+          permission-administration: read
           permission-contents: write
           permission-discussions: write
           permission-issues: write
@@ -2285,7 +2342,7 @@ jobs:
             fi
           fi
       - name: Checkout repository
-        if: (!cancelled()) && needs.agent.result != 'skipped' && contains(needs.agent.outputs.output_types, 'create_pull_request')
+        if: (!cancelled()) && needs.agent.result != 'skipped' && contains(needs.agent.outputs.output_types, 'create_pull_request') || (!cancelled()) && needs.agent.result != 'skipped' && contains(needs.agent.outputs.output_types, 'push_to_pull_request_branch')
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           ref: ${{ steps.extract-base-branch.outputs.base-branch || github.base_ref || github.event.pull_request.base.ref || github.ref_name || github.event.repository.default_branch }}
@@ -2293,7 +2350,7 @@ jobs:
           persist-credentials: false
           fetch-depth: 1
       - name: Configure Git credentials
-        if: (!cancelled()) && needs.agent.result != 'skipped' && contains(needs.agent.outputs.output_types, 'create_pull_request')
+        if: (!cancelled()) && needs.agent.result != 'skipped' && contains(needs.agent.outputs.output_types, 'create_pull_request') || (!cancelled()) && needs.agent.result != 'skipped' && contains(needs.agent.outputs.output_types, 'push_to_pull_request_branch')
         env:
           REPO_NAME: ${{ github.repository }}
           SERVER_URL: ${{ github.server_url }}
@@ -2323,7 +2380,7 @@ jobs:
           GH_AW_ALLOWED_DOMAINS: "${{ vars.DISTILLERY_MCP_URL }},api.business.githubcopilot.com,api.enterprise.githubcopilot.com,api.github.com,api.githubcopilot.com,api.individual.githubcopilot.com,api.snapcraft.io,archive.ubuntu.com,azure.archive.ubuntu.com,crl.geotrust.com,crl.globalsign.com,crl.identrust.com,crl.sectigo.com,crl.thawte.com,crl.usertrust.com,crl.verisign.com,crl3.digicert.com,crl4.digicert.com,crls.ssl.com,github.com,host.docker.internal,json-schema.org,json.schemastore.org,keyserver.ubuntu.com,ocsp.digicert.com,ocsp.geotrust.com,ocsp.globalsign.com,ocsp.identrust.com,ocsp.sectigo.com,ocsp.ssl.com,ocsp.thawte.com,ocsp.usertrust.com,ocsp.verisign.com,packagecloud.io,packages.cloud.google.com,packages.microsoft.com,ppa.launchpad.net,raw.githubusercontent.com,registry.npmjs.org,s.symcb.com,s.symcd.com,security.ubuntu.com,telemetry.enterprise.githubcopilot.com,ts-crl.ws.symantec.com,ts-ocsp.ws.symantec.com,www.googleapis.com"
           GITHUB_SERVER_URL: ${{ github.server_url }}
           GITHUB_API_URL: ${{ github.api_url }}
-          GH_AW_SAFE_OUTPUTS_HANDLER_CONFIG: "{\"add_comment\":{\"max\":1},\"add_labels\":{\"allowed\":[\"sdd:triage\",\"needs-human\"],\"max\":2},\"create_issue\":{\"max\":1},\"create_pull_request\":{\"draft\":\"${{ false }}\",\"max\":1,\"max_patch_files\":100,\"max_patch_size\":1024,\"protect_top_level_dot_folders\":true,\"protected_files\":[\"package.json\",\"bun.lockb\",\"bunfig.toml\",\"deno.json\",\"deno.jsonc\",\"deno.lock\",\"global.json\",\"NuGet.Config\",\"Directory.Packages.props\",\"mix.exs\",\"mix.lock\",\"go.mod\",\"go.sum\",\"stack.yaml\",\"stack.yaml.lock\",\"pom.xml\",\"build.gradle\",\"build.gradle.kts\",\"settings.gradle\",\"settings.gradle.kts\",\"gradle.properties\",\"package-lock.json\",\"yarn.lock\",\"pnpm-lock.yaml\",\"npm-shrinkwrap.json\",\"requirements.txt\",\"Pipfile\",\"Pipfile.lock\",\"pyproject.toml\",\"setup.py\",\"setup.cfg\",\"Gemfile\",\"Gemfile.lock\",\"uv.lock\",\"CODEOWNERS\",\"DESIGN.md\",\"README.md\",\"CONTRIBUTING.md\",\"CHANGELOG.md\",\"SECURITY.md\",\"CODE_OF_CONDUCT.md\",\"AGENTS.md\",\"CLAUDE.md\",\"GEMINI.md\"],\"title_prefix\":\"spec\"},\"create_report_incomplete_issue\":{},\"missing_data\":{},\"missing_tool\":{},\"noop\":{\"max\":1,\"report-as-issue\":\"true\"},\"remove_labels\":{\"allowed\":[\"sdd:spec\"],\"max\":1},\"report_incomplete\":{},\"update_issue\":{\"allow_body\":true,\"allow_status\":true,\"max\":1,\"target\":\"*\"}}"
+          GH_AW_SAFE_OUTPUTS_HANDLER_CONFIG: "{\"add_comment\":{\"max\":1},\"add_labels\":{\"allowed\":[\"sdd:triage\",\"needs-human\"],\"max\":2},\"create_issue\":{\"max\":1},\"create_pull_request\":{\"draft\":\"${{ false }}\",\"max\":1,\"max_patch_files\":100,\"max_patch_size\":1024,\"protect_top_level_dot_folders\":true,\"protected_files\":[\"package.json\",\"bun.lockb\",\"bunfig.toml\",\"deno.json\",\"deno.jsonc\",\"deno.lock\",\"global.json\",\"NuGet.Config\",\"Directory.Packages.props\",\"mix.exs\",\"mix.lock\",\"go.mod\",\"go.sum\",\"stack.yaml\",\"stack.yaml.lock\",\"pom.xml\",\"build.gradle\",\"build.gradle.kts\",\"settings.gradle\",\"settings.gradle.kts\",\"gradle.properties\",\"package-lock.json\",\"yarn.lock\",\"pnpm-lock.yaml\",\"npm-shrinkwrap.json\",\"requirements.txt\",\"Pipfile\",\"Pipfile.lock\",\"pyproject.toml\",\"setup.py\",\"setup.cfg\",\"Gemfile\",\"Gemfile.lock\",\"uv.lock\",\"CODEOWNERS\",\"DESIGN.md\",\"README.md\",\"CONTRIBUTING.md\",\"CHANGELOG.md\",\"SECURITY.md\",\"CODE_OF_CONDUCT.md\",\"AGENTS.md\",\"CLAUDE.md\",\"GEMINI.md\"],\"title_prefix\":\"spec\"},\"create_report_incomplete_issue\":{},\"missing_data\":{},\"missing_tool\":{},\"noop\":{\"max\":1,\"report-as-issue\":\"true\"},\"push_to_pull_request_branch\":{\"if_no_changes\":\"warn\",\"max\":1,\"max_patch_size\":1024,\"protect_top_level_dot_folders\":true,\"protected_files\":[\"package.json\",\"bun.lockb\",\"bunfig.toml\",\"deno.json\",\"deno.jsonc\",\"deno.lock\",\"global.json\",\"NuGet.Config\",\"Directory.Packages.props\",\"mix.exs\",\"mix.lock\",\"go.mod\",\"go.sum\",\"stack.yaml\",\"stack.yaml.lock\",\"pom.xml\",\"build.gradle\",\"build.gradle.kts\",\"settings.gradle\",\"settings.gradle.kts\",\"gradle.properties\",\"package-lock.json\",\"yarn.lock\",\"pnpm-lock.yaml\",\"npm-shrinkwrap.json\",\"requirements.txt\",\"Pipfile\",\"Pipfile.lock\",\"pyproject.toml\",\"setup.py\",\"setup.cfg\",\"Gemfile\",\"Gemfile.lock\",\"uv.lock\",\"CODEOWNERS\",\"DESIGN.md\",\"README.md\",\"CONTRIBUTING.md\",\"CHANGELOG.md\",\"SECURITY.md\",\"CODE_OF_CONDUCT.md\",\"AGENTS.md\",\"CLAUDE.md\",\"GEMINI.md\"]},\"remove_labels\":{\"allowed\":[\"sdd:spec\"],\"max\":1},\"report_incomplete\":{},\"update_issue\":{\"allow_body\":true,\"allow_status\":true,\"max\":1,\"target\":\"*\"}}"
           GH_AW_CI_TRIGGER_TOKEN: ${{ secrets.GH_AW_CI_TRIGGER_TOKEN }}
           GITHUB_TOKEN: ${{ steps.safe-outputs-app-token.outputs.token }}
         with:
