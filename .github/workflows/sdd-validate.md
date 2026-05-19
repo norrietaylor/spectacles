@@ -71,7 +71,7 @@ check. A draft is never wedged on the agent's own opinion.
 
 ## Triggers this agent handles
 
-The wrapper invokes this agent for one of three situations. Determine which one
+The wrapper invokes this agent for one of two situations. Determine which one
 applies from the `aw_context` input before doing anything else.
 
 1. **A pull request was opened or synchronized.** Validate the pull request at
@@ -80,33 +80,17 @@ applies from the `aw_context` input before doing anything else.
 2. **A tracking issue gained the `sdd:ready` label.** Validate the triage
    boundary: the task graph is a set of linked sub-issues, not a pull request,
    so the `sdd:ready` label event is the non-pull-request triage boundary.
-3. **The `needs-human` label was removed from a tracking issue.** A human has
-   answered an earlier hand-off. Resume **only** when the open concern on that
-   tracking issue is a hand-off `sdd-validate` itself made: the tracking issue
-   is still in the `sdd:in-progress` lifecycle state, that is, it still carries
-   the `sdd:in-progress` label. `sdd-validate` hands off on a tracking issue
-   only at the implementation boundary, where a Blocker finding escalates and
-   the issue stays `sdd:in-progress` (it never reaches `sdd:review`); a clean
-   implementation pass would instead have moved it to `sdd:review`. So an
-   `sdd:in-progress` tracking issue is one whose open concern is this agent's
-   own validation finding. Re-read the whole thread, including the human's new
-   comments, then re-resolve the implementation boundary from the linked pull
-   request and re-run the implementation gate set. `needs-human` is shared by
-   all five SDD agents, so its removal can re-trigger this workflow for an item
-   another agent owns. If the tracking issue does not carry `sdd:in-progress`,
-   the hand-off belongs to another agent (`sdd-spec` at `sdd:spec`,
-   `sdd-triage` at `sdd:triage`, `sdd-execute` at `sdd:ready` or `sdd:done`):
-   do not re-validate and emit `noop`.
 
-A `needs-human` hand-off that `sdd-validate` made on a **pull request** (an
-implementation-boundary Blocker escalated onto the PR rather than the tracking
-issue) is not resumed through this `needs-human`-removal path: the wrapper does
-not subscribe to `pull_request: unlabeled`. That hand-off is resumed instead by
-a fresh `pull_request: synchronize`, which is the event the human's fix commit
-naturally fires. Clearing `needs-human` on a PR without a code change would
-re-run the same gate set against the unchanged diff and re-post the same
-Blocker; resuming on `synchronize` ties re-validation to an actual fix. See the
-wrapper comment in `wrappers/sdd-validate.yml` for the same rationale.
+This agent has no `needs-human`-removal resume trigger. A Blocker it escalates
+on a pull request is resumed by a fresh `pull_request: synchronize`: the human
+clears `needs-human` and pushes a fix commit, and that event re-runs the gate
+set against the corrected diff. Resuming on `synchronize` ties re-validation to
+an actual fix — clearing `needs-human` alone would only re-run the same gates
+against the unchanged diff and re-post the same Blocker. A Blocker at the
+triage boundary is escalated on the tracking issue and is purely advisory:
+validation never gates a merge or the `/approve` step, so the human reads the
+findings, addresses the task graph as they judge fit, and proceeds — there is
+no agent re-run. The wrapper therefore subscribes to no `unlabeled` event.
 
 When the triggering item already carries the `needs-human` label, stop
 immediately and emit `noop`. A `needs-human`-labelled item is off-limits during
@@ -131,15 +115,6 @@ fragment. Read the triggering item resolved from `aw_context`: for a pull
 request, its title, body, diff, and comments; for an `sdd:ready` issue, the
 tracking issue and every linked task sub-issue.
 
-For situation 3 (a `needs-human` removal on a tracking issue), first apply the
-resume guard: confirm the tracking issue still carries `sdd:in-progress`. If it
-does not, this is another agent's hand-off; emit `noop` and stop. If it does,
-read the tracking issue and its whole comment thread, including the human's new
-comments, and read the linked implementation pull request resolved from the
-issue's `Closes #N` reference: its title, body, diff, and comments. This is the
-same implementation-boundary input as a pull request trigger, reached from the
-tracking issue side.
-
 ### 2. Resolve the boundary
 
 The four phase boundaries each have their own gate set. Resolve which boundary
@@ -159,12 +134,6 @@ A pull request resolves to exactly one boundary. When a pull request touches
 files of more than one boundary, resolve to the boundary of the most
 significant change in this order: spec, then architecture, then
 implementation. State the resolved boundary in the findings comment.
-
-For situation 3 (a guarded `needs-human`-removal resume on a tracking issue),
-the boundary is always the implementation boundary: `sdd-validate` hands off on
-a tracking issue only at the implementation boundary. Resolve the changed-file
-set from the linked implementation pull request read in step 1 and proceed as
-an implementation-boundary run.
 
 ### 3. Apply that boundary's gate set
 
@@ -189,9 +158,8 @@ pattern is a note, not a Blocker.
 
 Post exactly one comment, via the `add-comment` safe-output, on the triggering
 item: the pull request for a pull request trigger (the spec, architecture, or
-implementation boundary), or the tracking issue for a triage boundary or for a
-guarded `needs-human`-removal resume (situation 3). The comment lists every
-finding with:
+implementation boundary), or the tracking issue for the triage boundary. The
+comment lists every finding with:
 
 - A severity: **Blocker**, **Warning**, or **Info**, per the imported
   validation-gates fragment.
@@ -208,11 +176,18 @@ boundary passed clean and naming the boundary and the gate set applied.
 
 ### 5. Escalate a Blocker, never fail the run
 
-When any gate produced a Blocker finding, apply the `needs-human` label to the
-pull request or the tracking issue, via the `add-labels` safe-output, and make
-sure the findings comment names the failed gate and its citing evidence. This
-is the `needs-human` hand-off from the imported interaction contract and
-ADR 0001: a human resolves the Blocker and clears the label.
+When any gate produced a Blocker finding, apply the `needs-human` label via the
+`add-labels` safe-output to the triggering item — the pull request for a spec,
+architecture, or implementation boundary; the tracking issue for the triage
+boundary — and make sure the findings comment names the failed gate and its
+citing evidence. This is the `needs-human` hand-off from the imported
+interaction contract and ADR 0001.
+
+A Blocker on a pull request is resumed when the human clears `needs-human` and
+pushes a fix commit: the `pull_request: synchronize` event re-runs this agent
+against the corrected diff. A Blocker at the triage boundary is advisory — this
+agent gates neither a merge nor `/approve` — so it triggers no agent re-run;
+the human acts on the findings and proceeds.
 
 Do not fail the workflow on a Blocker finding and do not declare a required
 status check. The run exits successfully regardless of severity. Warning and
@@ -238,9 +213,7 @@ is **not** the feature: an implementation pull request closes its own task
 sub-issue, so `Closes #N` names that task (ADR 0005 point 3). To reach the
 feature, resolve it from that task by walking the GitHub sub-issue parent links
 task → its parent Unit sub-issue → the Unit's parent feature, and move the
-label on that feature. For a guarded `needs-human`-removal resume (situation 3)
-the triggering item is itself the feature tracking issue, the item carrying
-`sdd:in-progress`; move the label on it directly, no walk required.
+label on that feature.
 
 Make the move idempotent. A feature with more than one task may already have
 been advanced to `sdd:review` by an earlier task's clean pass — `sdd-execute`
@@ -254,9 +227,9 @@ Move the label only at the implementation boundary and only on a clean pass: a
 spec, architecture, or triage pass does not move a lifecycle label, and an
 implementation pass with a Blocker finding hands off via `needs-human` instead.
 Exactly one lifecycle label is present at a time, so the removal and the
-addition are a single move. A clean resume run therefore both clears the
-earlier Blocker (the human already removed `needs-human`) and advances the
-feature tracking issue from `sdd:in-progress` to `sdd:review`.
+addition are a single move. When the human pushes a fix for an earlier Blocker
+and the `pull_request: synchronize` re-validation passes clean, this same step
+advances the feature from `sdd:in-progress` to `sdd:review`.
 
 ## Boundaries
 
@@ -279,9 +252,9 @@ feature tracking issue from `sdd:in-progress` to `sdd:review`.
 - A pull request adding a `docs/specs/**` file with an untestable acceptance
   criterion yields one comment carrying a Blocker finding and the
   `needs-human` label, and the workflow run still concludes successfully.
-- A clean implementation-boundary pass moves the linked tracking issue from
+- A clean implementation-boundary pass moves the feature tracking issue from
   `sdd:in-progress` to `sdd:review`.
-- Clearing `needs-human` from an `sdd:in-progress` tracking issue that
-  `sdd-validate` handed off re-runs the implementation gate set; clearing it
-  from an issue carrying `sdd:spec`, `sdd:triage`, `sdd:ready`, or `sdd:done`
-  emits `noop` because that hand-off belongs to another agent.
+- A Blocker on a pull request is re-validated when the human clears
+  `needs-human` and pushes a fix: the `pull_request: synchronize` event re-runs
+  the gate set. The wrapper subscribes to no `unlabeled` event, so clearing
+  `needs-human` on its own re-triggers nothing.
