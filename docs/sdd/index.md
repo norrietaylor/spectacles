@@ -28,6 +28,69 @@ The steps below trace one feature from idea to close. The lifecycle label on
 the tracking issue, listed in the right-hand column, tells you where the
 feature is at any moment.
 
+The diagram traces that path end to end. Amber nodes are the steps a human
+takes; blue nodes are automated agent runs; the red node is a `needs-human`
+hand-off, which any agent can raise and only a human clears. Dotted edges run
+backward: a `/revise` comment sends a pull request back to its agent for
+changes, and clearing `needs-human` resumes a stalled hand-off.
+
+```mermaid
+flowchart TD
+    classDef human fill:#fef3c7,stroke:#b45309,color:#1c1917;
+    classDef agent fill:#dbeafe,stroke:#1d4ed8,color:#1c1917;
+    classDef handoff fill:#fee2e2,stroke:#b91c1c,color:#1c1917;
+
+    open([Human: open a feature or bug issue<br/>the template applies sdd:spec]):::human
+
+    subgraph s_spec [Tracking issue state: sdd:spec]
+        a_spec[sdd-spec drafts the spec<br/>opens a spec sub-issue and a spec PR]:::agent
+        h_spec([Human: review and merge the spec PR<br/>sdd-spec then closes the spec sub-issue]):::human
+    end
+
+    subgraph s_triage [Tracking issue state: sdd:triage]
+        h_triage([Human: comment /triage]):::human
+        a_arch[sdd-triage phase A: maps the code<br/>opens an architecture sub-issue and PR]:::agent
+        h_arch([Human: review and merge the architecture PR<br/>sdd-triage then closes the architecture sub-issue]):::human
+        a_units[sdd-triage phase B: opens one Unit sub-issue<br/>per demoable unit, posts the task list]:::agent
+        h_approve([Human: comment /approve]):::human
+    end
+
+    subgraph s_ready [Tracking issue state: sdd:ready]
+        a_tasks[sdd-triage phase C: decomposes Units into task<br/>sub-issues, labels unblocked tasks sdd:ready]:::agent
+    end
+
+    subgraph s_progress [Tracking issue state: sdd:in-progress]
+        a_exec[sdd-execute implements a ready task, opens an<br/>implementation PR with proof artifacts<br/>runs on a daily schedule, or on /execute]:::agent
+    end
+
+    subgraph s_review [Tracking issue state: sdd:review]
+        a_check[sdd-validate posts advisory findings<br/>sdd-review posts code-review comments]:::agent
+        h_merge([Human: review and merge the implementation PR<br/>the task sub-issue closes on merge]):::human
+    end
+
+    subgraph s_done [Tracking issue state: sdd:done]
+        a_done[Every task closes its Unit sub-issue; once all<br/>Units close, sdd-execute sets sdd:done + needs-human]:::agent
+        h_close([Human: final review, then close the tracking issue]):::human
+    end
+
+    open --> a_spec --> h_spec --> h_triage --> a_arch --> h_arch
+    h_arch --> a_units --> h_approve --> a_tasks --> a_exec --> a_check --> h_merge
+    h_merge -->|tasks remain| a_exec
+    h_merge -->|last task done| a_done --> h_close
+
+    hand[/"Any agent, on low confidence or a blocker:<br/>posts questions, applies needs-human, stops"/]:::handoff
+    ans([Human: answer the questions, remove needs-human<br/>the agent re-runs and resumes]):::human
+    a_spec -.-> hand
+    a_arch -.-> hand
+    a_tasks -.-> hand
+    a_exec -.-> hand
+    hand --> ans
+
+    h_spec -.->|changes needed? comment /revise| a_spec
+    h_arch -.->|changes needed? comment /revise| a_arch
+    h_merge -.->|changes needed? /revise or a review comment| a_exec
+```
+
 | Step | Who acts | What happens | Lifecycle label |
 |---|---|---|---|
 | 1. Open the issue | you | Open an issue from the `feature` or `bug` template. The template applies `sdd:spec`, which triggers `sdd-spec`. | `sdd:spec` |
@@ -55,6 +118,21 @@ Across the whole pipeline a human takes only four kinds of action:
   the `needs-human` label and posts one comment with the blocker. Answer in a
   comment and clear the label; the agent re-reads the thread and resumes. See
   ADR 0001 (`decisions/0001-needs-human.md` in the repository root).
+
+## Giving feedback on a pull request
+
+Every pull request the pipeline opens can be sent back for changes instead of
+merged. Feedback never opens a second pull request; the owning agent updates
+the existing one.
+
+- **A spec PR or an architecture PR.** Comment `/revise <note>` on the pull
+  request. The owning agent — `sdd-spec` or `sdd-triage` — re-runs with the
+  note as an added instruction and updates the same pull request. Repeat until
+  it is right, then merge.
+- **An implementation PR.** Leave an inline review comment on the diff, or
+  comment `/revise <note>` on the pull request. `sdd-execute` pushes follow-up
+  commits to the same branch addressing it. A comment that needs a human
+  decision is escalated through `needs-human` instead.
 
 ## Where state lives
 
