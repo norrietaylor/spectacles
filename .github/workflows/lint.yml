@@ -60,3 +60,27 @@ jobs:
             echo "$drift"
             exit 1
           fi
+
+  # Assert each agent's safe-output allowlist matches its prose
+  # instructions. gh-aw enforces the frontmatter allowlist at runtime
+  # and silently rejects a label the workflow did not declare; that
+  # silent rejection is the bug `sdd-pr-sanitize` and the
+  # `sdd-triage-dedupe-tasks` deterministic wrappers exist partly to
+  # paper over. This job catches the mismatch at PR time. The script
+  # reads the .md sources directly (equivalent to the .lock.yml the
+  # issue cites and easier to parse), and documents intentional
+  # asymmetries in scripts/safe-output-allowlist-exceptions.yml.
+  safe-outputs:
+    needs: compile
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install PyYAML
+        run: pip install pyyaml
+      - name: Assert allowlists match prose
+        run: python scripts/test-safe-output-allowlists.py
