@@ -153,3 +153,27 @@ jobs:
         run: pip install pyyaml
       - name: Assert requirement-ID cross-references resolve
         run: python scripts/test-requirement-ids.py
+
+  # Assert every container reference and pinned digest embedded in the
+  # `gh-aw-manifest` header of each `.github/workflows/*.lock.yml` matches
+  # the checked-in snapshot at `scripts/digest-snapshot.yml`. A compile
+  # against a moved or unpinned tag would silently shift the runtime
+  # without a human noticing — the lock-file diff is large and digest
+  # changes look like noise. This job turns a digest change into a small,
+  # reviewable snapshot diff. Regenerate with
+  # `python scripts/test-digest-snapshot.py --write` after an intentional
+  # bump. Independent of `compile` for the same reason as the four jobs
+  # above: it reads the lock files directly.
+  digests:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install PyYAML
+        run: pip install pyyaml
+      - name: Assert container digests match snapshot
+        run: python scripts/test-digest-snapshot.py
