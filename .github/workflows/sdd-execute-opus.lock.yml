@@ -1,4 +1,4 @@
-# gh-aw-metadata: {"schema_version":"v3","frontmatter_hash":"ac52313b35f853c7b58f2e765d97e25c3bca8b4251619e42c1fb1ec9687c3218","compiler_version":"v0.74.3","agent_id":"copilot","agent_model":"claude-opus-4.6"}
+# gh-aw-metadata: {"schema_version":"v3","frontmatter_hash":"1145cc07d51d9ad986aa67b0feb16e331d330f0d2401ea93f37970478627b899","compiler_version":"v0.74.3","agent_id":"copilot","agent_model":"claude-opus-4.6"}
 # gh-aw-manifest: {"version":1,"secrets":["APP_PRIVATE_KEY","COPILOT_GITHUB_TOKEN","GH_AW_CI_TRIGGER_TOKEN","GH_AW_GITHUB_MCP_SERVER_TOKEN","GH_AW_GITHUB_TOKEN","GITHUB_TOKEN"],"actions":[{"repo":"actions/checkout","sha":"de0fac2e4500dabe0009e67214ff5f5447ce83dd","version":"v6.0.2"},{"repo":"actions/create-github-app-token","sha":"bcd2ba49218906704ab6c1aa796996da409d3eb1","version":"v3.2.0"},{"repo":"actions/download-artifact","sha":"3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c","version":"v8.0.1"},{"repo":"actions/github-script","sha":"3a2844b7e9c422d3c10d287c895573f7108da1b3","version":"v9.0.0"},{"repo":"actions/setup-node","sha":"48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e","version":"v6.4.0"},{"repo":"actions/upload-artifact","sha":"043fb46d1a93c77aae656e7c1c64a875d1fc6a0a","version":"v7.0.1"},{"repo":"github/gh-aw-actions/setup","sha":"8a9a52673cb8f97ebb43b344618af2d6f2c9ac7f","version":"v0.74.3"}],"containers":[{"image":"ghcr.io/github/gh-aw-firewall/agent:0.25.46"},{"image":"ghcr.io/github/gh-aw-firewall/api-proxy:0.25.46"},{"image":"ghcr.io/github/gh-aw-firewall/squid:0.25.46"},{"image":"ghcr.io/github/gh-aw-mcpg:v0.3.9","digest":"sha256:64828b42a4482f58fab16509d7f8f495a6d97c972a98a68aff20543531ac0388","pinned_image":"ghcr.io/github/gh-aw-mcpg:v0.3.9@sha256:64828b42a4482f58fab16509d7f8f495a6d97c972a98a68aff20543531ac0388"},{"image":"ghcr.io/github/github-mcp-server:v1.0.4"},{"image":"ghcr.io/github/serena-mcp-server:latest","digest":"sha256:bf343399e3725c45528f531a230f3a04521d4cdef29f9a5af6282ff0d3c393c5","pinned_image":"ghcr.io/github/serena-mcp-server:latest@sha256:bf343399e3725c45528f531a230f3a04521d4cdef29f9a5af6282ff0d3c393c5"},{"image":"node:lts-alpine","digest":"sha256:d1b3b4da11eefd5941e7f0b9cf17783fc99d9c6fc34884a665f40a06dbdfc94f","pinned_image":"node:lts-alpine@sha256:d1b3b4da11eefd5941e7f0b9cf17783fc99d9c6fc34884a665f40a06dbdfc94f"}]}
 #    ___                   _   _      
 #   / _ \                 | | (_)     
@@ -232,24 +232,24 @@ jobs:
         run: |
           bash "${RUNNER_TEMP}/gh-aw/actions/create_prompt_first.sh"
           {
-          cat << 'GH_AW_PROMPT_df69311bb7f82cd4_EOF'
+          cat << 'GH_AW_PROMPT_d6650b4e340c87cd_EOF'
           <system>
-          GH_AW_PROMPT_df69311bb7f82cd4_EOF
+          GH_AW_PROMPT_d6650b4e340c87cd_EOF
           cat "${RUNNER_TEMP}/gh-aw/prompts/xpia.md"
           cat "${RUNNER_TEMP}/gh-aw/prompts/temp_folder_prompt.md"
           cat "${RUNNER_TEMP}/gh-aw/prompts/markdown.md"
           cat "${RUNNER_TEMP}/gh-aw/prompts/safe_outputs_prompt.md"
-          cat << 'GH_AW_PROMPT_df69311bb7f82cd4_EOF'
+          cat << 'GH_AW_PROMPT_d6650b4e340c87cd_EOF'
           <safe-output-tools>
           Tools: add_comment, update_issue, create_pull_request, add_labels(max:2), remove_labels(max:2), push_to_pull_request_branch, missing_tool, missing_data, noop
-          GH_AW_PROMPT_df69311bb7f82cd4_EOF
+          GH_AW_PROMPT_d6650b4e340c87cd_EOF
           cat "${RUNNER_TEMP}/gh-aw/prompts/safe_outputs_create_pull_request.md"
           cat "${RUNNER_TEMP}/gh-aw/prompts/safe_outputs_push_to_pr_branch.md"
-          cat << 'GH_AW_PROMPT_df69311bb7f82cd4_EOF'
+          cat << 'GH_AW_PROMPT_d6650b4e340c87cd_EOF'
           </safe-output-tools>
-          GH_AW_PROMPT_df69311bb7f82cd4_EOF
+          GH_AW_PROMPT_d6650b4e340c87cd_EOF
           cat "${RUNNER_TEMP}/gh-aw/prompts/mcp_cli_tools_prompt.md"
-          cat << 'GH_AW_PROMPT_df69311bb7f82cd4_EOF'
+          cat << 'GH_AW_PROMPT_d6650b4e340c87cd_EOF'
           <github-context>
           The following GitHub context information is available for this workflow:
           {{#if github.actor}}
@@ -278,9 +278,9 @@ jobs:
           {{/if}}
           </github-context>
           
-          GH_AW_PROMPT_df69311bb7f82cd4_EOF
+          GH_AW_PROMPT_d6650b4e340c87cd_EOF
           cat "${RUNNER_TEMP}/gh-aw/prompts/github_mcp_tools_with_safeoutputs_prompt.md"
-          cat << 'GH_AW_PROMPT_df69311bb7f82cd4_EOF'
+          cat << 'GH_AW_PROMPT_d6650b4e340c87cd_EOF'
           </system>
           # Core principles
           
@@ -732,6 +732,16 @@ jobs:
             carrying `model:haiku` or `model:sonnet` is not this variant's task; emit
             `noop` (the wrapper's tier gate normally catches this earlier, but check
             it here as a defence in depth).
+          - It is **not already in flight**: it does not already carry
+            `sdd:in-progress`, and no open implementation pull request already
+            claims the task (head branch matching `sdd/<task-id>-<slug>` for this
+            task, or body carrying `Closes #<task>`). The wrapper's
+            `cancel-in-progress: true` concurrency group collapses concurrent
+            runs, but once a run finishes with an open PR awaiting review the
+            group no longer guards against a fresh `/execute` opening a second
+            PR for the same task. If a human needs to change an existing
+            implementation pull request, they use `/revise` on that pull request
+            instead of `/execute` on the task.
           - It does **not** carry the `needs-human` label. A `needs-human`-labelled task
             is off-limits during candidate selection (imported interaction contract,
             ADR 0001 clause 2).
@@ -757,21 +767,11 @@ jobs:
           lifecycle label is present at a time, so the removal and the addition are a
           single move.
           
-          Then advance the **feature tracking issue** the same way. The selected task is
-          a leaf of the issue tree (ADR 0005); the feature is its grandparent, reached by
-          walking the GitHub sub-issue parent links task → its parent Unit sub-issue →
-          the Unit's parent feature. The state-machine table credits `sdd-execute` on
-          task selection with the feature's `sdd:ready → sdd:in-progress` transition, so
-          once the task is `sdd:in-progress` move the feature there too: remove its
-          `sdd:ready` label (`remove-labels`) and add `sdd:in-progress` (`add-labels`).
-          Make this move idempotent — a feature with more than one task is advanced by
-          the first task picked up, and a later pickup must leave it alone. Move the
-          feature **only** when it still carries `sdd:ready`; if it already carries
-          `sdd:in-progress` (an earlier task of the same feature has already advanced
-          it), change nothing on the feature and move only the task. This step therefore
-          moves one issue's labels when the feature was already `sdd:in-progress`, and
-          two — the task and the feature — when the selected task is the first of its
-          feature to be picked up.
+          The feature tracking issue's `sdd:ready → sdd:in-progress` transition is
+          **not** this agent's concern. Per ADR 0011, `sdd-dispatch` owns that move
+          on the first `/dispatch`. On a manual `/execute` path the tracking issue
+          is already in `sdd:ready` or `sdd:in-progress` when the human runs the
+          command, and this agent does not touch the feature's lifecycle label.
           
           ### 3. Skip a non-local task, do not error
           
@@ -942,7 +942,7 @@ jobs:
             moves to `sdd:done` and gains `needs-human`, and the tracking issue is not
             closed by the agent.
           
-          GH_AW_PROMPT_df69311bb7f82cd4_EOF
+          GH_AW_PROMPT_d6650b4e340c87cd_EOF
           } > "$GH_AW_PROMPT"
       - name: Interpolate variables and render templates
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
@@ -1147,9 +1147,9 @@ jobs:
           mkdir -p "${RUNNER_TEMP}/gh-aw/safeoutputs"
           mkdir -p /tmp/gh-aw/safeoutputs
           mkdir -p /tmp/gh-aw/mcp-logs/safeoutputs
-          cat > "${RUNNER_TEMP}/gh-aw/safeoutputs/config.json" << 'GH_AW_SAFE_OUTPUTS_CONFIG_36d983d7dcdc90b1_EOF'
+          cat > "${RUNNER_TEMP}/gh-aw/safeoutputs/config.json" << 'GH_AW_SAFE_OUTPUTS_CONFIG_790a1a730482f380_EOF'
           {"add_comment":{"max":1},"add_labels":{"allowed":["sdd:in-progress","sdd:done","needs-human"],"max":2},"create_pull_request":{"draft":false,"max":1,"max_patch_files":100,"max_patch_size":1024,"protect_top_level_dot_folders":true,"protected_files":["package.json","bun.lockb","bunfig.toml","deno.json","deno.jsonc","deno.lock","global.json","NuGet.Config","Directory.Packages.props","mix.exs","mix.lock","go.mod","go.sum","stack.yaml","stack.yaml.lock","pom.xml","build.gradle","build.gradle.kts","settings.gradle","settings.gradle.kts","gradle.properties","package-lock.json","yarn.lock","pnpm-lock.yaml","npm-shrinkwrap.json","requirements.txt","Pipfile","Pipfile.lock","pyproject.toml","setup.py","setup.cfg","Gemfile","Gemfile.lock","uv.lock","CODEOWNERS","DESIGN.md","README.md","CONTRIBUTING.md","CHANGELOG.md","SECURITY.md","CODE_OF_CONDUCT.md","AGENTS.md","CLAUDE.md","GEMINI.md"]},"create_report_incomplete_issue":{},"missing_data":{},"missing_tool":{},"noop":{"max":1,"report-as-issue":"true"},"push_to_pull_request_branch":{"if_no_changes":"warn","max":1,"max_patch_size":1024,"protect_top_level_dot_folders":true,"protected_files":["package.json","bun.lockb","bunfig.toml","deno.json","deno.jsonc","deno.lock","global.json","NuGet.Config","Directory.Packages.props","mix.exs","mix.lock","go.mod","go.sum","stack.yaml","stack.yaml.lock","pom.xml","build.gradle","build.gradle.kts","settings.gradle","settings.gradle.kts","gradle.properties","package-lock.json","yarn.lock","pnpm-lock.yaml","npm-shrinkwrap.json","requirements.txt","Pipfile","Pipfile.lock","pyproject.toml","setup.py","setup.cfg","Gemfile","Gemfile.lock","uv.lock","CODEOWNERS","DESIGN.md","README.md","CONTRIBUTING.md","CHANGELOG.md","SECURITY.md","CODE_OF_CONDUCT.md","AGENTS.md","CLAUDE.md","GEMINI.md"]},"remove_labels":{"allowed":["sdd:ready","sdd:review"],"max":2},"report_incomplete":{},"update_issue":{"allow_body":true,"allow_status":true,"max":1,"target":"*"}}
-          GH_AW_SAFE_OUTPUTS_CONFIG_36d983d7dcdc90b1_EOF
+          GH_AW_SAFE_OUTPUTS_CONFIG_790a1a730482f380_EOF
       - name: Generate Safe Outputs Tools
         env:
           GH_AW_TOOLS_META_JSON: |
@@ -1501,7 +1501,7 @@ jobs:
           
           mkdir -p /home/runner/.copilot
           GH_AW_NODE=$(which node 2>/dev/null || command -v node 2>/dev/null || echo node)
-          cat << GH_AW_MCP_CONFIG_a0db0167ccf619ad_EOF | "$GH_AW_NODE" "${RUNNER_TEMP}/gh-aw/actions/start_mcp_gateway.cjs"
+          cat << GH_AW_MCP_CONFIG_f32d626bd89c5cb8_EOF | "$GH_AW_NODE" "${RUNNER_TEMP}/gh-aw/actions/start_mcp_gateway.cjs"
           {
             "mcpServers": {
               "github": {
@@ -1579,7 +1579,7 @@ jobs:
               "payloadDir": "${MCP_GATEWAY_PAYLOAD_DIR}"
             }
           }
-          GH_AW_MCP_CONFIG_a0db0167ccf619ad_EOF
+          GH_AW_MCP_CONFIG_f32d626bd89c5cb8_EOF
       - name: Mount MCP servers as CLIs
         id: mount-mcp-clis
         continue-on-error: true
