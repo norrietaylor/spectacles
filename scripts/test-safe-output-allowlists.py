@@ -324,7 +324,13 @@ def main() -> int:
             )
         )
 
-        declared_so = declared_safe_outputs(frontmatter) & SAFE_OUTPUT_NAMES
+        declared_so_all = declared_safe_outputs(frontmatter)
+        unknown_so = declared_so_all - SAFE_OUTPUT_NAMES
+        for name in sorted(unknown_so):
+            all_failures.append(
+                f"{workflow}: declares unknown safe-output '{name}' (update SAFE_OUTPUT_NAMES)"
+            )
+        declared_so = declared_so_all - unknown_so
         prose_so = prose_safe_output_refs(body)
         all_failures.extend(
             report_diff(workflow, "safe-outputs", declared_so, prose_so, wf_exceptions)
