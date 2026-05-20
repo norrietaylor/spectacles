@@ -312,6 +312,16 @@ through `add-labels`: the `add-labels` safe-output is allowlisted to
 rejected at runtime. The matching `sdd-execute` model-tier variant is the one
 that will pick the task up.
 
+Also set `sdd:ready` in the **same** `labels` field of the `create-issue` call
+whenever the sub-task has **no** `blocked by` dependency, so the task is born
+ready and `sdd-execute` can pick it up on the next scheduled run. A sub-task
+with one or more `blocked by` lines is **not** born ready: omit `sdd:ready`
+from its `labels`; it will gain `sdd:ready` later when its last blocker closes
+(out of scope here — see ADR 0009). Setting `sdd:ready` at creation collapses a
+per-task `add-labels` step the agent has skipped in practice (issue #63); the
+structural argument is the same as ADR 0007's parent-link collapse. ADR 0009
+records the decision.
+
 ### 7. Phase C: dependencies and the cross-repo seam
 
 Record dependencies as `blocked by` lines so the task graph forms a directed
@@ -337,16 +347,19 @@ lifecycle state:
 
 - Remove the `sdd:triage` label from the tracking issue (`remove-labels`).
 - Add the `sdd:ready` label to the tracking issue (`add-labels`).
-- Apply the `sdd:ready` label to every task sub-issue that has no open
-  `blocked by` dependency, so `sdd-execute` can pick those tasks up first.
-- Post one comment on the tracking issue stating the next step: the task
-  sub-issues are labelled `sdd:ready`; `sdd-execute` implements a ready task
-  on its daily schedule, and a write-access author may comment `/execute` on
-  a task sub-issue to run one immediately.
+- Post one comment on the tracking issue stating the next step: the unblocked
+  task sub-issues are already labelled `sdd:ready` (set at creation in step 6);
+  `sdd-execute` implements a ready task on its daily schedule, and a
+  write-access author may comment `/execute` on a task sub-issue to run one
+  immediately.
 
 Exactly one lifecycle label is present on the tracking issue at a time, so the
-removal and the addition are a single move. A task sub-issue with an open
-dependency does not get `sdd:ready` until its dependency closes.
+removal and the addition are a single move. Per-task `sdd:ready` is **not**
+applied here — every unblocked sub-task already carries `sdd:ready` from its
+`create-issue` call in step 6 (ADR 0009). A sub-task with an open `blocked by`
+dependency does not yet carry `sdd:ready`; promoting such a task once its last
+blocker closes is out of scope for this agent and is tracked separately (the
+post-merge gap noted in issue #63).
 
 ## Boundaries
 
@@ -387,3 +400,6 @@ dependency does not get `sdd:ready` until its dependency closes.
   title under the same Unit leaves one open task sub-issue and one
   closed-as-duplicate sub-issue, closed by `sdd-triage-dedupe-tasks` with a
   comment naming the original (ADR 0008).
+- After `/approve` completes phase C, every sub-task with no `blocked by`
+  dependency carries `sdd:ready` set at creation; a sub-task with at least one
+  `blocked by` line carries no `sdd:ready` yet.
