@@ -1,0 +1,82 @@
+# Declared classification of the `sdd:*` and hand-off labels for the
+# lifecycle state-machine validator (scripts/test-lifecycle-state-machine.py).
+#
+# The validator reads this file as the source of truth for:
+#   - which labels are lifecycle states (mutually exclusive on the
+#     tracking issue), versus marker labels (orthogonal, may coexist
+#     with a lifecycle label);
+#   - the directed transition graph between lifecycle states;
+#   - the one workflow that is allowed to write each lifecycle label.
+#
+# It then cross-checks this declaration against three sources:
+#   - the label catalogue at `templates/.github/labels.yml`,
+#   - the prose contract in the `.github/workflows/sdd-*.md` sources
+#     (the `Remove the \`sdd:X\` label` / `Add the \`sdd:Y\` label`
+#     phrasing inside each `### N. ...` step block), and
+#   - each workflow's `safe-outputs.add-labels.allowed` frontmatter.
+#
+# Adding a new lifecycle state requires three coordinated edits: this
+# file, the label catalogue, and the prose of whichever workflow writes
+# the transition. The validator's job is to make any one of those
+# without the others a PR-time failure with a diagnostic that names the
+# missing piece.
+
+# Lifecycle states. Exactly one is present on a tracking issue at a
+# time. The order here is presentation-only; the directed graph below
+# is the actual ordering authority.
+lifecycle:
+  - sdd:spec
+  - sdd:triage
+  - sdd:ready
+  - sdd:in-progress
+  - sdd:review
+  - sdd:done
+
+# Marker labels. Orthogonal to the lifecycle state machine: a marker
+# may coexist with any lifecycle label, and `add-labels` of a marker
+# does not need to be paired with a `remove-labels` of a previous state.
+# `needs-human` is the universal agent-to-human hand-off (ADR 0001).
+# Future marker labels — `sdd:dispatched` (#81), `sdd:fastpath` and
+# `sdd:fastpath-review` (#82) — land here when they ship.
+markers:
+  - needs-human
+
+# Directed transition graph. Key is the source state; value is the
+# list of states reachable in one move from the source. Every state in
+# `lifecycle:` must be reachable from `sdd:spec` by following these
+# edges, and `sdd:done` is the only state allowed to have no outgoing
+# edges (terminal). A state with no outgoing edges that is not
+# `sdd:done` is a dead-end and fails the validator.
+transitions:
+  sdd:spec: [sdd:triage]
+  sdd:triage: [sdd:ready]
+  sdd:ready: [sdd:in-progress]
+  sdd:in-progress: [sdd:review]
+  sdd:review: [sdd:done]
+
+# Writer assignment. Exactly one workflow is the authoritative writer
+# of each lifecycle label. The validator collects, for each lifecycle
+# label X, the set of workflow stems whose frontmatter
+# `safe-outputs.add-labels.allowed` includes X, and asserts the set
+# matches the writer named here.
+#
+# The three `sdd-execute-{haiku,sonnet,opus}` variants are compiled
+# from a single source and treated as aliases of the logical writer
+# `sdd-execute`. The validator collapses them at compare time.
+writers:
+  sdd:triage: sdd-spec
+  sdd:ready: sdd-triage
+  sdd:in-progress: sdd-execute
+  sdd:review: sdd-validate
+  sdd:done: sdd-execute
+
+# Writer aliases. Multiple compiled workflow stems may map to one
+# logical writer. This mirrors how the slash-command consistency test
+# (#84) treats `/execute` routing across the three sdd-execute-* wrappers
+# as a single command source. Without aliasing, every lifecycle label
+# `sdd-execute` writes would falsely register as three writers.
+writer_aliases:
+  sdd-execute:
+    - sdd-execute-haiku
+    - sdd-execute-sonnet
+    - sdd-execute-opus
