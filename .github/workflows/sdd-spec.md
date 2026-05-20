@@ -33,6 +33,17 @@ safe-outputs:
     max: 1
     draft: ${{ false }}
     title-prefix: "spec"
+    # Force every pull request this agent opens onto a spec/* head branch.
+    # gh-aw prepends this prefix to whatever branch name the agent supplies,
+    # so the head ref is always `spec/<agent-supplied>` and a stray
+    # `sdd/<task>-<slug>` branch (the sdd-execute convention) can no longer
+    # leak out of this agent. This is the same defence as title-prefix
+    # applied to the head ref: a routing fault that lands a non-spec
+    # situation in this agent still produces a branch the human reader and
+    # downstream wrappers (sdd-pr-sanitize, sdd-spec's own merged-PR
+    # routing) recognise as a spec branch, and the wrapper's `pull_request`
+    # routing on `spec/` will pick it up correctly.
+    branch-prefix: "spec/"
   push-to-pull-request-branch:
     max: 1
   add-comment:
@@ -77,12 +88,20 @@ applies from the workflow context before doing anything else.
 4. **The `needs-human` label was removed from a tracking issue.** A human has
    answered an earlier hand-off. Re-read the whole thread, including the
    human's new comments, and resume: author the spec now that the open
-   questions are answered. Resume **only** when the tracking issue is still in
-   the `sdd:spec` lifecycle state, that is, it still carries the `sdd:spec`
-   label. `needs-human` is shared by all five SDD agents, so its removal can
-   re-trigger this workflow for an issue that has already moved past the spec
-   phase. If the tracking issue no longer carries `sdd:spec`, this is another
-   agent's hand-off: do not re-author and emit `noop`.
+   questions are answered. Resume **only** when the labelled item really is a
+   tracking issue and the tracking issue is still in the `sdd:spec` lifecycle
+   state. A tracking issue has no parent; a task sub-issue (or any sub-issue)
+   has one. If the labelled item has a parent, this is another agent's
+   hand-off on a sub-issue and `sdd-spec` has no business resuming it: do not
+   re-author and emit `noop`. If the labelled item is a tracking issue but no
+   longer carries `sdd:spec`, this is another agent's hand-off and the same
+   rule applies: do not re-author and emit `noop`. `needs-human` is shared by
+   all five SDD agents, so its removal can re-trigger this workflow for an
+   issue or sub-issue that has already moved past the spec phase or never
+   belonged to it. The wrapper's `route` job filters most sub-issue cases out
+   before this agent runs; the noop here is defence-in-depth for the case
+   where the wrapper's parent-lookup degraded to "no parent" on a transient
+   API error.
 5. **A spec pull request was merged.** Advance the lifecycle as described in
    step 8 of the procedure. The wrapper only routes this situation for a
    merged pull request whose head branch follows the `spec/<slug>` convention,
@@ -213,8 +232,10 @@ Then open exactly one pull request adding the spec file, via the
 is `spec(<slug>): <issue title>`; the `spec` title prefix is applied
 automatically, so write the title as `(<slug>): <issue title>` with no leading
 space. The branch follows the `spec/<slug>` convention from the imported
-repository-conventions fragment. The pull request body summarizes the spec,
-lists the demoable units, and states the next step for a human reader:
+repository-conventions fragment; the `spec/` branch prefix is applied
+automatically by the safe-output, so supply only `<slug>` as the branch name
+and the head ref becomes `spec/<slug>`. The pull request body summarizes the
+spec, lists the demoable units, and states the next step for a human reader:
 merging this pull request advances the tracking issue from the spec phase
 into the architecture and triage phase.
 
