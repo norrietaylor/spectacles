@@ -40,7 +40,7 @@ safe-outputs:
   add-comment:
     max: 1
   hide-comment:
-    max: 5
+    max: 30
   close-issue:
     target: "*"
     max: 30
