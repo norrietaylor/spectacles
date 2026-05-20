@@ -454,8 +454,60 @@ jobs:
                       fastpathTierMatch =
                         markerHit[1].toLowerCase() === TIER;
                     } else {
-                      // No marker: defensive pass-through.
-                      fastpathTierMatch = true;
+                      // Marker absent (e.g. an older fast-path PR
+                      // opened before the marker convention landed).
+                      // Resolve the owning tier from the stable
+                      // metadata source: the execution plan comment on
+                      // the tracking issue carries the `model:*` line.
+                      // Walk the comments looking for the
+                      // `[sdd-spec:fastpath-plan]` marker, pick the
+                      // latest such comment (mirrors the wrapper's
+                      // fastpath-approve job logic), and parse its
+                      // `model:` line. Match this variant only when
+                      // the resolved tier equals TIER. This keeps
+                      // tier ownership stable for review/revise even
+                      // without the PR-body marker.
+                      const planMarker = '[sdd-spec:fastpath-plan]';
+                      let planComment = null;
+                      let page = 1;
+                      try {
+                        for (;;) {
+                          const { data } = await github.rest.issues
+                            .listComments({
+                              owner: context.repo.owner,
+                              repo: context.repo.repo,
+                              issue_number: taskIssue,
+                              per_page: 100,
+                              page,
+                            });
+                          for (const c of data) {
+                            if ((c.body || '').includes(planMarker)) {
+                              if (!planComment
+                                  || (new Date(c.created_at))
+                                    > (new Date(planComment.created_at))) {
+                                planComment = c;
+                              }
+                            }
+                          }
+                          if (data.length < 100) {
+                            break;
+                          }
+                          page += 1;
+                        }
+                      } catch (planErr) {
+                        core.info('Could not list comments on tracking'
+                          + ' issue #' + taskIssue + ' for tier'
+                          + ' resolution: ' + planErr.message);
+                      }
+                      if (planComment) {
+                        const planTierHit = (planComment.body || '')
+                          .match(
+                            /model\s*:\s*(haiku|sonnet|opus)\b/i);
+                        if (planTierHit) {
+                          fastpathTierMatch =
+                            planTierHit[1].toLowerCase() === TIER;
+                        }
+                      }
                     }
                   }
                   tierMatch = hasTier || fastpathTierMatch;
