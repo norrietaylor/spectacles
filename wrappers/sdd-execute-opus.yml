@@ -58,15 +58,24 @@ permissions:
   contents: read
 
 # Concurrency group keyed on the task issue number. A stale sdd-dispatch fan-out
-# racing with a manual /execute on the same task collapses to one running cell;
-# the second is canceled (cancel-in-progress: false would queue it, which a
-# user-initiated /execute does not want — superseding the dispatched cell is
-# the right behavior). Cancel-in-progress is set on the wrapper itself because
-# the gh-aw lock declares its own activation-level concurrency keyed on the
-# workflow name; this wrapper-level group adds the per-task dimension on top.
+# racing with a manual /execute on the same task collapses to one running cell:
+# cancel-in-progress: true supersedes the in-progress cell with the later
+# trigger so a user-initiated /execute wins over a stale dispatch (and vice
+# versa: a fresh dispatch wins over an earlier in-flight cell). Cancel-in-
+# progress is set on the wrapper itself because the gh-aw lock declares its own
+# activation-level concurrency keyed on the workflow name; this wrapper-level
+# group adds the per-task dimension on top.
+#
+# The fromJSON(github.event.inputs.aw_context || '{}') branch reads the
+# dispatcher's well-formed aw_context JSON for the workflow_dispatch path.
+# sdd-dispatch builds aw_context with JSON.stringify (see wrappers/sdd-dispatch.yml),
+# so the input is well-formed by construction; manual workflow_dispatch invocations
+# that supply malformed JSON will fail workflow evaluation here, which is the
+# correct failure mode (the route step's try/catch would silently ignore them
+# and the run would do nothing useful).
 concurrency:
   group: sdd-execute-${{ github.event.issue.number || github.event.pull_request.number || fromJSON(github.event.inputs.aw_context || '{}').item_number || github.run_id }}
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   # Resolve which situation triggered the wrapper and build the aw_context the

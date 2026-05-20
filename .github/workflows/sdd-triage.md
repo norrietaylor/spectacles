@@ -31,7 +31,7 @@ safe-outputs:
       - ${{ github.event.repository.name }}
   create-pull-request:
     max: 1
-    draft: ${{ false }}
+    draft: false
     title-prefix: "arch"
   push-to-pull-request-branch:
     max: 1

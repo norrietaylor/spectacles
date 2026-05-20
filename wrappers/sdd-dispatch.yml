@@ -150,8 +150,11 @@ jobs:
                   break;
                 }
               }
-              if (cursor && !cursor.parent_issue_url) {
-                // cursor is the tracking issue (root of the tree).
+              if (cursor && !cursor.parent_issue_url && walked === 2) {
+                // cursor is the tracking issue (root of the tree) and we
+                // walked exactly two parent hops, so the closed issue is a
+                // task sub-issue. A closed Unit (1 hop) or a closed tracking
+                // issue (0 hops) is not a task closure and is ignored here.
                 const hasDispatched = (cursor.labels || []).some(
                   (l) => (l.name || l) === 'sdd:dispatched');
                 if (hasDispatched) {
@@ -162,6 +165,13 @@ jobs:
                   core.info('Tracking issue #' + cursor.number
                     + ' does not carry sdd:dispatched; cascade not armed.');
                 }
+              } else if (cursor && !cursor.parent_issue_url) {
+                // Reached a tracking issue but walked fewer than two hops,
+                // so this is a Unit or tracking-issue closure, not a task
+                // closure. Cascade fires on task closures only.
+                core.info('Closed issue #' + closedIssue.number
+                  + ' is not a task sub-issue closure (walked ' + walked
+                  + ' hops); ignoring.');
               } else {
                 core.info('Closed issue #' + closedIssue.number
                   + ' has no resolvable tracking issue; ignoring.');
@@ -349,26 +359,35 @@ jobs:
 
             // Detect in-flight tasks: those carrying sdd:in-progress, or
             // those linked to an open implementation pull request. Listing
-            // every open sdd/* PR once is cheaper than asking per-task.
-            const { data: openPrs } = await github.rest.pulls.list({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              state: 'open',
-              per_page: 100,
-            });
+            // every open PR once is cheaper than asking per-task. Paginate
+            // across pages of 100 so a repo with more than 100 open PRs
+            // does not silently miss in-flight task links and cause a
+            // re-dispatch of an already-active task.
             const inFlightFromPrs = new Set();
-            for (const pr of openPrs) {
-              const headRef = (pr.head && pr.head.ref) || '';
-              const headMatch = headRef.match(/^sdd\/(\d+)-/);
-              if (headMatch) {
-                inFlightFromPrs.add(parseInt(headMatch[1], 10));
-                continue;
+            for (let page = 1; ; page += 1) {
+              const { data: openPrs } = await github.rest.pulls.list({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                state: 'open',
+                per_page: 100,
+                page,
+              });
+              for (const pr of openPrs) {
+                const headRef = (pr.head && pr.head.ref) || '';
+                const headMatch = headRef.match(/^sdd\/(\d+)-/);
+                if (headMatch) {
+                  inFlightFromPrs.add(parseInt(headMatch[1], 10));
+                  continue;
+                }
+                const body = pr.body || '';
+                const closeMatch = body.match(
+                  /(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s+#(\d+)/i);
+                if (closeMatch) {
+                  inFlightFromPrs.add(parseInt(closeMatch[1], 10));
+                }
               }
-              const body = pr.body || '';
-              const closeMatch = body.match(
-                /(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s+#(\d+)/i);
-              if (closeMatch) {
-                inFlightFromPrs.add(parseInt(closeMatch[1], 10));
+              if (openPrs.length < 100) {
+                break;
               }
             }
 

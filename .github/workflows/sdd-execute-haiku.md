@@ -43,7 +43,7 @@ safe-outputs:
       - ${{ github.event.repository.name }}
   create-pull-request:
     max: 1
-    draft: ${{ false }}
+    draft: false
   push-to-pull-request-branch:
     max: 1
   add-comment:
@@ -197,7 +197,9 @@ gates apply.
 When the named task is not eligible, emit `noop` and exit. The wrapper's
 concurrency group keyed on the task issue number guarantees that a
 double-trigger (a stale `sdd-dispatch` cell racing with a manual
-`/execute`) collapses to a single run; the second is skipped.
+`/execute`) collapses to a single run: the wrapper sets
+`cancel-in-progress: true`, so the later trigger supersedes the earlier
+in-progress cell.
 
 Having selected a task, move it to `sdd:in-progress`: remove its `sdd:ready`
 label (`remove-labels`) and add `sdd:in-progress` (`add-labels`). Exactly one

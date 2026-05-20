@@ -31,7 +31,7 @@ safe-outputs:
       - ${{ github.event.repository.name }}
   create-pull-request:
     max: 1
-    draft: ${{ false }}
+    draft: false
     title-prefix: "spec"
     # Force every pull request this agent opens onto a spec/* head branch.
     # gh-aw prepends this prefix to whatever branch name the agent supplies,

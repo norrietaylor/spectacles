@@ -802,7 +802,7 @@ schedule cron removed, concurrency group added), `templates/.github/labels.yml`
 - **R11.3**: Parallelism is bounded by `SDD_DISPATCH_MAX_PARALLEL`, a
   repo variable defaulting to 5. The wrapper shall expand the ready set
   into a GitHub Actions matrix with `max-parallel:
-  ${{ vars.SDD_DISPATCH_MAX_PARALLEL || 5 }}` and dispatch one
+  ${{ fromJSON(vars.SDD_DISPATCH_MAX_PARALLEL || '5') }}` and dispatch one
   `sdd-execute-{tier}` run per cell via the `workflow_dispatch` REST
   endpoint, with the task issue number passed through as `aw_context`.
 - **R11.4**: Persistence (cascade). On the first `/dispatch` the
@@ -940,7 +940,7 @@ every later unit runs against them.
 
 **Greenfield bootstrapping:** Unit 1 is the bootstrapping unit. It sets
 `verification.pre` and `verification.post` to empty for itself and establishes
-the commands above for Units 2 to 10.
+the commands above for Units 2 to 11.
 
 ## Technical Considerations
 
@@ -1025,7 +1025,7 @@ the commands above for Units 2 to 10.
 
 ## Success Metrics
 
-- All ten demoable units land with proof artifacts passing.
+- All eleven demoable units land with proof artifacts passing.
 - Each `sdd-*` source compiles clean under `gh aw compile`, including the
   three `sdd-execute` model-tier variants.
 - The `leak-scan` CI check passes on every commit; no private term ever
