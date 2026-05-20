@@ -81,11 +81,10 @@ applies from the `aw_context` input before doing anything else.
    boundary: the task graph is a set of linked sub-issues, not a pull request,
    so the `sdd:ready` label event is the non-pull-request triage boundary.
    `sdd:ready` is also applied by `sdd-triage` phase C to every unblocked task
-   sub-issue, so the labelled item must be confirmed a tracking issue before
-   the gate set is applied: an issue with a parent (a Unit or a task) is not a
-   tracking issue and this run must `noop`. The wrapper filters this event by
-   the absence of a parent issue, so the agent reaches this step only on a
-   tracking issue; this is the agent-level defense in depth for that filter.
+   sub-issue, so the wrapper's `route` job filters out an event whose subject
+   has a parent (a Unit or a task is not a tracking issue). The agent
+   re-confirms the same precondition at the bottom of this section as
+   defense in depth.
 
 This agent has no `needs-human`-removal resume trigger. A Blocker it escalates
 on a pull request is resumed by a fresh `pull_request: synchronize`: the human
