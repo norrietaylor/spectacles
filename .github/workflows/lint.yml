@@ -84,3 +84,24 @@ jobs:
         run: pip install pyyaml
       - name: Assert allowlists match prose
         run: python scripts/test-safe-output-allowlists.py
+
+  # Assert the slash-command vocabulary is consistent across the
+  # wrappers (the routing layer), the source-of-truth command table in
+  # `shared/sdd-interaction.md`, and prose mentions across workflow
+  # sources and the docs page. A new command added in one place and
+  # forgotten in another is the silent inconsistency this guards. See
+  # the script docstring for the W/T/P set definitions; this job is
+  # independent of `compile` because it reads the .md sources directly.
+  command-table:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install PyYAML
+        run: pip install pyyaml
+      - name: Assert command-table consistency
+        run: python scripts/test-command-table.py
