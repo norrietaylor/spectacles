@@ -31,7 +31,7 @@ safe-outputs:
       - ${{ github.event.repository.name }}
   create-pull-request:
     max: 1
-    draft: ${{ false }}
+    draft: false
     title-prefix: "spec"
     # Force every pull request this agent opens onto a spec/* head branch.
     # gh-aw prepends this prefix to whatever branch name the agent supplies,
@@ -96,7 +96,7 @@ applies from the workflow context before doing anything else.
    re-author and emit `noop`. If the labelled item is a tracking issue but no
    longer carries `sdd:spec`, this is another agent's hand-off and the same
    rule applies: do not re-author and emit `noop`. `needs-human` is shared by
-   all five SDD agents, so its removal can re-trigger this workflow for an
+   all six SDD agents, so its removal can re-trigger this workflow for an
    issue or sub-issue that has already moved past the spec phase or never
    belonged to it. The wrapper's `route` job filters most sub-issue cases out
    before this agent runs; the noop here is defence-in-depth for the case

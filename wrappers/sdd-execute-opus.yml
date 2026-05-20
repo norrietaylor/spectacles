@@ -13,8 +13,13 @@ name: sdd-execute-opus
 # sdd-execute is compiled into three model-tier variants (haiku, sonnet, opus)
 # that differ only in the engine model and the model:* tier they claim. This
 # wrapper is the opus-tier caller; sdd-execute-haiku.yml and
-# sdd-execute-sonnet.yml are its haiku and sonnet siblings. All three carry the
-# identical trigger set so any tier's queue is drained on its own cron.
+# sdd-execute-sonnet.yml are its haiku and sonnet siblings.
+#
+# Execution is event-driven, not scheduled. The daily cron that previously
+# drained each tier's queue has been removed: this wrapper now triggers only
+# on workflow_dispatch (from sdd-dispatch's bounded matrix fan-out) and on an
+# explicit /execute comment from a write-access human. The pipeline is
+# /approve -> /dispatch -> cascade-on-close (see issue #81 and ADR 0011).
 #
 # The gh-aw command:/slash_command trigger (with its roles: gate) is not used
 # here: that trigger is gh-aw frontmatter and only takes effect when gh aw
@@ -23,11 +28,17 @@ name: sdd-execute-opus
 # done explicitly below with a real repository-permission check.
 
 on:
-  # Drain the opus-tier task queue once per day.
-  schedule:
-    - cron: "40 7 * * *"
-  # Run the queue ahead of the cron.
+  # A workflow_dispatch from sdd-dispatch (one matrix cell per ready task) or
+  # from an operator running the queue by hand.
   workflow_dispatch:
+    inputs:
+      aw_context:
+        description: |
+          JSON string naming the triggering entity; mirrors the issue_comment
+          route output. sdd-dispatch fans out one cell per ready task with
+          {trigger: 'command', item_type: 'issue', item_number: <task>}.
+        required: false
+        type: string
   # A /execute comment on a task sub-issue.
   issue_comment:
     types: [created]
@@ -45,6 +56,26 @@ on:
 
 permissions:
   contents: read
+
+# Concurrency group keyed on the task issue number. A stale sdd-dispatch fan-out
+# racing with a manual /execute on the same task collapses to one running cell:
+# cancel-in-progress: true supersedes the in-progress cell with the later
+# trigger so a user-initiated /execute wins over a stale dispatch (and vice
+# versa: a fresh dispatch wins over an earlier in-flight cell). Cancel-in-
+# progress is set on the wrapper itself because the gh-aw lock declares its own
+# activation-level concurrency keyed on the workflow name; this wrapper-level
+# group adds the per-task dimension on top.
+#
+# The fromJSON(github.event.inputs.aw_context || '{}') branch reads the
+# dispatcher's well-formed aw_context JSON for the workflow_dispatch path.
+# sdd-dispatch builds aw_context with JSON.stringify (see wrappers/sdd-dispatch.yml),
+# so the input is well-formed by construction; manual workflow_dispatch invocations
+# that supply malformed JSON will fail workflow evaluation here, which is the
+# correct failure mode (the route step's try/catch would silently ignore them
+# and the run would do nothing useful).
+concurrency:
+  group: sdd-execute-${{ github.event.issue.number || github.event.pull_request.number || fromJSON(github.event.inputs.aw_context || '{}').item_number || github.run_id }}
+  cancel-in-progress: true
 
 jobs:
   # Resolve which situation triggered the wrapper and build the aw_context the
@@ -80,16 +111,29 @@ jobs:
             // skips a task another tier owns.
             const TIER = 'opus';
 
-            // A scheduled run or a manual dispatch: scan the task queue and
-            // select one eligible task. There is no specific triggering item,
-            // so aw_context records only the trigger kind.
-            if (event === 'schedule') {
-              run = true;
-              ctx = { trigger: 'schedule' };
-            }
+            // A workflow_dispatch from sdd-dispatch (or from an operator
+            // running the queue by hand) carries an aw_context input naming
+            // the task to implement. The cron-based "schedule" trigger has
+            // been removed (issue #81 / ADR 0011): execution is event-driven
+            // now, dispatched per task from the cascade.
             if (event === 'workflow_dispatch') {
-              run = true;
-              ctx = { trigger: 'workflow_dispatch' };
+              const raw = (payload.inputs && payload.inputs.aw_context) || '';
+              if (raw) {
+                try {
+                  ctx = JSON.parse(raw);
+                  if (ctx && ctx.item_number) {
+                    run = true;
+                  } else {
+                    core.info('workflow_dispatch aw_context missing'
+                      + ' item_number; ignoring.');
+                  }
+                } catch (err) {
+                  core.info('workflow_dispatch aw_context not parseable: '
+                    + err.message);
+                }
+              } else {
+                core.info('workflow_dispatch with no aw_context; ignoring.');
+              }
             }
 
             // A /execute comment from an author with repo write access. The
@@ -174,7 +218,7 @@ jobs:
 
             // The needs-human label was cleared on a task sub-issue (resume a
             // step 5 or step 6 hand-off this agent applied). needs-human is
-            // shared by all five SDD agents, so the agent itself confirms the
+            // shared by all six SDD agents, so the agent itself confirms the
             // item is one it handed off before resuming.
             if (event === 'issues' && payload.action === 'unlabeled') {
               const label = payload.label && payload.label.name;
@@ -190,7 +234,7 @@ jobs:
 
             // The needs-human label was cleared on a pull request (resume a
             // step 7 hand-off this agent applied). needs-human is shared by
-            // all five SDD agents, so the agent itself confirms the pull
+            // all six SDD agents, so the agent itself confirms the pull
             // request is one it opened before resuming.
             if (event === 'pull_request' && payload.action === 'unlabeled') {
               const label = payload.label && payload.label.name;
@@ -205,16 +249,19 @@ jobs:
             }
 
             // Tier gate. sdd-triage assigns each task sub-issue exactly one
-            // model:* label. A schedule or dispatch has no specific task — the
-            // agent selects one from the queue — so it is never gated here.
-            // Every other trigger resolves to a task sub-issue, directly for an
-            // issue event or through the pull request's `Closes #<task>`
-            // reference for a pull-request event; this variant runs only when
-            // that sub-issue carries the model:<TIER> label. This stops the
-            // needless agent run, and its inference cost, on the two tiers a
-            // /execute or resume does not belong to.
-            if (run && ctx.trigger !== 'schedule'
-                && ctx.trigger !== 'workflow_dispatch') {
+            // model:* label. Every trigger this wrapper handles resolves to a
+            // specific task sub-issue: directly for an issue event, through
+            // the pull request's `Closes #<task>` reference for a
+            // pull-request event, and through the aw_context input for a
+            // workflow_dispatch from sdd-dispatch. This variant runs only
+            // when that sub-issue carries the model:<TIER> label. This stops
+            // the needless agent run, and its inference cost, on the two
+            // tiers the trigger does not belong to. sdd-dispatch already
+            // picks the matching variant per task (the matrix cell selects
+            // the wrapper file by tier), so the tier gate here is a
+            // defence-in-depth check that catches the corner where a task's
+            // model:* label has changed between dispatch and pickup.
+            if (run) {
               let taskIssue = 0;
               if (ctx.item_type === 'issue') {
                 taskIssue = ctx.item_number;

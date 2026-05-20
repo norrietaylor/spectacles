@@ -36,10 +36,14 @@ lifecycle:
 # may coexist with any lifecycle label, and `add-labels` of a marker
 # does not need to be paired with a `remove-labels` of a previous state.
 # `needs-human` is the universal agent-to-human hand-off (ADR 0001).
-# Future marker labels — `sdd:dispatched` (#81), `sdd:fastpath` and
-# `sdd:fastpath-review` (#82) — land here when they ship.
+# Future marker labels — `sdd:fastpath` and `sdd:fastpath-review` (#82)
+# — land here when they ship.
 markers:
   - needs-human
+  # sdd:dispatched marks a tracking issue as armed for cascade
+  # re-dispatch on task closure (ADR 0011). Orthogonal to the
+  # lifecycle state; coexists with sdd:ready / sdd:in-progress.
+  - sdd:dispatched
 
 # Directed transition graph. Key is the source state; value is the
 # list of states reachable in one move from the source. Every state in

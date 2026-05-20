@@ -277,16 +277,17 @@ jobs:
           | Label | Meaning | Set by | Advances on |
           |---|---|---|---|
           | `sdd:spec` | the feature is being specified | `feature`/`bug` template, or `/spec` | spec PR merged |
-          | `sdd:triage` | architecture and triage are running | `sdd-spec` on spec-PR merge | architecture PR merged, then `/approve` |
+          | `sdd:triage` | architecture and triage are running | `sdd-spec` on spec-PR merge | architecture PR merged (plan-comment posted), then `/approve` |
           | `sdd:ready` | tasks are decomposed and queued | `sdd-triage` on phase C completion | a task is picked up |
           | `sdd:in-progress` | a task is being implemented | `sdd-execute` on task selection | validation passes |
           | `sdd:review` | the implementation awaits human review | `sdd-validate` on a clean implementation pass | all task sub-issues closed |
           | `sdd:done` | every task is complete | `sdd-execute` when all tasks are closed | a human does the final close |
           
           Exactly one lifecycle label is present at a time. `sdd:triage` covers all
-          three `sdd-triage` phases (architecture, parent tasks, sub-tasks). The
-          `kind:*`, `priority:*`, and `model:{haiku,sonnet,opus}` labels are orthogonal
-          metadata and are not part of this state machine.
+          three `sdd-triage` phases (architecture, plan comment, tree
+          materialization). The `kind:*`, `priority:*`, and
+          `model:{haiku,sonnet,opus}` labels are orthogonal metadata and are not part
+          of this state machine.
           
           ## Comment-command vocabulary
           
@@ -298,14 +299,14 @@ jobs:
           |---|---|---|
           | `/spec` | tracking issue | trigger `sdd-spec` (also auto-applied by the `feature`/`bug` template label) |
           | `/triage` | tracking issue, after the spec PR is merged | trigger `sdd-triage` phase A (architecture) |
-          | `/approve` | tracking issue | confirm the parent-task list; `sdd-triage` proceeds to sub-tasks |
-          | `/revise <note>` | spec PR, architecture PR, triage comment, or implementation PR | re-run the owning agent with the note as an added instruction |
+          | `/approve` | tracking issue | confirm the proposed plan; `sdd-triage` creates the Unit sub-issues and implementation task sub-issues |
+          | `/revise <note>` | spec PR, architecture PR, tracking issue, or implementation PR | re-run the owning agent with the note as an added instruction |
           | `/execute` | a task sub-issue | trigger `sdd-execute` for that task ahead of the cron |
           
           Merging the spec PR advances to the architecture phase; merging the
-          architecture PR advances to the parent-task phase. `/approve` is the one
-          non-PR decision point: it confirms the parent-task list before sub-task
-          decomposition.
+          architecture PR advances to a plan-comment phase. `/approve` is the one
+          non-PR decision point: it materializes the proposed plan as the Unit and
+          task sub-issue tree (ADR 0010).
           
           ## The `needs-human` contract
           

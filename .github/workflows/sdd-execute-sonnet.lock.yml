@@ -1,4 +1,4 @@
-# gh-aw-metadata: {"schema_version":"v3","frontmatter_hash":"254b647a7f079e9f7692d81a0893b0f96b5e74194f46540990b68f1b606b46d6","compiler_version":"v0.74.3","agent_id":"copilot","agent_model":"claude-sonnet-4.6"}
+# gh-aw-metadata: {"schema_version":"v3","frontmatter_hash":"f444ebb3177c53929771c393e421223115fbeb6ca8d50715b10496d4963b37f8","compiler_version":"v0.74.3","agent_id":"copilot","agent_model":"claude-sonnet-4.6"}
 # gh-aw-manifest: {"version":1,"secrets":["APP_PRIVATE_KEY","COPILOT_GITHUB_TOKEN","GH_AW_CI_TRIGGER_TOKEN","GH_AW_GITHUB_MCP_SERVER_TOKEN","GH_AW_GITHUB_TOKEN","GITHUB_TOKEN"],"actions":[{"repo":"actions/checkout","sha":"de0fac2e4500dabe0009e67214ff5f5447ce83dd","version":"v6.0.2"},{"repo":"actions/create-github-app-token","sha":"bcd2ba49218906704ab6c1aa796996da409d3eb1","version":"v3.2.0"},{"repo":"actions/download-artifact","sha":"3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c","version":"v8.0.1"},{"repo":"actions/github-script","sha":"3a2844b7e9c422d3c10d287c895573f7108da1b3","version":"v9.0.0"},{"repo":"actions/setup-node","sha":"48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e","version":"v6.4.0"},{"repo":"actions/upload-artifact","sha":"043fb46d1a93c77aae656e7c1c64a875d1fc6a0a","version":"v7.0.1"},{"repo":"github/gh-aw-actions/setup","sha":"8a9a52673cb8f97ebb43b344618af2d6f2c9ac7f","version":"v0.74.3"}],"containers":[{"image":"ghcr.io/github/gh-aw-firewall/agent:0.25.46"},{"image":"ghcr.io/github/gh-aw-firewall/api-proxy:0.25.46"},{"image":"ghcr.io/github/gh-aw-firewall/squid:0.25.46"},{"image":"ghcr.io/github/gh-aw-mcpg:v0.3.9","digest":"sha256:64828b42a4482f58fab16509d7f8f495a6d97c972a98a68aff20543531ac0388","pinned_image":"ghcr.io/github/gh-aw-mcpg:v0.3.9@sha256:64828b42a4482f58fab16509d7f8f495a6d97c972a98a68aff20543531ac0388"},{"image":"ghcr.io/github/github-mcp-server:v1.0.4"},{"image":"ghcr.io/github/serena-mcp-server:latest","digest":"sha256:bf343399e3725c45528f531a230f3a04521d4cdef29f9a5af6282ff0d3c393c5","pinned_image":"ghcr.io/github/serena-mcp-server:latest@sha256:bf343399e3725c45528f531a230f3a04521d4cdef29f9a5af6282ff0d3c393c5"},{"image":"node:lts-alpine","digest":"sha256:d1b3b4da11eefd5941e7f0b9cf17783fc99d9c6fc34884a665f40a06dbdfc94f","pinned_image":"node:lts-alpine@sha256:d1b3b4da11eefd5941e7f0b9cf17783fc99d9c6fc34884a665f40a06dbdfc94f"}]}
 #    ___                   _   _      
 #   / _ \                 | | (_)     
@@ -232,24 +232,24 @@ jobs:
         run: |
           bash "${RUNNER_TEMP}/gh-aw/actions/create_prompt_first.sh"
           {
-          cat << 'GH_AW_PROMPT_c07dba3b88f7b8e3_EOF'
+          cat << 'GH_AW_PROMPT_2dfed7bee16a332e_EOF'
           <system>
-          GH_AW_PROMPT_c07dba3b88f7b8e3_EOF
+          GH_AW_PROMPT_2dfed7bee16a332e_EOF
           cat "${RUNNER_TEMP}/gh-aw/prompts/xpia.md"
           cat "${RUNNER_TEMP}/gh-aw/prompts/temp_folder_prompt.md"
           cat "${RUNNER_TEMP}/gh-aw/prompts/markdown.md"
           cat "${RUNNER_TEMP}/gh-aw/prompts/safe_outputs_prompt.md"
-          cat << 'GH_AW_PROMPT_c07dba3b88f7b8e3_EOF'
+          cat << 'GH_AW_PROMPT_2dfed7bee16a332e_EOF'
           <safe-output-tools>
           Tools: add_comment, update_issue, create_pull_request, add_labels(max:2), remove_labels(max:2), push_to_pull_request_branch, missing_tool, missing_data, noop
-          GH_AW_PROMPT_c07dba3b88f7b8e3_EOF
+          GH_AW_PROMPT_2dfed7bee16a332e_EOF
           cat "${RUNNER_TEMP}/gh-aw/prompts/safe_outputs_create_pull_request.md"
           cat "${RUNNER_TEMP}/gh-aw/prompts/safe_outputs_push_to_pr_branch.md"
-          cat << 'GH_AW_PROMPT_c07dba3b88f7b8e3_EOF'
+          cat << 'GH_AW_PROMPT_2dfed7bee16a332e_EOF'
           </safe-output-tools>
-          GH_AW_PROMPT_c07dba3b88f7b8e3_EOF
+          GH_AW_PROMPT_2dfed7bee16a332e_EOF
           cat "${RUNNER_TEMP}/gh-aw/prompts/mcp_cli_tools_prompt.md"
-          cat << 'GH_AW_PROMPT_c07dba3b88f7b8e3_EOF'
+          cat << 'GH_AW_PROMPT_2dfed7bee16a332e_EOF'
           <github-context>
           The following GitHub context information is available for this workflow:
           {{#if github.actor}}
@@ -278,9 +278,9 @@ jobs:
           {{/if}}
           </github-context>
           
-          GH_AW_PROMPT_c07dba3b88f7b8e3_EOF
+          GH_AW_PROMPT_2dfed7bee16a332e_EOF
           cat "${RUNNER_TEMP}/gh-aw/prompts/github_mcp_tools_with_safeoutputs_prompt.md"
-          cat << 'GH_AW_PROMPT_c07dba3b88f7b8e3_EOF'
+          cat << 'GH_AW_PROMPT_2dfed7bee16a332e_EOF'
           </system>
           # Core principles
           
@@ -413,16 +413,17 @@ jobs:
           | Label | Meaning | Set by | Advances on |
           |---|---|---|---|
           | `sdd:spec` | the feature is being specified | `feature`/`bug` template, or `/spec` | spec PR merged |
-          | `sdd:triage` | architecture and triage are running | `sdd-spec` on spec-PR merge | architecture PR merged, then `/approve` |
+          | `sdd:triage` | architecture and triage are running | `sdd-spec` on spec-PR merge | architecture PR merged (plan-comment posted), then `/approve` |
           | `sdd:ready` | tasks are decomposed and queued | `sdd-triage` on phase C completion | a task is picked up |
           | `sdd:in-progress` | a task is being implemented | `sdd-execute` on task selection | validation passes |
           | `sdd:review` | the implementation awaits human review | `sdd-validate` on a clean implementation pass | all task sub-issues closed |
           | `sdd:done` | every task is complete | `sdd-execute` when all tasks are closed | a human does the final close |
           
           Exactly one lifecycle label is present at a time. `sdd:triage` covers all
-          three `sdd-triage` phases (architecture, parent tasks, sub-tasks). The
-          `kind:*`, `priority:*`, and `model:{haiku,sonnet,opus}` labels are orthogonal
-          metadata and are not part of this state machine.
+          three `sdd-triage` phases (architecture, plan comment, tree
+          materialization). The `kind:*`, `priority:*`, and
+          `model:{haiku,sonnet,opus}` labels are orthogonal metadata and are not part
+          of this state machine.
           
           ## Comment-command vocabulary
           
@@ -434,14 +435,14 @@ jobs:
           |---|---|---|
           | `/spec` | tracking issue | trigger `sdd-spec` (also auto-applied by the `feature`/`bug` template label) |
           | `/triage` | tracking issue, after the spec PR is merged | trigger `sdd-triage` phase A (architecture) |
-          | `/approve` | tracking issue | confirm the parent-task list; `sdd-triage` proceeds to sub-tasks |
-          | `/revise <note>` | spec PR, architecture PR, triage comment, or implementation PR | re-run the owning agent with the note as an added instruction |
+          | `/approve` | tracking issue | confirm the proposed plan; `sdd-triage` creates the Unit sub-issues and implementation task sub-issues |
+          | `/revise <note>` | spec PR, architecture PR, tracking issue, or implementation PR | re-run the owning agent with the note as an added instruction |
           | `/execute` | a task sub-issue | trigger `sdd-execute` for that task ahead of the cron |
           
           Merging the spec PR advances to the architecture phase; merging the
-          architecture PR advances to the parent-task phase. `/approve` is the one
-          non-PR decision point: it confirms the parent-task list before sub-task
-          decomposition.
+          architecture PR advances to a plan-comment phase. `/approve` is the one
+          non-PR decision point: it materializes the proposed plan as the Unit and
+          task sub-issue tree (ADR 0010).
           
           ## The `needs-human` contract
           
@@ -642,24 +643,31 @@ jobs:
           
           ## Triggers this agent handles
           
-          The wrapper invokes this agent for one of six situations. Determine which one
+          The wrapper invokes this agent for one of five situations. Determine which one
           applies from the `aw_context` input before doing anything else.
           
-          1. **A scheduled run.** The wrapper fires on a daily cron. Select one eligible
-             `sdd:ready` task and implement it (see the procedure).
-          2. **A manual `workflow_dispatch`.** Same as the scheduled run: select one
-             eligible task and implement it. This is the operator's way to run the queue
-             ahead of the cron.
-          3. **A write-access author commented `/execute` on a task sub-issue.** Run that
-             specific task ahead of the cron, provided it is eligible (see step 2 of the
-             procedure). If the named task is not eligible, log why and emit `noop`.
-          4. **A review comment was created on a pull request this agent opened.**
+          1. **A `workflow_dispatch` from `sdd-dispatch`.** The dispatcher computed a
+             ready set for a tracking issue and is dispatching one matrix cell per
+             ready task; the `aw_context` input carries `trigger: 'command'`,
+             `item_type: 'issue'`, and the task sub-issue number. Treat this the same
+             way as a `/execute` comment on that task: scan it, validate eligibility
+             for this tier, and implement it. The `sdd-dispatch` agent has already
+             verified the graph-level readiness (every `blocked by` reference is
+             closed and the task is not in flight), so the only eligibility checks
+             that remain to this agent are the tier gate and the protected-paths and
+             `needs-human` gates. If the named task is not eligible, log why and emit
+             `noop`.
+          2. **A write-access author commented `/execute` on a task sub-issue.** Run
+             that specific task immediately, provided it is eligible (see step 2 of
+             the procedure). This is the human's way to run one task ahead of the
+             cascade. If the named task is not eligible, log why and emit `noop`.
+          3. **A review comment was created on a pull request this agent opened.**
              Address the actionable review comments by pushing further commits to the
              same branch (see step 7).
-          5. **The `needs-human` label was removed from a task sub-issue or a pull
+          4. **The `needs-human` label was removed from a task sub-issue or a pull
              request.** A human has resolved an earlier hand-off. The `aw_context` input
              carries the `trigger: 'resume'` kind and names the task sub-issue or the
-             pull request. `needs-human` is shared by all five SDD agents, so its removal
+             pull request. `needs-human` is shared by all six SDD agents, so its removal
              can re-trigger this workflow for an item this agent never handed off:
              confirm ownership before resuming. For a task sub-issue, resume **only**
              when it still carries the `sdd:in-progress` label, the lifecycle state a
@@ -668,7 +676,7 @@ jobs:
              pull request, resume **only** when its head branch follows the
              `sdd/<task-id>-<slug>` convention; re-read the review thread and resume
              step 7. If the item is not one this agent handed off, emit `noop`.
-          6. **A write-access author commented `/revise <note>` on an implementation
+          5. **A write-access author commented `/revise <note>` on an implementation
              pull request this agent opened.** Address the note by pushing further
              commits to the same branch, exactly as for a review comment (step 7). The
              `aw_context` input carries `trigger: 'revise'`, the pull request number,
@@ -707,60 +715,63 @@ jobs:
           a `/execute` comment the input names the task sub-issue. For a review-comment
           event the input names the pull request and the review comment.
           
-          A `schedule` or `workflow_dispatch` run carries no issue or pull request in
-          `aw_context` — only the trigger kind. That is **not** an empty or test run: it
-          is the signal to scan the `sdd:ready` queue. Proceed to step 2 and select a
-          task; if the queue yields no eligible task, proceed to step 8. Never emit
-          `noop` from this step because `aw_context` names no item — a scheduled or
-          dispatched run always continues to step 2, and then to step 8.
+          Every triggering situation names a specific task sub-issue or pull request
+          in `aw_context`. A `workflow_dispatch` from `sdd-dispatch` carries the task
+          issue number it dispatched the run for; a `/execute` comment names the task
+          the human typed it on. Proceed to step 2 with the named task as the
+          candidate.
           
           ### 2. Select one eligible task
           
-          This step runs for a scheduled run, a `workflow_dispatch` run, or a `/execute`
-          comment. For a `/execute` comment the candidate set is the single named task;
-          for a scheduled or dispatched run it is every open task sub-issue. A task is
-          **eligible** only when all of these hold:
+          This step runs for a `workflow_dispatch` from `sdd-dispatch` or a `/execute`
+          comment. In both cases the candidate set is the single named task in
+          `aw_context`; the agent no longer scans the open-task queue on a schedule.
+          A task is **eligible** only when all of these hold:
           
-          - It carries the `sdd:ready` label.
           - It carries the `model:sonnet` label, the tier this variant claims. A task
-            carrying `model:haiku` or `model:opus` is not this variant's task; skip it.
-          - It has no open `blocked by` dependency: every issue named on a `blocked by`
-            line in its structured body block is closed.
+            carrying `model:haiku` or `model:opus` is not this variant's task; emit
+            `noop` (the wrapper's tier gate normally catches this earlier, but check
+            it here as a defence in depth).
+          - It is **not already in flight**: it does not already carry
+            `sdd:in-progress`, and no open implementation pull request already
+            claims the task (head branch matching `sdd/<task-id>-<slug>` for this
+            task, or body carrying `Closes #<task>`). The wrapper's
+            `cancel-in-progress: true` concurrency group collapses concurrent
+            runs, but once a run finishes with an open PR awaiting review the
+            group no longer guards against a fresh `/execute` opening a second
+            PR for the same task. If a human needs to change an existing
+            implementation pull request, they use `/revise` on that pull request
+            instead of `/execute` on the task.
           - It does **not** carry the `needs-human` label. A `needs-human`-labelled task
             is off-limits during candidate selection (imported interaction contract,
             ADR 0001 clause 2).
           - Its `repo:` field equals the repository this workflow is running in (see
             step 3 for a non-local `repo:`).
           
-          From the eligible set, choose one task: highest `priority:*` first
-          (`priority:must-have`, then `priority:should-have`, then
-          `priority:nice-to-have`), and within the same priority the oldest
-          `updated_at`. Selecting exactly one task per run keeps each run bounded.
+          The `sdd:ready` label is **not** an eligibility predicate: `sdd-dispatch`
+          runs a graph-based selection ahead of this agent and dispatches every
+          ready task in one bounded matrix fan-out; the dispatcher applies
+          `sdd:ready` to each dispatched task as a UI hint, not as the gate. A
+          `/execute` comment from a human is the parallel entry path and the same
+          gates apply.
           
-          When the candidate set produces no eligible task, do not implement anything.
-          Go to step 8: emit `noop`, or, if every task sub-issue of a tracking issue is
-          closed, advance that tracking issue.
+          When the named task is not eligible, emit `noop` and exit. The wrapper's
+          concurrency group keyed on the task issue number guarantees that a
+          double-trigger (a stale `sdd-dispatch` cell racing with a manual
+          `/execute`) collapses to a single run: the wrapper sets
+          `cancel-in-progress: true`, so the later trigger supersedes the earlier
+          in-progress cell.
           
           Having selected a task, move it to `sdd:in-progress`: remove its `sdd:ready`
           label (`remove-labels`) and add `sdd:in-progress` (`add-labels`). Exactly one
           lifecycle label is present at a time, so the removal and the addition are a
           single move.
           
-          Then advance the **feature tracking issue** the same way. The selected task is
-          a leaf of the issue tree (ADR 0005); the feature is its grandparent, reached by
-          walking the GitHub sub-issue parent links task → its parent Unit sub-issue →
-          the Unit's parent feature. The state-machine table credits `sdd-execute` on
-          task selection with the feature's `sdd:ready → sdd:in-progress` transition, so
-          once the task is `sdd:in-progress` move the feature there too: remove its
-          `sdd:ready` label (`remove-labels`) and add `sdd:in-progress` (`add-labels`).
-          Make this move idempotent — a feature with more than one task is advanced by
-          the first task picked up, and a later pickup must leave it alone. Move the
-          feature **only** when it still carries `sdd:ready`; if it already carries
-          `sdd:in-progress` (an earlier task of the same feature has already advanced
-          it), change nothing on the feature and move only the task. This step therefore
-          moves one issue's labels when the feature was already `sdd:in-progress`, and
-          two — the task and the feature — when the selected task is the first of its
-          feature to be picked up.
+          The feature tracking issue's `sdd:ready → sdd:in-progress` transition is
+          **not** this agent's concern. Per ADR 0011, `sdd-dispatch` owns that move
+          on the first `/dispatch`. On a manual `/execute` path the tracking issue
+          is already in `sdd:ready` or `sdd:in-progress` when the human runs the
+          command, and this agent does not touch the feature's lifecycle label.
           
           ### 3. Skip a non-local task, do not error
           
@@ -800,7 +811,7 @@ jobs:
           re-selection until a human clears it. This is the `needs-human` hand-off from
           the imported interaction contract and ADR 0001; a human takes the protected
           change and clears the label, which re-triggers this agent to resume
-          (situation 5 above).
+          (situation 4 above).
           
           ### 6. Run verification, capture proof, open the pull request
           
@@ -819,7 +830,7 @@ jobs:
           when the task is too underspecified to implement at 80% confidence or higher.
           The task keeps its `sdd:in-progress` lifecycle label from step 2; `needs-human`
           excludes it from re-selection until a human clears it, which re-triggers this
-          agent to resume (situation 5 above).
+          agent to resume (situation 4 above).
           
           When the implementation is complete and every proof artifact passes, open
           exactly one pull request via the `create-pull-request` safe-output. The pull
@@ -859,7 +870,7 @@ jobs:
           already carries `Closes #<task>`; the follow-up commits land on its existing
           branch, and that single pull request stays the one that closes the task.
           
-          For a `/revise` trigger (situation 6) there is no anchored diff: treat the
+          For a `/revise` trigger (situation 5) there is no anchored diff: treat the
           text after `/revise` in the triggering comment as the instruction, edit the
           in-scope files to satisfy it, and push the follow-up commits to the same
           branch with `push-to-pull-request-branch` exactly as for a review comment.
@@ -870,7 +881,7 @@ jobs:
           hand-off: apply `needs-human` to the pull request (`add-labels`) and post
           exactly one comment stating which comment could not be resolved and why. Do
           not guess. A human resolves the comment and clears the label, which
-          re-triggers this agent to resume (situation 5 above).
+          re-triggers this agent to resume (situation 4 above).
           
           ### 8. Idle, and the completion transitions
           
@@ -889,8 +900,9 @@ jobs:
             **never** closes the feature tracking issue itself; a human closes it. This
             hand-off is the one in ADR 0001 beyond the blocker cases: it routes the
             final close to a human.
-          - **Idle.** Neither transition applies. Emit `noop` and exit 0. This is the
-            normal outcome of most scheduled runs.
+          - **Idle.** Neither transition applies. Emit `noop` and exit 0. A
+            `sdd-dispatch`-fanned-out run that finds the named task already in flight,
+            or a `/execute` on an ineligible task, both land here.
           
           When more than one transition applies in one run, perform exactly one:
           feature completion first, otherwise the oldest completed Unit. The
@@ -930,7 +942,7 @@ jobs:
             moves to `sdd:done` and gains `needs-human`, and the tracking issue is not
             closed by the agent.
           
-          GH_AW_PROMPT_c07dba3b88f7b8e3_EOF
+          GH_AW_PROMPT_2dfed7bee16a332e_EOF
           } > "$GH_AW_PROMPT"
       - name: Interpolate variables and render templates
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
@@ -1135,9 +1147,9 @@ jobs:
           mkdir -p "${RUNNER_TEMP}/gh-aw/safeoutputs"
           mkdir -p /tmp/gh-aw/safeoutputs
           mkdir -p /tmp/gh-aw/mcp-logs/safeoutputs
-          cat > "${RUNNER_TEMP}/gh-aw/safeoutputs/config.json" << 'GH_AW_SAFE_OUTPUTS_CONFIG_d7117de74ff35cbb_EOF'
-          {"add_comment":{"max":1},"add_labels":{"allowed":["sdd:in-progress","sdd:done","needs-human"],"max":2},"create_pull_request":{"draft":"${{ false }}","max":1,"max_patch_files":100,"max_patch_size":1024,"protect_top_level_dot_folders":true,"protected_files":["package.json","bun.lockb","bunfig.toml","deno.json","deno.jsonc","deno.lock","global.json","NuGet.Config","Directory.Packages.props","mix.exs","mix.lock","go.mod","go.sum","stack.yaml","stack.yaml.lock","pom.xml","build.gradle","build.gradle.kts","settings.gradle","settings.gradle.kts","gradle.properties","package-lock.json","yarn.lock","pnpm-lock.yaml","npm-shrinkwrap.json","requirements.txt","Pipfile","Pipfile.lock","pyproject.toml","setup.py","setup.cfg","Gemfile","Gemfile.lock","uv.lock","CODEOWNERS","DESIGN.md","README.md","CONTRIBUTING.md","CHANGELOG.md","SECURITY.md","CODE_OF_CONDUCT.md","AGENTS.md","CLAUDE.md","GEMINI.md"]},"create_report_incomplete_issue":{},"missing_data":{},"missing_tool":{},"noop":{"max":1,"report-as-issue":"true"},"push_to_pull_request_branch":{"if_no_changes":"warn","max":1,"max_patch_size":1024,"protect_top_level_dot_folders":true,"protected_files":["package.json","bun.lockb","bunfig.toml","deno.json","deno.jsonc","deno.lock","global.json","NuGet.Config","Directory.Packages.props","mix.exs","mix.lock","go.mod","go.sum","stack.yaml","stack.yaml.lock","pom.xml","build.gradle","build.gradle.kts","settings.gradle","settings.gradle.kts","gradle.properties","package-lock.json","yarn.lock","pnpm-lock.yaml","npm-shrinkwrap.json","requirements.txt","Pipfile","Pipfile.lock","pyproject.toml","setup.py","setup.cfg","Gemfile","Gemfile.lock","uv.lock","CODEOWNERS","DESIGN.md","README.md","CONTRIBUTING.md","CHANGELOG.md","SECURITY.md","CODE_OF_CONDUCT.md","AGENTS.md","CLAUDE.md","GEMINI.md"]},"remove_labels":{"allowed":["sdd:ready","sdd:review"],"max":2},"report_incomplete":{},"update_issue":{"allow_body":true,"allow_status":true,"max":1,"target":"*"}}
-          GH_AW_SAFE_OUTPUTS_CONFIG_d7117de74ff35cbb_EOF
+          cat > "${RUNNER_TEMP}/gh-aw/safeoutputs/config.json" << 'GH_AW_SAFE_OUTPUTS_CONFIG_dcbaafff1297920d_EOF'
+          {"add_comment":{"max":1},"add_labels":{"allowed":["sdd:in-progress","sdd:done","needs-human"],"max":2},"create_pull_request":{"draft":false,"max":1,"max_patch_files":100,"max_patch_size":1024,"protect_top_level_dot_folders":true,"protected_files":["package.json","bun.lockb","bunfig.toml","deno.json","deno.jsonc","deno.lock","global.json","NuGet.Config","Directory.Packages.props","mix.exs","mix.lock","go.mod","go.sum","stack.yaml","stack.yaml.lock","pom.xml","build.gradle","build.gradle.kts","settings.gradle","settings.gradle.kts","gradle.properties","package-lock.json","yarn.lock","pnpm-lock.yaml","npm-shrinkwrap.json","requirements.txt","Pipfile","Pipfile.lock","pyproject.toml","setup.py","setup.cfg","Gemfile","Gemfile.lock","uv.lock","CODEOWNERS","DESIGN.md","README.md","CONTRIBUTING.md","CHANGELOG.md","SECURITY.md","CODE_OF_CONDUCT.md","AGENTS.md","CLAUDE.md","GEMINI.md"]},"create_report_incomplete_issue":{},"missing_data":{},"missing_tool":{},"noop":{"max":1,"report-as-issue":"true"},"push_to_pull_request_branch":{"if_no_changes":"warn","max":1,"max_patch_size":1024,"protect_top_level_dot_folders":true,"protected_files":["package.json","bun.lockb","bunfig.toml","deno.json","deno.jsonc","deno.lock","global.json","NuGet.Config","Directory.Packages.props","mix.exs","mix.lock","go.mod","go.sum","stack.yaml","stack.yaml.lock","pom.xml","build.gradle","build.gradle.kts","settings.gradle","settings.gradle.kts","gradle.properties","package-lock.json","yarn.lock","pnpm-lock.yaml","npm-shrinkwrap.json","requirements.txt","Pipfile","Pipfile.lock","pyproject.toml","setup.py","setup.cfg","Gemfile","Gemfile.lock","uv.lock","CODEOWNERS","DESIGN.md","README.md","CONTRIBUTING.md","CHANGELOG.md","SECURITY.md","CODE_OF_CONDUCT.md","AGENTS.md","CLAUDE.md","GEMINI.md"]},"remove_labels":{"allowed":["sdd:ready","sdd:review"],"max":2},"report_incomplete":{},"update_issue":{"allow_body":true,"allow_status":true,"max":1,"target":"*"}}
+          GH_AW_SAFE_OUTPUTS_CONFIG_dcbaafff1297920d_EOF
       - name: Generate Safe Outputs Tools
         env:
           GH_AW_TOOLS_META_JSON: |
@@ -1489,7 +1501,7 @@ jobs:
           
           mkdir -p /home/runner/.copilot
           GH_AW_NODE=$(which node 2>/dev/null || command -v node 2>/dev/null || echo node)
-          cat << GH_AW_MCP_CONFIG_04898fcc5bdeecc7_EOF | "$GH_AW_NODE" "${RUNNER_TEMP}/gh-aw/actions/start_mcp_gateway.cjs"
+          cat << GH_AW_MCP_CONFIG_198449b937cb907e_EOF | "$GH_AW_NODE" "${RUNNER_TEMP}/gh-aw/actions/start_mcp_gateway.cjs"
           {
             "mcpServers": {
               "github": {
@@ -1567,7 +1579,7 @@ jobs:
               "payloadDir": "${MCP_GATEWAY_PAYLOAD_DIR}"
             }
           }
-          GH_AW_MCP_CONFIG_04898fcc5bdeecc7_EOF
+          GH_AW_MCP_CONFIG_198449b937cb907e_EOF
       - name: Mount MCP servers as CLIs
         id: mount-mcp-clis
         continue-on-error: true
@@ -2319,7 +2331,7 @@ jobs:
           GH_AW_ALLOWED_DOMAINS: "api.business.githubcopilot.com,api.enterprise.githubcopilot.com,api.github.com,api.githubcopilot.com,api.individual.githubcopilot.com,api.snapcraft.io,archive.ubuntu.com,azure.archive.ubuntu.com,crl.geotrust.com,crl.globalsign.com,crl.identrust.com,crl.sectigo.com,crl.thawte.com,crl.usertrust.com,crl.verisign.com,crl3.digicert.com,crl4.digicert.com,crls.ssl.com,github.com,host.docker.internal,json-schema.org,json.schemastore.org,keyserver.ubuntu.com,ocsp.digicert.com,ocsp.geotrust.com,ocsp.globalsign.com,ocsp.identrust.com,ocsp.sectigo.com,ocsp.ssl.com,ocsp.thawte.com,ocsp.usertrust.com,ocsp.verisign.com,packagecloud.io,packages.cloud.google.com,packages.microsoft.com,ppa.launchpad.net,raw.githubusercontent.com,registry.npmjs.org,s.symcb.com,s.symcd.com,security.ubuntu.com,telemetry.enterprise.githubcopilot.com,ts-crl.ws.symantec.com,ts-ocsp.ws.symantec.com,www.googleapis.com"
           GITHUB_SERVER_URL: ${{ github.server_url }}
           GITHUB_API_URL: ${{ github.api_url }}
-          GH_AW_SAFE_OUTPUTS_HANDLER_CONFIG: "{\"add_comment\":{\"max\":1},\"add_labels\":{\"allowed\":[\"sdd:in-progress\",\"sdd:done\",\"needs-human\"],\"max\":2},\"create_pull_request\":{\"draft\":\"${{ false }}\",\"max\":1,\"max_patch_files\":100,\"max_patch_size\":1024,\"protect_top_level_dot_folders\":true,\"protected_files\":[\"package.json\",\"bun.lockb\",\"bunfig.toml\",\"deno.json\",\"deno.jsonc\",\"deno.lock\",\"global.json\",\"NuGet.Config\",\"Directory.Packages.props\",\"mix.exs\",\"mix.lock\",\"go.mod\",\"go.sum\",\"stack.yaml\",\"stack.yaml.lock\",\"pom.xml\",\"build.gradle\",\"build.gradle.kts\",\"settings.gradle\",\"settings.gradle.kts\",\"gradle.properties\",\"package-lock.json\",\"yarn.lock\",\"pnpm-lock.yaml\",\"npm-shrinkwrap.json\",\"requirements.txt\",\"Pipfile\",\"Pipfile.lock\",\"pyproject.toml\",\"setup.py\",\"setup.cfg\",\"Gemfile\",\"Gemfile.lock\",\"uv.lock\",\"CODEOWNERS\",\"DESIGN.md\",\"README.md\",\"CONTRIBUTING.md\",\"CHANGELOG.md\",\"SECURITY.md\",\"CODE_OF_CONDUCT.md\",\"AGENTS.md\",\"CLAUDE.md\",\"GEMINI.md\"]},\"create_report_incomplete_issue\":{},\"missing_data\":{},\"missing_tool\":{},\"noop\":{\"max\":1,\"report-as-issue\":\"true\"},\"push_to_pull_request_branch\":{\"if_no_changes\":\"warn\",\"max\":1,\"max_patch_size\":1024,\"protect_top_level_dot_folders\":true,\"protected_files\":[\"package.json\",\"bun.lockb\",\"bunfig.toml\",\"deno.json\",\"deno.jsonc\",\"deno.lock\",\"global.json\",\"NuGet.Config\",\"Directory.Packages.props\",\"mix.exs\",\"mix.lock\",\"go.mod\",\"go.sum\",\"stack.yaml\",\"stack.yaml.lock\",\"pom.xml\",\"build.gradle\",\"build.gradle.kts\",\"settings.gradle\",\"settings.gradle.kts\",\"gradle.properties\",\"package-lock.json\",\"yarn.lock\",\"pnpm-lock.yaml\",\"npm-shrinkwrap.json\",\"requirements.txt\",\"Pipfile\",\"Pipfile.lock\",\"pyproject.toml\",\"setup.py\",\"setup.cfg\",\"Gemfile\",\"Gemfile.lock\",\"uv.lock\",\"CODEOWNERS\",\"DESIGN.md\",\"README.md\",\"CONTRIBUTING.md\",\"CHANGELOG.md\",\"SECURITY.md\",\"CODE_OF_CONDUCT.md\",\"AGENTS.md\",\"CLAUDE.md\",\"GEMINI.md\"]},\"remove_labels\":{\"allowed\":[\"sdd:ready\",\"sdd:review\"],\"max\":2},\"report_incomplete\":{},\"update_issue\":{\"allow_body\":true,\"allow_status\":true,\"max\":1,\"target\":\"*\"}}"
+          GH_AW_SAFE_OUTPUTS_HANDLER_CONFIG: "{\"add_comment\":{\"max\":1},\"add_labels\":{\"allowed\":[\"sdd:in-progress\",\"sdd:done\",\"needs-human\"],\"max\":2},\"create_pull_request\":{\"draft\":false,\"max\":1,\"max_patch_files\":100,\"max_patch_size\":1024,\"protect_top_level_dot_folders\":true,\"protected_files\":[\"package.json\",\"bun.lockb\",\"bunfig.toml\",\"deno.json\",\"deno.jsonc\",\"deno.lock\",\"global.json\",\"NuGet.Config\",\"Directory.Packages.props\",\"mix.exs\",\"mix.lock\",\"go.mod\",\"go.sum\",\"stack.yaml\",\"stack.yaml.lock\",\"pom.xml\",\"build.gradle\",\"build.gradle.kts\",\"settings.gradle\",\"settings.gradle.kts\",\"gradle.properties\",\"package-lock.json\",\"yarn.lock\",\"pnpm-lock.yaml\",\"npm-shrinkwrap.json\",\"requirements.txt\",\"Pipfile\",\"Pipfile.lock\",\"pyproject.toml\",\"setup.py\",\"setup.cfg\",\"Gemfile\",\"Gemfile.lock\",\"uv.lock\",\"CODEOWNERS\",\"DESIGN.md\",\"README.md\",\"CONTRIBUTING.md\",\"CHANGELOG.md\",\"SECURITY.md\",\"CODE_OF_CONDUCT.md\",\"AGENTS.md\",\"CLAUDE.md\",\"GEMINI.md\"]},\"create_report_incomplete_issue\":{},\"missing_data\":{},\"missing_tool\":{},\"noop\":{\"max\":1,\"report-as-issue\":\"true\"},\"push_to_pull_request_branch\":{\"if_no_changes\":\"warn\",\"max\":1,\"max_patch_size\":1024,\"protect_top_level_dot_folders\":true,\"protected_files\":[\"package.json\",\"bun.lockb\",\"bunfig.toml\",\"deno.json\",\"deno.jsonc\",\"deno.lock\",\"global.json\",\"NuGet.Config\",\"Directory.Packages.props\",\"mix.exs\",\"mix.lock\",\"go.mod\",\"go.sum\",\"stack.yaml\",\"stack.yaml.lock\",\"pom.xml\",\"build.gradle\",\"build.gradle.kts\",\"settings.gradle\",\"settings.gradle.kts\",\"gradle.properties\",\"package-lock.json\",\"yarn.lock\",\"pnpm-lock.yaml\",\"npm-shrinkwrap.json\",\"requirements.txt\",\"Pipfile\",\"Pipfile.lock\",\"pyproject.toml\",\"setup.py\",\"setup.cfg\",\"Gemfile\",\"Gemfile.lock\",\"uv.lock\",\"CODEOWNERS\",\"DESIGN.md\",\"README.md\",\"CONTRIBUTING.md\",\"CHANGELOG.md\",\"SECURITY.md\",\"CODE_OF_CONDUCT.md\",\"AGENTS.md\",\"CLAUDE.md\",\"GEMINI.md\"]},\"remove_labels\":{\"allowed\":[\"sdd:ready\",\"sdd:review\"],\"max\":2},\"report_incomplete\":{},\"update_issue\":{\"allow_body\":true,\"allow_status\":true,\"max\":1,\"target\":\"*\"}}"
           GH_AW_CI_TRIGGER_TOKEN: ${{ secrets.GH_AW_CI_TRIGGER_TOKEN }}
           GITHUB_TOKEN: ${{ steps.safe-outputs-app-token.outputs.token }}
         with:

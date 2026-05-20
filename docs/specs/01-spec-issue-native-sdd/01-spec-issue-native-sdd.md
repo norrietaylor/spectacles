@@ -186,13 +186,15 @@ A small command vocabulary, gated to comment authors with write access (the
 | `/spec` | tracking issue | trigger `sdd-spec` (also auto-applied by the `feature`/`bug` template label) |
 | `/triage` | tracking issue, after spec PR merged | trigger `sdd-triage` phase A (architecture) |
 | `/approve` | tracking issue | confirm the proposed plan; `sdd-triage` creates the Unit sub-issues and implementation task sub-issues |
+| `/dispatch` | tracking issue, in `sdd:ready` or `sdd:in-progress` | arm cascade execution of every task in the tree |
 | `/revise <note>` | spec PR, architecture PR, triage comment, or impl PR | re-run the owning agent with the note as added instruction |
-| `/execute` | a task sub-issue | trigger `sdd-execute` for that task ahead of the cron |
+| `/execute` | a task sub-issue | trigger `sdd-execute` for that task immediately, outside the cascade |
 
 Merging the spec PR advances to the architecture phase; merging the
-architecture PR advances to the plan-comment phase. `/approve` is the one
-non-PR decision point: it materializes the plan as the Unit and task
-sub-issue tree (ADR 0010).
+architecture PR advances to the plan-comment phase. `/approve` is the
+non-PR decision point at which structure is committed to the tree (ADR
+0010). `/dispatch` is the non-PR decision point at which the cascade is
+armed and the tasks start running (ADR 0011).
 
 ### The `needs-human` contract
 
@@ -529,20 +531,29 @@ a PR.
 
 **Functional Requirements:**
 
-- **R6.1**: `workflows/sdd-execute.md` shall trigger on a daily `schedule`
-  cron, `workflow_dispatch`, `issue_comment` filtered to `/execute`, and
-  `pull_request_review_comment` (`created`) on its own PRs. It shall import the
-  runtime fragment, `sdd-interaction.md`, `sdd-proof-artifacts.md`,
-  `sdd-mcp-serena.md`, `repo-conventions.md`. The source shall be authored
-  once and compiled into three model-tier variants (`sdd-execute-haiku`,
+- **R6.1**: `workflows/sdd-execute.md` shall trigger on `workflow_dispatch`
+  (from `sdd-dispatch`'s bounded matrix fan-out, see R11), `issue_comment`
+  filtered to `/execute`, and `pull_request_review_comment` (`created`) on
+  its own PRs. **The daily `schedule` cron has been removed (ADR 0011);
+  execution is event-driven.** It shall import the runtime fragment,
+  `sdd-interaction.md`, `sdd-proof-artifacts.md`, `sdd-mcp-serena.md`,
+  `repo-conventions.md`. The source shall be authored once and compiled
+  into three model-tier variants (`sdd-execute-haiku`,
   `sdd-execute-sonnet`, `sdd-execute-opus`) differing only in the engine
   model; this realizes model-tier-by-complexity given gh-aw's compile-time
-  model binding.
-- **R6.2**: On a scheduled run each variant shall select one task sub-issue
-  labelled `sdd:ready` and carrying the `model:*` label matching that variant,
-  with no open `blocked by` dependency, no `needs-human` label, and a `repo:`
-  field equal to the running repo, choosing highest `priority:*` then oldest
-  `updated_at`, and move it to `sdd:in-progress`.
+  model binding. Each variant's wrapper shall carry a concurrency group
+  keyed on the task issue number so a `sdd-dispatch` cell racing with a
+  manual `/execute` collapses to one running cell.
+- **R6.2**: Selection is event-scoped: a `workflow_dispatch` from
+  `sdd-dispatch` and a `/execute` comment each name a single task sub-issue
+  in `aw_context`. The agent validates eligibility (the named task carries
+  the `model:*` label matching this variant, does not carry `needs-human`,
+  and has a `repo:` field equal to the running repo), moves it to
+  `sdd:in-progress`, and implements it. The graph-level readiness check
+  (every `blocked by` reference is closed; the task is not already in
+  flight) is performed by `sdd-dispatch` upstream and is not duplicated
+  here. `sdd:ready` is not an eligibility predicate at this stage; it is a
+  UI hint applied by `sdd-dispatch` to each dispatched task.
 - **R6.3**: A `sdd:ready` task whose `repo:` field names a different repo
   shall be skipped (not an error, no `needs-human`): cross-repo execution is
   the documented next extension. The skip shall be recorded in the run log.
@@ -566,8 +577,9 @@ a PR.
 
 **Proof Artifacts:**
 
-- File: `workflows/sdd-execute.md` contains the `cron` schedule, the
-  `pull_request_review_comment` trigger, and a protected-paths list.
+- File: `workflows/sdd-execute.md` declares no `schedule:` trigger
+  (removed in ADR 0011), declares the `pull_request_review_comment`
+  trigger, and lists the protected paths.
 - CLI: `sdd-execute` compiles into three model-tier lock files; each variant's
   candidate filter names a distinct `model:*` label.
 - Test: a `sdd:ready` task issue with a local `repo:` produces, within one
@@ -754,6 +766,116 @@ repository settings (the social-preview card, the Pages source)
   `pages: write` and `id-token: write` permissions and the `github-pages`
   environment.
 
+### Unit 11: `sdd-dispatch` agent
+
+**Purpose:** Replace the daily-cron execution model with event-driven,
+graph-driven dispatch. A `/dispatch` on a tracking issue arms cascade
+execution: every ready task is fanned out to its `sdd-execute-{tier}`
+variant in a bounded matrix, and every task close re-fires the dispatcher
+until the tree is drained. Demoable: a tracking issue with five
+independent open tasks gets five concurrent implementation PRs in
+seconds, bounded by the parallelism cap.
+**Depends on:** Units 5, 6
+**Affected areas:** `workflows/sdd-dispatch.md` (new),
+`wrappers/sdd-dispatch.yml` (new), `workflows/sdd-execute-*.md` (modified;
+schedule cron removed, concurrency group added), `templates/.github/labels.yml`
+(new `sdd:dispatched` label)
+
+**Functional Requirements:**
+
+- **R11.1**: `workflows/sdd-dispatch.md` shall be a reusable workflow
+  (`on: workflow_call`) imported by `wrappers/sdd-dispatch.yml`. The
+  wrapper shall trigger on `issue_comment` filtered to `/dispatch` from a
+  write-access author on a tracking issue, and on `issues` (`closed`) on
+  any issue, filtered by the route job to "is a task sub-issue under a
+  tracking issue that carries `sdd:dispatched`." The agent shall import
+  `principles.md`, `repo-conventions.md`, `sdd-interaction.md`.
+- **R11.2**: Selection is **graph-driven**, not label-driven. At each
+  fire, the dispatcher shall walk the tracking issue's sub-issue tree
+  (Feature → Unit → task per ADR 0005), parse each open task's
+  `## Task` block for `blocked by` lines, and admit a task only when
+  every `blocked by` reference resolves to a closed issue and the task is
+  not already in flight (carries `sdd:in-progress`, or has an open
+  implementation PR linked). The `sdd:ready` label shall not be part of
+  the eligibility predicate; the dispatcher applies it as a UI hint to
+  each dispatched task.
+- **R11.3**: Parallelism is bounded by `SDD_DISPATCH_MAX_PARALLEL`, a
+  repo variable defaulting to 5. The wrapper shall expand the ready set
+  into a GitHub Actions matrix with `max-parallel:
+  ${{ fromJSON(vars.SDD_DISPATCH_MAX_PARALLEL || '5') }}` and dispatch one
+  `sdd-execute-{tier}` run per cell via the `workflow_dispatch` REST
+  endpoint, with the task issue number passed through as `aw_context`.
+- **R11.4**: Persistence (cascade). On the first `/dispatch` the
+  dispatcher shall apply `sdd:dispatched` to the tracking issue and move
+  the tracking issue from `sdd:ready` to `sdd:in-progress`. While
+  `sdd:dispatched` is present, every `issues.closed` event on a task
+  sub-issue under the tracking issue shall re-trigger `sdd-dispatch`. When
+  the dispatcher finds no open task sub-issues remaining (the feature
+  tree is empty), it shall remove `sdd:dispatched`; the `sdd:done`
+  transition stays in `sdd-execute`'s completion path (R6.7). A human may
+  remove `sdd:dispatched` at any time to pause the cascade; replacing it
+  with another `/dispatch` resumes.
+- **R11.5**: Preconditions. `/dispatch` is valid only when the tracking
+  issue carries `sdd:ready` or `sdd:in-progress`. On `sdd:spec` or
+  `sdd:triage`, the dispatcher shall post one refusal comment naming the
+  required state and emit `noop`. On `sdd:review` or `sdd:done`, it
+  shall post one noop comment and emit `noop`. Authorization: `/dispatch`
+  is write-access only, consistent with `/triage`, `/approve`,
+  `/execute`. The cascade path (`issues.closed`) implies the
+  precondition; the route job's `sdd:dispatched` filter is the gate.
+- **R11.6**: Noops and idle. When the ready set is empty and at least
+  one open task remains (every open task is blocked or in flight), the
+  dispatcher shall post one comment naming the reason and emit `noop`
+  **without** removing `sdd:dispatched`; the next `issues.closed` event
+  will resume the cascade. When every task sub-issue is closed, the
+  dispatcher shall remove `sdd:dispatched` and emit `noop`.
+- **R11.7**: Cron removal. The `schedule:` cron block shall be removed
+  from `workflows/sdd-execute-{haiku,sonnet,opus}.md` and from each
+  variant's wrapper. The variants shall trigger only on
+  `workflow_dispatch` (from `sdd-dispatch`) and `issue_comment` filtered
+  to `/execute`. Each variant's wrapper shall declare a concurrency
+  group keyed on the task issue number so a stale dispatch racing with a
+  manual `/execute` collapses to one running cell.
+- **R11.8**: A new `sdd:dispatched` label shall be added to
+  `templates/.github/labels.yml`, color picked to read alongside the
+  existing `sdd:*` lifecycle colors but distinguishable. `sdd:dispatched`
+  shall coexist with the lifecycle label on the tracking issue the same
+  way `needs-human` does; it is not a lifecycle label and is not part of
+  the `sdd:*` lifecycle state machine.
+
+**Proof Artifacts:**
+
+- File: `workflows/sdd-dispatch.md` declares `on: workflow_call`,
+  imports the three shared fragments named in R11.1, declares the
+  `add-comment` safe-output, and compiles clean under `gh aw compile`.
+- File: `wrappers/sdd-dispatch.yml` carries the `issue_comment` and
+  `issues.closed` triggers, the `route` job's `getCollaboratorPermissionLevel`
+  gate on `/dispatch`, the `compute` job's tree walk and graph-based
+  ready-set computation, the `dispatch` job's matrix with `max-parallel:
+  ${{ fromJSON(vars.SDD_DISPATCH_MAX_PARALLEL || '5') }}`, and the
+  `lifecycle` job's `sdd:dispatched` arm/disarm logic.
+- File: `templates/.github/labels.yml` defines `sdd:dispatched` with a
+  hex color and a one-line description naming the cascade arm/disarm
+  semantics.
+- File: `workflows/sdd-execute-{haiku,sonnet,opus}.md` and their wrappers
+  contain no `schedule:` trigger; each wrapper declares a `concurrency:`
+  group keyed on the task issue number.
+- Test: a tracking issue at `sdd:ready` with N independent open tasks,
+  given a `/dispatch` from a write-access author, opens N implementation
+  PRs concurrently — bounded by `SDD_DISPATCH_MAX_PARALLEL` — and the
+  tracking issue moves to `sdd:in-progress` and gains `sdd:dispatched`.
+- Test: closing a task whose closure unblocks two siblings under a
+  tracking issue carrying `sdd:dispatched` triggers `sdd-dispatch` and
+  opens two new implementation PRs within seconds, with no `/dispatch`
+  comment needed.
+- Test: `/dispatch` on a tracking issue in `sdd:spec` or `sdd:triage`
+  produces one refusal comment naming the required state, applies no
+  `sdd:dispatched` label, and dispatches zero `sdd-execute-*` runs.
+- Test: removing `sdd:dispatched` by hand stops the cascade; a
+  subsequent task close does not re-fire dispatch.
+- CLI: `grep -R "schedule:" .github/workflows/sdd-execute-*.md` returns
+  no lines.
+
 ## Non-Goals (Out of Scope)
 
 - **Cross-repo task execution.** The task schema and DAG support cross-repo
@@ -818,7 +940,7 @@ every later unit runs against them.
 
 **Greenfield bootstrapping:** Unit 1 is the bootstrapping unit. It sets
 `verification.pre` and `verification.post` to empty for itself and establishes
-the commands above for Units 2 to 10.
+the commands above for Units 2 to 11.
 
 ## Technical Considerations
 
@@ -903,7 +1025,7 @@ the commands above for Units 2 to 10.
 
 ## Success Metrics
 
-- All ten demoable units land with proof artifacts passing.
+- All eleven demoable units land with proof artifacts passing.
 - Each `sdd-*` source compiles clean under `gh aw compile`, including the
   three `sdd-execute` model-tier variants.
 - The `leak-scan` CI check passes on every commit; no private term ever
