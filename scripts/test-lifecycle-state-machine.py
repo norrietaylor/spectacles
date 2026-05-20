@@ -64,7 +64,7 @@ FRONTMATTER_RE = re.compile(r"^---\n(.*?)\n---\n(.*)$", re.DOTALL)
 # and a remove of the relevant lifecycle labels appear within one such
 # subsection. A `## ` heading also closes a subsection (the prose may
 # leave Procedure for Boundaries/Verification without a `### `).
-SUBSECTION_HEADING_RE = re.compile(r"^(##+)\s", re.MULTILINE)
+SUBSECTION_HEADING_RE = re.compile(r"^(##+)\s+(.+?)\s*$", re.MULTILINE)
 
 # Imperative phrasings the agents use to write a label, paired with the
 # safe-output that effects the write. These mirror the patterns #83's
@@ -132,11 +132,18 @@ def load_label_catalog() -> set[str]:
     return {entry["name"] for entry in data if isinstance(entry, dict) and "name" in entry}
 
 
-def parse_workflow(path: Path) -> tuple[dict, str] | None:
+def parse_workflow(path: Path) -> tuple[dict, str]:
+    """Parse a workflow's YAML frontmatter and Markdown body.
+
+    Fails closed: a missing or unparseable frontmatter aborts the
+    validator. Silently skipping such a file would drop it from every
+    downstream invariant check (pairing, writer set) and let a malformed
+    workflow mask real violations.
+    """
     text = path.read_text(encoding="utf-8")
     m = FRONTMATTER_RE.match(text)
     if not m:
-        return None
+        raise SystemExit(f"{path}: missing YAML frontmatter")
     frontmatter_raw, body = m.group(1), m.group(2)
     try:
         frontmatter = yaml.safe_load(frontmatter_raw) or {}
@@ -167,16 +174,27 @@ def split_step_subsections(body: str) -> list[tuple[str, str]]:
 
     A subsection runs from one `### ` heading up to the next heading
     of any level. The heading line itself is the first line of the
-    slice so a diagnostic can name the step.
+    slice so a diagnostic can name the step. Only `### ` blocks whose
+    nearest preceding `## ` heading is `## Procedure` are returned —
+    `### ` blocks under `## Verification`, `## Boundaries`, or any
+    other level-2 section are filtered out so descriptive prose
+    ("moves to `sdd:done`") cannot trigger the pairing check.
     """
     sections: list[tuple[str, str]] = []
     stripped = strip_code_fences(body)
     # Index all headings to find subsection terminators.
     headings = [
-        (m.start(), len(m.group(1))) for m in SUBSECTION_HEADING_RE.finditer(stripped)
+        (m.start(), len(m.group(1)), m.group(2))
+        for m in SUBSECTION_HEADING_RE.finditer(stripped)
     ]
-    for i, (start, level) in enumerate(headings):
+    current_h2: str | None = None
+    for i, (start, level, title) in enumerate(headings):
+        if level == 2:
+            current_h2 = title
+            continue
         if level != 3:  # only `### ` level subsections
+            continue
+        if current_h2 != "Procedure":
             continue
         end = headings[i + 1][0] if i + 1 < len(headings) else len(stripped)
         chunk = stripped[start:end]
@@ -279,6 +297,18 @@ def main() -> int:
             f"it must be terminal"
         )
 
+    # Invert the transition graph: for each lifecycle state, the set of
+    # states that may transition *into* it. The pairing rule (invariant
+    # 3) requires that a subsection adding state X also removes one of
+    # X's predecessors — removing an unrelated lifecycle state (e.g.
+    # removing `sdd:done` while adding `sdd:ready`) is not a valid
+    # hand-off and must fail.
+    predecessors: dict[str, set[str]] = {state: set() for state in lifecycle_set}
+    for src, dsts in transitions.items():
+        for dst in dsts:
+            if dst in predecessors:
+                predecessors[dst].add(src)
+
     # Walk every workflow source. For each lifecycle label written via
     # add-labels in a subsection, demand the matching remove-labels in
     # the same subsection (invariant 3). Collect the set of writer
@@ -286,10 +316,7 @@ def main() -> int:
     writers_actual: dict[str, set[str]] = {state: set() for state in lifecycle}
 
     for path in sorted(WORKFLOWS_DIR.glob("sdd-*.md")):
-        parsed = parse_workflow(path)
-        if parsed is None:
-            continue
-        frontmatter, body = parsed
+        frontmatter, body = parse_workflow(path)
         stem = path.stem
 
         # Invariant 5 data: frontmatter declares who is allowed to add
@@ -304,31 +331,42 @@ def main() -> int:
 
         # Invariant 3: pairing within a subsection. For each ### step,
         # examine the prose writes. A subsection that adds a lifecycle
-        # label X but does not remove a predecessor lifecycle state is
-        # a hand-off without a release. The marker exemption: a
-        # subsection may add `needs-human` (a marker) without removing
-        # anything — that is the documented hand-off pattern.
+        # label X must also remove a *predecessor* of X (per the
+        # transitions graph) — removing an arbitrary lifecycle state is
+        # not a valid hand-off. The marker exemption: a subsection may
+        # add `needs-human` (a marker) without removing anything — that
+        # is the documented hand-off pattern. `sdd:spec` is the entry
+        # state, applied by the issue template (not an agent), and has
+        # no predecessors; it is excluded from this check.
         for heading, section in split_step_subsections(body):
             added, removed = extract_writes(section)
             lifecycle_added = added & lifecycle_set
             if not lifecycle_added:
                 continue
             lifecycle_removed = removed & lifecycle_set
-            if lifecycle_removed:
-                continue
-            # A subsection that adds a lifecycle label and removes
-            # none is a pairing violation. Diagnose with the file,
-            # heading, and the orphaned label so the author finds it.
             for label in sorted(lifecycle_added):
+                if label == "sdd:spec":
+                    continue
+                required_prev = predecessors.get(label, set())
+                if lifecycle_removed & required_prev:
+                    continue
+                # A subsection that adds a lifecycle label without
+                # removing one of its documented predecessors is a
+                # pairing violation. Diagnose with the file, heading,
+                # the orphaned label, and the predecessor set the
+                # author needs to remove one of.
                 failures.append(
                     f"{path.relative_to(REPO_ROOT)} '{heading}': "
-                    f"adds `{label}` without a paired `remove-labels` of a "
-                    f"predecessor lifecycle state"
+                    f"adds `{label}` without removing one of its predecessor "
+                    f"lifecycle states {sorted(required_prev)!r}"
                 )
 
     # Invariant 4 + 5: single writer, and the writer matches the
     # declaration. Two writers is a hard failure with both names. A
-    # mismatch with the declaration is a softer "expected X, found Y".
+    # missing declaration is a hard failure too — the writers: map is
+    # the contract, and a lifecycle label without an entry has no
+    # declared writer to compare against. A mismatch is "expected X,
+    # found Y".
     for label in lifecycle:
         if label == "sdd:spec":
             # `sdd:spec` is applied by the `feature`/`bug` issue
@@ -336,7 +374,13 @@ def main() -> int:
             # It has no agent writer and the validator skips it.
             continue
         actual = writers_actual.get(label, set())
-        expected = writers_decl.get(label)
+        if label not in writers_decl:
+            failures.append(
+                f"`{label}` is missing from scripts/lifecycle-states.yml "
+                f"`writers:` mapping"
+            )
+            continue
+        expected = writers_decl[label]
         if not actual:
             failures.append(
                 f"`{label}` has no writer: no sdd-*.md workflow declares it in "
@@ -350,7 +394,7 @@ def main() -> int:
             )
             continue
         only = next(iter(actual))
-        if expected and only != expected:
+        if only != expected:
             failures.append(
                 f"`{label}` writer mismatch: declared {expected!r} in "
                 f"scripts/lifecycle-states.yml, actual writer is {only!r}"
