@@ -9,12 +9,13 @@ entirely through GitHub primitives you already use: opening an issue, applying
 a label, writing a comment, and reviewing and merging a pull request. There is
 no new tool to install and no separate task board.
 
-## The five agents
+## The six agents
 
 | Agent | Turns | Into |
 |---|---|---|
 | `sdd-spec` | a tracking issue | a structured spec, delivered as a PR |
 | `sdd-triage` | a merged spec | an architecture record, then a task graph of sub-issues |
+| `sdd-dispatch` | `/dispatch` on a tracking issue, or a task sub-issue closing | fan-out of ready tasks to `sdd-execute` variants, bounded by `max-parallel` |
 | `sdd-execute` | a ready task sub-issue | an implementation PR with proof artifacts |
 | `sdd-validate` | a phase-boundary artifact | advisory findings posted as a comment |
 | `sdd-review` | an implementation PR | code-review comments on correctness, security, and spec compliance |
@@ -23,6 +24,12 @@ no new tool to install and no separate task board.
 plan-comment proposal on the tracking issue, and — on `/approve` — the
 creation of the Unit and task sub-issue tree (ADR 0010). Structure is only
 created after `/approve`: until then the plan is a proposal, not a tree.
+
+`sdd-dispatch` is the cascade orchestrator. On `/dispatch` it computes the
+ready set from the dependency graph and fans out to `sdd-execute` variants
+in a bounded matrix; it then re-fires on every task close until the tree
+is drained. Execution is fully event-driven (ADR 0011): there is no daily
+cron.
 
 ## End-to-end flow
 
@@ -62,8 +69,13 @@ flowchart TD
         a_tasks[sdd-triage phase C: creates Unit sub-issues and<br/>task sub-issues; labels unblocked tasks sdd:ready]:::agent
     end
 
-    subgraph s_progress [Tracking issue state: sdd:in-progress]
-        a_exec[sdd-execute implements a ready task, opens an<br/>implementation PR with proof artifacts<br/>runs on a daily schedule, or on /execute]:::agent
+    subgraph s_dispatch [Tracking issue state: sdd:ready, awaiting /dispatch]
+        h_dispatch([Human: comment /dispatch on the tracking issue]):::human
+        a_dispatch[sdd-dispatch computes the ready set and fans out to<br/>sdd-execute variants, bounded by max-parallel<br/>re-fires on every task close until the tree drains]:::agent
+    end
+
+    subgraph s_progress [Tracking issue state: sdd:in-progress, sdd:dispatched]
+        a_exec[sdd-execute implements a ready task, opens an<br/>implementation PR with proof artifacts<br/>runs on workflow_dispatch from sdd-dispatch, or on /execute]:::agent
     end
 
     subgraph s_review [Tracking issue state: sdd:review]
@@ -77,8 +89,9 @@ flowchart TD
     end
 
     open --> a_spec --> h_spec --> h_triage --> a_arch --> h_arch
-    h_arch --> a_units --> h_approve --> a_tasks --> a_exec --> a_check --> h_merge
-    h_merge -->|tasks remain| a_exec
+    h_arch --> a_units --> h_approve --> a_tasks --> h_dispatch
+    h_dispatch --> a_dispatch --> a_exec --> a_check --> h_merge
+    h_merge -->|tasks remain| a_dispatch
     h_merge -->|last task done| a_done --> h_close
 
     hand[/"Any agent, on low confidence or a blocker:<br/>posts questions, applies needs-human, stops"/]:::handoff
@@ -102,7 +115,8 @@ flowchart TD
 | 4. Review the architecture PR | you | Read the architecture record, comment, and merge it. Merging triggers phase B. | `sdd:triage` |
 | 5. Approve the plan | you | `sdd-triage` posts the proposed plan as a comment on the tracking issue. Comment `/approve` to materialize it, or `/revise <note>` to amend. | `sdd:triage` |
 | 6. Tree is created | `sdd-triage` | Phase C creates Unit sub-issues and sub-task issues together, each with its scope, proof artifacts, and a `model:*` tier label. | `sdd:ready` |
-| 7. Tasks are implemented | `sdd-execute` | On a daily schedule, or on `/execute`, `sdd-execute` picks up a ready task and opens an implementation PR. | `sdd:in-progress` |
+| 6a. Dispatch the plan | you | Comment `/dispatch` on the tracking issue. `sdd-dispatch` arms the cascade: it computes the ready set from the dependency graph, fans out `sdd-execute` runs in a bounded matrix (`SDD_DISPATCH_MAX_PARALLEL`, default 5), and re-fires on every task close until the tree is drained. | `sdd:in-progress` |
+| 7. Tasks are implemented | `sdd-execute` | Each dispatched task: `sdd-execute` picks it up via `workflow_dispatch` from the cascade and opens an implementation PR. A human may also comment `/execute` on a task to run it immediately, outside the cascade. | `sdd:in-progress` |
 | 8. Validation runs | `sdd-validate` | At each phase boundary, `sdd-validate` posts advisory findings as a comment. A clean implementation pass moves the issue to `sdd:review`. | `sdd:review` |
 | 9. Code review runs | `sdd-review` | `sdd-review` posts review comments on the implementation PR. You read them and decide. | `sdd:review` |
 | 10. Merge and close | you | Merge the implementation PRs. When every task sub-issue is closed, the issue moves to `sdd:done` and `needs-human` is applied for your final review and close. | `sdd:done` |
@@ -117,8 +131,9 @@ to garbage-collect. ADR 0010 records the gate semantics.
 Across the whole pipeline a human takes only four kinds of action:
 
 - **Open an issue** from the `feature` or `bug` template to start a feature.
-- **Comment a command** to steer: `/spec`, `/triage`, `/approve`, `/revise`,
-  or `/execute`. See the command table in `shared/sdd-interaction.md`.
+- **Comment a command** to steer: `/spec`, `/triage`, `/approve`,
+  `/dispatch`, `/revise`, or `/execute`. See the command table in
+  `shared/sdd-interaction.md`.
 - **Review and merge PRs.** Merging a PR is the approval signal that advances
   the pipeline. No agent merges a PR; merge authority stays with humans and
   consumer CI.

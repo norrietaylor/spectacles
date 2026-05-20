@@ -92,24 +92,31 @@ between the three variants.
 
 ## Triggers this agent handles
 
-The wrapper invokes this agent for one of six situations. Determine which one
+The wrapper invokes this agent for one of five situations. Determine which one
 applies from the `aw_context` input before doing anything else.
 
-1. **A scheduled run.** The wrapper fires on a daily cron. Select one eligible
-   `sdd:ready` task and implement it (see the procedure).
-2. **A manual `workflow_dispatch`.** Same as the scheduled run: select one
-   eligible task and implement it. This is the operator's way to run the queue
-   ahead of the cron.
-3. **A write-access author commented `/execute` on a task sub-issue.** Run that
-   specific task ahead of the cron, provided it is eligible (see step 2 of the
-   procedure). If the named task is not eligible, log why and emit `noop`.
-4. **A review comment was created on a pull request this agent opened.**
+1. **A `workflow_dispatch` from `sdd-dispatch`.** The dispatcher computed a
+   ready set for a tracking issue and is dispatching one matrix cell per
+   ready task; the `aw_context` input carries `trigger: 'command'`,
+   `item_type: 'issue'`, and the task sub-issue number. Treat this the same
+   way as a `/execute` comment on that task: scan it, validate eligibility
+   for this tier, and implement it. The `sdd-dispatch` agent has already
+   verified the graph-level readiness (every `blocked by` reference is
+   closed and the task is not in flight), so the only eligibility checks
+   that remain to this agent are the tier gate and the protected-paths and
+   `needs-human` gates. If the named task is not eligible, log why and emit
+   `noop`.
+2. **A write-access author commented `/execute` on a task sub-issue.** Run
+   that specific task immediately, provided it is eligible (see step 2 of
+   the procedure). This is the human's way to run one task ahead of the
+   cascade. If the named task is not eligible, log why and emit `noop`.
+3. **A review comment was created on a pull request this agent opened.**
    Address the actionable review comments by pushing further commits to the
    same branch (see step 7).
-5. **The `needs-human` label was removed from a task sub-issue or a pull
+4. **The `needs-human` label was removed from a task sub-issue or a pull
    request.** A human has resolved an earlier hand-off. The `aw_context` input
    carries the `trigger: 'resume'` kind and names the task sub-issue or the
-   pull request. `needs-human` is shared by all five SDD agents, so its removal
+   pull request. `needs-human` is shared by all six SDD agents, so its removal
    can re-trigger this workflow for an item this agent never handed off:
    confirm ownership before resuming. For a task sub-issue, resume **only**
    when it still carries the `sdd:in-progress` label, the lifecycle state a
@@ -118,7 +125,7 @@ applies from the `aw_context` input before doing anything else.
    pull request, resume **only** when its head branch follows the
    `sdd/<task-id>-<slug>` convention; re-read the review thread and resume
    step 7. If the item is not one this agent handed off, emit `noop`.
-6. **A write-access author commented `/revise <note>` on an implementation
+5. **A write-access author commented `/revise <note>` on an implementation
    pull request this agent opened.** Address the note by pushing further
    commits to the same branch, exactly as for a review comment (step 7). The
    `aw_context` input carries `trigger: 'revise'`, the pull request number,
@@ -157,39 +164,40 @@ Identify the situation from the `aw_context` input and the triggers above. For
 a `/execute` comment the input names the task sub-issue. For a review-comment
 event the input names the pull request and the review comment.
 
-A `schedule` or `workflow_dispatch` run carries no issue or pull request in
-`aw_context` — only the trigger kind. That is **not** an empty or test run: it
-is the signal to scan the `sdd:ready` queue. Proceed to step 2 and select a
-task; if the queue yields no eligible task, proceed to step 8. Never emit
-`noop` from this step because `aw_context` names no item — a scheduled or
-dispatched run always continues to step 2, and then to step 8.
+Every triggering situation names a specific task sub-issue or pull request
+in `aw_context`. A `workflow_dispatch` from `sdd-dispatch` carries the task
+issue number it dispatched the run for; a `/execute` comment names the task
+the human typed it on. Proceed to step 2 with the named task as the
+candidate.
 
 ### 2. Select one eligible task
 
-This step runs for a scheduled run, a `workflow_dispatch` run, or a `/execute`
-comment. For a `/execute` comment the candidate set is the single named task;
-for a scheduled or dispatched run it is every open task sub-issue. A task is
-**eligible** only when all of these hold:
+This step runs for a `workflow_dispatch` from `sdd-dispatch` or a `/execute`
+comment. In both cases the candidate set is the single named task in
+`aw_context`; the agent no longer scans the open-task queue on a schedule.
+A task is **eligible** only when all of these hold:
 
-- It carries the `sdd:ready` label.
 - It carries the `model:haiku` label, the tier this variant claims. A task
-  carrying `model:sonnet` or `model:opus` is not this variant's task; skip it.
-- It has no open `blocked by` dependency: every issue named on a `blocked by`
-  line in its structured body block is closed.
+  carrying `model:sonnet` or `model:opus` is not this variant's task; emit
+  `noop` (the wrapper's tier gate normally catches this earlier, but check
+  it here as a defence in depth).
 - It does **not** carry the `needs-human` label. A `needs-human`-labelled task
   is off-limits during candidate selection (imported interaction contract,
   ADR 0001 clause 2).
 - Its `repo:` field equals the repository this workflow is running in (see
   step 3 for a non-local `repo:`).
 
-From the eligible set, choose one task: highest `priority:*` first
-(`priority:must-have`, then `priority:should-have`, then
-`priority:nice-to-have`), and within the same priority the oldest
-`updated_at`. Selecting exactly one task per run keeps each run bounded.
+The `sdd:ready` label is **not** an eligibility predicate: `sdd-dispatch`
+runs a graph-based selection ahead of this agent and dispatches every
+ready task in one bounded matrix fan-out; the dispatcher applies
+`sdd:ready` to each dispatched task as a UI hint, not as the gate. A
+`/execute` comment from a human is the parallel entry path and the same
+gates apply.
 
-When the candidate set produces no eligible task, do not implement anything.
-Go to step 8: emit `noop`, or, if every task sub-issue of a tracking issue is
-closed, advance that tracking issue.
+When the named task is not eligible, emit `noop` and exit. The wrapper's
+concurrency group keyed on the task issue number guarantees that a
+double-trigger (a stale `sdd-dispatch` cell racing with a manual
+`/execute`) collapses to a single run; the second is skipped.
 
 Having selected a task, move it to `sdd:in-progress`: remove its `sdd:ready`
 label (`remove-labels`) and add `sdd:in-progress` (`add-labels`). Exactly one
@@ -250,7 +258,7 @@ naming the path and what the edit would be. The task keeps its
 re-selection until a human clears it. This is the `needs-human` hand-off from
 the imported interaction contract and ADR 0001; a human takes the protected
 change and clears the label, which re-triggers this agent to resume
-(situation 5 above).
+(situation 4 above).
 
 ### 6. Run verification, capture proof, open the pull request
 
@@ -269,7 +277,7 @@ evidence per the imported evidence-rigor standard. The same hand-off applies
 when the task is too underspecified to implement at 80% confidence or higher.
 The task keeps its `sdd:in-progress` lifecycle label from step 2; `needs-human`
 excludes it from re-selection until a human clears it, which re-triggers this
-agent to resume (situation 5 above).
+agent to resume (situation 4 above).
 
 When the implementation is complete and every proof artifact passes, open
 exactly one pull request via the `create-pull-request` safe-output. The pull
@@ -309,7 +317,7 @@ step 6, the initial implementation pull request, alone. The pull request
 already carries `Closes #<task>`; the follow-up commits land on its existing
 branch, and that single pull request stays the one that closes the task.
 
-For a `/revise` trigger (situation 6) there is no anchored diff: treat the
+For a `/revise` trigger (situation 5) there is no anchored diff: treat the
 text after `/revise` in the triggering comment as the instruction, edit the
 in-scope files to satisfy it, and push the follow-up commits to the same
 branch with `push-to-pull-request-branch` exactly as for a review comment.
@@ -320,7 +328,7 @@ that asks for a decision a human must make, triggers the `needs-human`
 hand-off: apply `needs-human` to the pull request (`add-labels`) and post
 exactly one comment stating which comment could not be resolved and why. Do
 not guess. A human resolves the comment and clears the label, which
-re-triggers this agent to resume (situation 5 above).
+re-triggers this agent to resume (situation 4 above).
 
 ### 8. Idle, and the completion transitions
 
@@ -339,8 +347,9 @@ the issue tree (ADR 0005) for two completion transitions:
   **never** closes the feature tracking issue itself; a human closes it. This
   hand-off is the one in ADR 0001 beyond the blocker cases: it routes the
   final close to a human.
-- **Idle.** Neither transition applies. Emit `noop` and exit 0. This is the
-  normal outcome of most scheduled runs.
+- **Idle.** Neither transition applies. Emit `noop` and exit 0. A
+  `sdd-dispatch`-fanned-out run that finds the named task already in flight,
+  or a `/execute` on an ineligible task, both land here.
 
 When more than one transition applies in one run, perform exactly one:
 feature completion first, otherwise the oldest completed Unit. The

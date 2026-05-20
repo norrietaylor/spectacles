@@ -42,11 +42,12 @@ DISTILLERY_OAUTH_TOKEN=<machine-token> \
 
 `--suite sdd` installs, onto the target repository:
 
-- the eight thin wrappers — the seven `sdd-*` agents (`sdd-spec`,
-  `sdd-triage`, the three `sdd-execute` model-tier variants, `sdd-validate`,
-  `sdd-review`) and `distillery-sync`. Each wrapper calls a reusable workflow
-  hosted in the spectacles repository; no `.lock.yml` is copied onto the
-  consumer (see `workflows/README.md` and ADR 0004);
+- the nine thin wrappers — the eight `sdd-*` agents (`sdd-spec`,
+  `sdd-triage`, `sdd-dispatch`, the three `sdd-execute` model-tier
+  variants, `sdd-validate`, `sdd-review`) and `distillery-sync`. Each
+  wrapper calls a reusable workflow hosted in the spectacles repository;
+  no `.lock.yml` is copied onto the consumer (see `workflows/README.md`
+  and ADR 0004);
 - the `sdd-pr-sanitize` utility workflow, which corrects the issue references
   in a spec or architecture pull request body: it keeps a stray closing
   keyword from auto-closing the feature tracking issue, and adds the
@@ -96,6 +97,7 @@ Set with `gh variable set <NAME> --repo <owner>/<name> --body <value>`.
 | `DISTILLERY_PROJECT` | The Distillery project slug for this repository. All queries are scoped to it so a shared store cannot surface unrelated content. The installer sets it to the target repository's name. |
 | `SERENA_LANGUAGE_SERVERS` | The Serena language server set for this repository's stack. The installer auto-detects and sets this when the stack is recognised; set it by hand otherwise, or leave it unset to run Serena in text-level fallback. |
 | `APP_ID` | The ID of the GitHub App that is the agents' write identity. Each agent run mints its own short-lived installation token from it; see "The GitHub App identity" below. |
+| `SDD_DISPATCH_MAX_PARALLEL` | The matrix parallelism cap for `sdd-dispatch`'s fan-out to `sdd-execute` runs. Default 5; any positive integer. A ready set larger than the cap queues at the matrix level and starts more cells as earlier ones finish. Set this lower on a repo with strict billing limits, or higher on a repo whose CI capacity allows it. |
 
 ### Secrets
 
@@ -205,11 +207,12 @@ history, not only a greenfield one. Before and after the install, confirm:
 Before running a feature through the pipeline, confirm the install resolved
 its dependencies:
 
-1. **Workflows present.** Confirm the eight wrappers — the seven `sdd-*`
-   wrappers and `distillery-sync.yml` — and `sdd-pr-sanitize.yml` and
-   `sdd-triage-dedupe-tasks.yml` appear under `.github/workflows/` on the
-   target repository. The `.lock.yml` reusable workflows are hosted in the
-   spectacles repository and are not copied onto the consumer.
+1. **Workflows present.** Confirm the nine wrappers — the eight `sdd-*`
+   wrappers (including `sdd-dispatch.yml`) and `distillery-sync.yml` — and
+   `sdd-pr-sanitize.yml` and `sdd-triage-dedupe-tasks.yml` appear under
+   `.github/workflows/` on the target repository. The `.lock.yml` reusable
+   workflows are hosted in the spectacles repository and are not copied
+   onto the consumer.
 2. **Labels present.** Confirm all six `sdd:*` labels and all three `model:*`
    labels exist on the target repository.
 3. **MCP reachable.** Dispatch `distillery-sync` once and confirm its run logs

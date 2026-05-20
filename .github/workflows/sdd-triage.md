@@ -109,7 +109,7 @@ applies from the workflow context before doing anything else.
    human's new comments, and resume the phase that handed off. Resume **only**
    when the tracking issue is still in the `sdd:triage` lifecycle state, that
    is, it still carries the `sdd:triage` label. `needs-human` is shared by all
-   five SDD agents, so its removal can re-trigger this workflow for an issue
+   six SDD agents, so its removal can re-trigger this workflow for an issue
    that has already moved past the triage phase. If the tracking issue no
    longer carries `sdd:triage`, this is another agent's hand-off: do not
    re-run any phase and emit `noop`.

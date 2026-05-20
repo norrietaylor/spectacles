@@ -9,8 +9,8 @@
 # cross-repo with
 # `uses: norrietaylor/spectacles/.github/workflows/<agent>.lock.yml@<ref>`.
 #
-# --suite sdd therefore installs, onto the target repo: the eight thin
-# wrappers (the seven sdd-* agents and distillery-sync), the sdd-pr-sanitize
+# --suite sdd therefore installs, onto the target repo: the nine thin
+# wrappers (the eight sdd-* agents and distillery-sync), the sdd-pr-sanitize
 # and sdd-triage-dedupe-tasks utility workflows, the sdd:* and model:*
 # labels, and the issue templates. No .lock.yml, no agent .md source, and no
 # .github/aw/imports tree is copied — the locks are self-contained (compiled
@@ -31,8 +31,8 @@ Usage: quick-setup.sh --target-repo <owner>/<name> [--suite sdd] [--ref <ref>] [
 
 Options:
   --target-repo  Repository to install into (required).
-  --suite sdd    Install the full SDD agent suite: the eight thin agent
-                 wrappers (the seven sdd-* agents and distillery-sync), the
+  --suite sdd    Install the full SDD agent suite: the nine thin agent
+                 wrappers (the eight sdd-* agents and distillery-sync), the
                  sdd-pr-sanitize and sdd-triage-dedupe-tasks utility
                  workflows, the sdd:* and model:* labels, and the issue
                  templates. Without this flag only the base labels are
@@ -126,11 +126,14 @@ if [ "$dry_run" -eq 1 ]; then
 fi
 
 # The hand-written workflows the --suite sdd install places on a consumer
-# repo. The first eight are the thin agent wrappers: each carries the real
+# repo. The first nine are the thin agent wrappers: each carries the real
 # event triggers and calls a hosted reusable workflow in the spectacles
-# repository (see ADR 0004 and workflows/README.md). The seven sdd-* agents
+# repository (see ADR 0004 and workflows/README.md). The eight sdd-* agents
 # are event-driven; distillery-sync is scheduled; sdd-execute ships in three
-# model-tier variants. sdd-pr-sanitize and sdd-triage-dedupe-tasks are utility
+# model-tier variants. sdd-dispatch is the cascade orchestrator added in
+# ADR 0011: /dispatch on a tracking issue arms event-driven matrix fan-out
+# of sdd-execute runs, replacing the daily cron the variants previously
+# ran on. sdd-pr-sanitize and sdd-triage-dedupe-tasks are utility
 # workflows, not agent wrappers: sdd-pr-sanitize neutralizes a stray
 # issue-closing keyword in a spec or architecture pull request body so a
 # merge cannot auto-close the feature tracking issue (ADR 0006), and
@@ -140,6 +143,7 @@ fi
 wrappers=(
   "sdd-spec"
   "sdd-triage"
+  "sdd-dispatch"
   "sdd-execute-haiku"
   "sdd-execute-sonnet"
   "sdd-execute-opus"
@@ -232,7 +236,7 @@ install_wrapper() {
   rm -f "$rendered"
 }
 
-# Install the consumer workflows: the eight thin agent wrappers and the
+# Install the consumer workflows: the nine thin agent wrappers and the
 # sdd-pr-sanitize and sdd-triage-dedupe-tasks utility workflows. No .lock.yml,
 # .md source, or imports tree is copied: under the ADR 0004 distribution
 # model the wrappers call self-contained hosted reusable workflows by pinned
@@ -428,15 +432,22 @@ provision_distillery_config() {
 report_configuration() {
   echo "quick-setup: configuration the operator must supply on $target_repo:"
   echo "  variables (gh variable set <NAME> --repo $target_repo):"
-  echo "    SERENA_LANGUAGE_SERVERS  Serena language server set (auto-detected"
-  echo "                             above when the stack is recognised)"
-  echo "    APP_ID                   ID of the GitHub App that is the agents'"
-  echo "                             write identity"
+  echo "    SERENA_LANGUAGE_SERVERS    Serena language server set (auto-detected"
+  echo "                               above when the stack is recognised)"
+  echo "    APP_ID                     ID of the GitHub App that is the agents'"
+  echo "                               write identity"
+  echo "    SDD_DISPATCH_MAX_PARALLEL  optional matrix parallelism cap for"
+  echo "                               sdd-dispatch's fan-out to sdd-execute"
+  echo "                               runs. Default 5; any positive integer."
+  echo "                               Lower it to stay under CI billing caps,"
+  echo "                               raise it on a repo with capacity for"
+  echo "                               more concurrent runs."
   echo "  secrets (gh secret set <NAME> --repo $target_repo):"
-  echo "    COPILOT_GITHUB_TOKEN     token for the Copilot engine"
-  echo "    APP_PRIVATE_KEY          private key (PEM) of the GitHub App; each"
-  echo "                             agent run mints its own token from it"
-  echo "    LEAK_DENYLIST            leak-scan denylist, one term per line"
+  echo "    COPILOT_GITHUB_TOKEN       token for the Copilot engine"
+  echo "    APP_PRIVATE_KEY            private key (PEM) of the GitHub App;"
+  echo "                               each agent run mints its own token"
+  echo "                               from it"
+  echo "    LEAK_DENYLIST              leak-scan denylist, one term per line"
 }
 
 if [ ! -f "$labels_file" ]; then
