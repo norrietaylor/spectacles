@@ -72,17 +72,39 @@ Applied at the triage boundary: an `sdd:ready` label event on a tracking issue.
 The task graph is a set of linked sub-issues, not a pull request, so this
 boundary validates the sub-issues of the tracking issue.
 
+Resolve the **task sub-issues** before applying any gate below. The feature
+tracking issue is a tree with two levels of sub-issues (ADR 0005, ADR 0007):
+the tracking issue's direct sub-issues include a spec sub-issue, an
+architecture sub-issue, and one **Unit sub-issue per demoable unit**; each Unit
+sub-issue's own sub-issues are the **task sub-issues** that carry the
+structured body block (the `## Task` block with `repo:`, `spec:`,
+`requirements:`, `files in scope:`, `proof artifacts:`, `verification:`, and
+`depends on:` fields — see `.github/workflows/sdd-triage.md` step 6). All four
+gates below inspect those task sub-issues, that is, the **grandchildren** of
+the feature — Feature → Unit → task — not the Units themselves. A Unit
+sub-issue has no structured body block, no `repo:` field, and no `blocked by`
+lines; treating a Unit as a task would produce false-positive findings on
+every gate in this set. Walk the sub-issue list twice: once from the tracking
+issue to enumerate Units, and once from each Unit to enumerate its tasks.
+
 1. **Every spec R-ID covered by a task.** Every requirement ID in the feature's
-   spec maps to at least one task sub-issue. A spec requirement that maps to no
-   task is a Blocker.
-2. **Dependencies form a DAG.** The `blocked by` lines across the task
-   sub-issues form a directed acyclic graph. A dependency cycle is a Blocker.
-3. **Each task single-session sized.** Every task is scoped to be implementable
-   in a single agent session. A task that is too large for one session is a
-   Warning.
-4. **Every task has a `repo:` field.** Every task sub-issue's structured body
-   carries a `repo:` field. A task missing the `repo:` field is a Blocker:
-   `sdd-execute` reads that field to decide whether the task is local.
+   spec maps to at least one **task sub-issue** (a grandchild of the feature,
+   the child of a Unit). A spec requirement that maps to no task is a Blocker.
+   The `requirements:` field of the structured body block lives on tasks, not
+   on Units.
+2. **Dependencies form a DAG.** The `blocked by` lines across the **task
+   sub-issues** form a directed acyclic graph. A dependency cycle is a Blocker.
+   Read `blocked by` from each task's `depends on:` field; Unit sub-issues
+   carry no `depends on:` field and contribute no edges.
+3. **Each task single-session sized.** Every **task sub-issue** is scoped to be
+   implementable in a single agent session. A task that is too large for one
+   session is a Warning. Apply this to tasks, not to Units; a Unit is a
+   demoable unit and is expected to span multiple tasks by design.
+4. **Every task has a `repo:` field.** Every **task sub-issue**'s structured
+   body carries a `repo:` field. A task missing the `repo:` field is a Blocker:
+   `sdd-execute` reads that field to decide whether the task is local. Unit
+   sub-issues do not carry a structured body and are not inputs to this gate;
+   a Unit "missing" `repo:` is by design and not a finding.
 
 ## Implementation gates
 
