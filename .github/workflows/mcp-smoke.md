@@ -64,8 +64,8 @@ a literal in this file.
 
 Pull requests opened from a fork do not receive `secrets.DISTILLERY_OAUTH_TOKEN`,
 so the Distillery resolution would fail for a reason unrelated to the change.
-On a fork PR — when `github.event.pull_request.head.repo.full_name` does not
-equal `github.repository` — this workflow does no MCP resolution. The agent
+On a fork PR — when `github.event.pull_request.head.repo.id` does not
+equal `github.repository_id` — this workflow does no MCP resolution. The agent
 emits a single `noop` with the message "mcp-smoke skipped on fork PR — a
 reviewer dispatches the check manually before merge" and exits 0. The check
 appears as a skipped step rather than a failure, and a maintainer dispatches
@@ -75,8 +75,8 @@ the manual run before approving merge. This carve-out is documented in
 ## Procedure
 
 1. **Detect the fork case first.** If the event is `pull_request` and
-   `github.event.pull_request.head.repo.full_name` is not the same as
-   `github.repository`, emit a `noop` with the fork-skip message above and
+   `github.event.pull_request.head.repo.id` is not the same as
+   `github.repository_id`, emit a `noop` with the fork-skip message above and
    exit 0. Do not resolve any MCP server. Do not call any MCP tool.
 2. **Distillery.** Call the Distillery `distillery_search` tool with a short
    query (for example, the repository name or a term from a known spec),
