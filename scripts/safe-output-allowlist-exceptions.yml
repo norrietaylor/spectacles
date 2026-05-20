@@ -36,3 +36,21 @@ sdd-triage:
         plain English "post one comment" phrasing instead of the
         backticked safe-output name. Documentation drift, not a
         runtime bug; a follow-up PR will tag the relevant clauses.
+
+sdd-dispatch:
+  safe-outputs-allowed-but-unused:
+    - name: add-comment
+      reason: >-
+        sdd-dispatch is a deterministic agent implemented in the
+        wrapper (wrappers/sdd-dispatch.yml) as actions/github-script
+        jobs; the .md exists for contract documentation and ADR 0004
+        compile-drift parity. The frontmatter declares add-comment so
+        the noop / refusal paths in the wrapper can post one comment,
+        but no prose imperative writes it because the agent body is
+        not invoked at runtime.
+    - name: noop
+      reason: >-
+        Same as add-comment — declared so the wrapper's noop-comment
+        job can emit a noop safe-output when the ready set is empty
+        on the cascade path. Not written by prose because the agent
+        body is not invoked at runtime.
