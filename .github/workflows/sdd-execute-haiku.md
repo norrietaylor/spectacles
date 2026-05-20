@@ -404,9 +404,14 @@ opened. First confirm ownership: the wrapper routes **every**
 review comment to this agent, including comments on a `sdd-spec` `spec/<slug>`
 pull request, an `arch/<slug>` pull request, or any human pull request, so
 verify that the pull request's head branch follows the `sdd/<task-id>-<slug>`
-convention and was opened by this agent (its body carries the `Closes #<task>`
-reference this agent wrote). If the pull request is not one this agent opened,
-emit `noop` and exit; do not push any commit.
+convention and was opened by this agent. Identity is proven by **either**
+of two markers in the PR body, both written by this agent on PR open:
+the full-path `Closes #<task>` reference (step 6 default), **or** the
+fast-path `[sdd-fastpath: tracking=<N> tier=<tier>]` first-line marker
+(step 6 fast-path branch; fast-path PRs deliberately omit `Closes #`
+because the tracking issue stays open until a human closes it per
+ADR 0001). If neither marker is present this is a foreign PR — emit
+`noop` and exit; do not push any commit.
 
 For a pull request this agent owns, read the review comment and the diff it
 anchors to. Address every **actionable** review comment by editing the
