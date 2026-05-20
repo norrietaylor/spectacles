@@ -105,3 +105,28 @@ jobs:
         run: pip install pyyaml
       - name: Assert command-table consistency
         run: python scripts/test-command-table.py
+
+  # Assert the `sdd:*` lifecycle labels form a coherent state machine.
+  # The invariant "exactly one `sdd:*` lifecycle label on the tracking
+  # issue at a time" is prose-only today: an `add-labels` of a new
+  # state without a paired `remove-labels` of the predecessor — or two
+  # workflows both writing the same state — would silently break it.
+  # This job statically analyzes the `.github/workflows/sdd-*.md`
+  # sources plus the catalogue at `templates/.github/labels.yml`,
+  # cross-checked against the declared classification in
+  # `scripts/lifecycle-states.yml`, and fails the PR on any violation.
+  # Independent of `compile` for the same reason as the two jobs
+  # above: it reads the .md sources directly.
+  lifecycle:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install PyYAML
+        run: pip install pyyaml
+      - name: Assert lifecycle state-machine invariants
+        run: python scripts/test-lifecycle-state-machine.py
