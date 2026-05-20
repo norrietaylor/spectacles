@@ -39,6 +39,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      issues: read
     outputs:
       should_run: ${{ steps.decide.outputs.should_run }}
       aw_context: ${{ steps.decide.outputs.aw_context }}
@@ -53,7 +54,23 @@ jobs:
             let run = false;
             let ctx = {};
 
-            // A tracking issue gained sdd:spec, or needs-human was cleared.
+            // A tracking issue gained sdd:spec, or needs-human was cleared on
+            // a tracking issue. Both situations are tracking-issue-scoped: a
+            // tracking issue has no parent (it is the lifecycle anchor), and a
+            // task sub-issue has a parent (its Unit). The `sdd:spec` label and
+            // the `needs-human` label are both shared with sub-issues —
+            // `sdd:spec` is set by the feature/bug templates on the tracking
+            // issue but a human can label any issue, and `needs-human` is
+            // applied by every SDD agent on whatever item it is operating on.
+            // Filter out any unlabeled event whose item has a parent so a task
+            // sub-issue's `needs-human` removal never re-runs this agent. The
+            // labeled-event path is left unfiltered because the
+            // feature/bug templates apply `sdd:spec` on creation, before a
+            // parent link can exist; if a sub-issue is hand-labelled
+            // `sdd:spec` the agent itself bails (situation 4's noop precondition
+            // also covers a re-labelled sub-issue). The fetch uses the
+            // sub-issues parent endpoint, which is the structural truth — a
+            // tracking issue is exactly an issue with no parent.
             if (event === 'issues') {
               const action = payload.action;
               const label = payload.label && payload.label.name;
@@ -61,6 +78,32 @@ jobs:
                 run = true;
               } else if (action === 'unlabeled' && label === 'needs-human') {
                 run = true;
+                let parent = null;
+                try {
+                  const resp = await github.request(
+                    'GET /repos/{owner}/{repo}/issues/{issue_number}/parent',
+                    {
+                      owner: context.repo.owner,
+                      repo: context.repo.repo,
+                      issue_number: payload.issue.number,
+                    });
+                  parent = resp.data;
+                } catch (err) {
+                  // 404 means no parent (i.e. a tracking issue); other errors
+                  // also fall through to the unparented branch so a transient
+                  // API failure does not silently swallow a legitimate
+                  // tracking-issue resume. The agent's situation-4 noop
+                  // precondition is the second line of defence.
+                  core.info(
+                    'No parent issue resolved for #' + payload.issue.number
+                    + ': ' + err.message);
+                }
+                if (parent && parent.number) {
+                  core.info('Issue #' + payload.issue.number
+                    + ' is a sub-issue of #' + parent.number
+                    + '; sdd-spec only acts on tracking issues. Skipping.');
+                  run = false;
+                }
               }
               if (run) {
                 ctx = { item_type: 'issue', item_number: payload.issue.number };
