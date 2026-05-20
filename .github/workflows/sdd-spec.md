@@ -109,7 +109,7 @@ one applies from the workflow context before doing anything else.
 5. **A write-access author commented `/revise <note>` on a fast-path
    tracking issue between the execution-plan-comment and `/approve`.**
    Edit the execution plan comment in place (post a new plan comment
-   carrying the `<!-- sdd-spec:fastpath-plan -->` sentinel and hide the
+   carrying the `[sdd-spec:fastpath-plan]` sentinel and hide the
    prior plan comment as `OUTDATED`). No stub spec PR is opened or
    modified; the stub spec PR uses situation 4's `/revise` flow instead.
 6. **The `needs-human` label was removed from a tracking issue.** A human
@@ -165,7 +165,7 @@ yet). On `/fastpath` confirmation (the wrapper has moved the lifecycle to
 `sdd:fastpath` and re-invoked the agent), it produces in one run a **stub
 spec PR** (structurally complete: problem, requirement IDs, proof
 artifacts, one Unit) and an **execution plan comment** on the tracking
-issue carrying the `<!-- sdd-spec:fastpath-plan -->` sentinel. The
+issue carrying the `[sdd-spec:fastpath-plan]` sentinel. The
 lifecycle moves to `sdd:fastpath-review` (ADR 0012).
 
 On a `/revise` on a fast-path tracking issue between the plan-comment and
@@ -433,8 +433,10 @@ replaces steps 5, 6, and 7 above for the fast-path flow.
    tracking issue to dispatch the implementation.
 
 4. **Post the execution plan as a comment on the tracking issue.**
-   Emit one `add-comment` on the tracking issue carrying the
-   `<!-- sdd-spec:fastpath-plan -->` sentinel as the first line of the
+   Emit one `add-comment` on the tracking issue whose first line is
+   the literal marker `[sdd-spec:fastpath-plan]` (square brackets
+   included). This marker is the sentinel that downstream agents and
+   the fast-path `/approve` wrapper use to locate the latest plan
    comment. The plan body has the same shape as a full-path sub-task
    block (per ADR 0010 phase B's preview):
    - Title: one-line summary of the implementation.
@@ -460,7 +462,7 @@ plan-comment and `/approve`, do **not** re-author the stub spec and do
 
 - Compose the revised execution plan applying the `/revise` note.
 - Emit one `add-comment` on the tracking issue carrying the
-  `<!-- sdd-spec:fastpath-plan -->` sentinel with the revised plan
+  `[sdd-spec:fastpath-plan]` sentinel with the revised plan
   body.
 - Emit one or more `hide-comment` safe-outputs to mark every prior
   plan comment as `OUTDATED`, so the latest plan is the only active
@@ -529,7 +531,7 @@ present at a time, so the removal and the addition are a single move.
   `/fastpath` from a write-access author) produces, within one run, one
   stub spec PR (structurally complete: problem, `R1.1`, proof artifacts,
   one Unit, the "Fast-path: no cross-cutting design" note) and one
-  execution plan comment carrying the `<!-- sdd-spec:fastpath-plan -->`
+  execution plan comment carrying the `[sdd-spec:fastpath-plan]`
   sentinel on the tracking issue. The lifecycle moves to
   `sdd:fastpath-review`.
 - A `/revise` on a fast-path tracking issue between the plan-comment and

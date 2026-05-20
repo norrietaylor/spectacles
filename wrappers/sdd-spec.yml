@@ -86,6 +86,40 @@ jobs:
               if (action === 'labeled'
                   && (label === 'sdd:spec' || label === 'sdd:fastpath')) {
                 run = true;
+                // A manually-applied `sdd:fastpath` on a sub-issue must
+                // not route into sdd-spec. The feature/bug templates
+                // apply `sdd:spec` on tracking-issue creation before a
+                // parent link can exist, so that label is left
+                // unfiltered; but `sdd:fastpath` is human-curation only
+                // and may land on a sub-issue by mistake. Filter on the
+                // same `parent_issue_url` check the `needs-human`
+                // unlabeled branch below uses, so only tracking issues
+                // proceed.
+                if (label === 'sdd:fastpath') {
+                  let parentUrl = '';
+                  try {
+                    const { data } = await github.rest.issues.get({
+                      owner: context.repo.owner,
+                      repo: context.repo.repo,
+                      issue_number: payload.issue.number,
+                    });
+                    parentUrl = data.parent_issue_url || '';
+                  } catch (err) {
+                    // A transient error falls through to "proceed" so a
+                    // real tracking-issue label gain is never silently
+                    // swallowed; the agent's own situation guards are
+                    // the second line of defence.
+                    core.info(
+                      'Could not fetch issue #' + payload.issue.number
+                      + ': ' + err.message);
+                  }
+                  if (parentUrl) {
+                    core.info('Issue #' + payload.issue.number
+                      + ' has a parent (' + parentUrl
+                      + '); sdd:fastpath on a sub-issue is ignored.');
+                    run = false;
+                  }
+                }
               } else if (action === 'unlabeled' && label === 'needs-human') {
                 run = true;
                 let parentUrl = '';
@@ -260,7 +294,7 @@ jobs:
   # On /approve on a tracking issue carrying sdd:fastpath, the route job
   # sets fastpath_approve=true. This job runs the deterministic dispatch:
   # find the latest execution-plan comment on the tracking issue (matched
-  # by the `<!-- sdd-spec:fastpath-plan -->` sentinel), parse its
+  # by the `[sdd-spec:fastpath-plan]` plain-text marker), parse its
   # `model:*` tier, mint an App token, call workflow_dispatch on the
   # matching sdd-execute-{tier}.yml with `entry: 'fastpath'`, and move
   # the tracking issue's lifecycle from `sdd:fastpath` to
@@ -295,7 +329,7 @@ jobs:
           github-token: ${{ env.APP_TOKEN }}
           script: |
             const tracking = parseInt(process.env.TRACKING, 10);
-            const sentinel = '<!-- sdd-spec:fastpath-plan -->';
+            const sentinel = '[sdd-spec:fastpath-plan]';
 
             // List comments on the tracking issue and find the latest plan
             // comment by the sentinel marker. `/revise` between the plan
@@ -409,12 +443,35 @@ jobs:
               plan_comment_id: planComment.id,
               tier: tier,
             });
+            // Resolve the dispatch ref. `context.ref` is set on
+            // issue_comment events (the branch the workflow file was
+            // loaded from — the default branch by GitHub's rule). When
+            // it is somehow absent, fall back to the repository's
+            // default branch from the REST API, not a hardcoded "main":
+            // the `workflow_dispatch` event payload does not include
+            // `repository.default_branch`, and hardcoding `main`
+            // dispatches to a non-existent ref on repos whose default
+            // branch differs.
+            let dispatchRef = context.ref;
+            if (!dispatchRef) {
+              try {
+                const { data: repoData } = await github.rest.repos.get({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                });
+                dispatchRef = 'refs/heads/' + repoData.default_branch;
+              } catch (err) {
+                core.setFailed('Could not resolve default branch for '
+                  + 'workflow_dispatch ref: ' + err.message);
+                return;
+              }
+            }
             try {
               await github.rest.actions.createWorkflowDispatch({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
                 workflow_id: workflow,
-                ref: context.ref || 'refs/heads/main',
+                ref: dispatchRef,
                 inputs: { aw_context: awContext },
               });
               core.info('Dispatched ' + workflow + ' for fast-path tracking'

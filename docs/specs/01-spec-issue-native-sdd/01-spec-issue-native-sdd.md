@@ -938,7 +938,7 @@ fast-path prompt), `decisions/0012-fastpath.md` (new ADR).
   the spec sub-issue and open the stub spec PR using the same
   `spec/<slug>` branch and `spec(<slug>): <title>` conventions as the
   full path; post the execution plan as one comment on the tracking
-  issue carrying the `<!-- sdd-spec:fastpath-plan -->` sentinel and
+  issue carrying the `[sdd-spec:fastpath-plan]` sentinel and
   the structured fields (`repo:`, `requirements:`, `files in scope:`,
   `proof artifacts:`, `verification:`, `depends on:` empty,
   `model:{haiku,sonnet,opus}`); and move the lifecycle from
@@ -952,7 +952,7 @@ fast-path prompt), `decisions/0012-fastpath.md` (new ADR).
   issue carrying `sdd:fastpath` shall be handled by
   `wrappers/sdd-spec.yml`'s deterministic `fastpath-approve` job.
   The job shall find the latest execution-plan comment by the
-  `<!-- sdd-spec:fastpath-plan -->` sentinel, parse the `model:*` tier
+  `[sdd-spec:fastpath-plan]` sentinel, parse the `model:*` tier
   from the comment body, mint an App token, move the tracking issue
   from `sdd:fastpath` to `sdd:in-progress`, and dispatch
   `sdd-execute-{tier}.yml` via `workflow_dispatch` with
@@ -1040,7 +1040,7 @@ fast-path prompt), `decisions/0012-fastpath.md` (new ADR).
   `sdd:fastpath-review` allowlist entries in its `safe-outputs`.
 - File: `wrappers/sdd-spec.yml` carries a `fastpath-approve` job
   whose script (a) finds a comment by the
-  `<!-- sdd-spec:fastpath-plan -->` sentinel, (b) parses
+  `[sdd-spec:fastpath-plan]` sentinel, (b) parses
   `model:{haiku,sonnet,opus}`, (c) calls
   `createWorkflowDispatch` on the matching `sdd-execute-{tier}.yml`,
   (d) moves the tracking issue from `sdd:fastpath` to

@@ -27,7 +27,7 @@ Fast path: sdd:spec -> sdd:fastpath -> sdd:fastpath-review -> sdd:fastpath -> sd
 | `sdd:fastpath-review` | fast-path stub spec PR is open and awaiting human merge | `sdd-spec` on the stub spec PR | stub spec PR merged (returns to `sdd:fastpath`) |
 | `sdd:triage` | architecture and triage are running | `sdd-spec` on spec-PR merge | architecture PR merged (plan-comment posted), then `/approve` |
 | `sdd:ready` | tasks are decomposed and queued | `sdd-triage` on phase C completion | `/dispatch` arms the cascade |
-| `sdd:in-progress` | the cascade is armed and tasks are being implemented (full path), or the single fast-path implementation is running | `sdd-dispatch` on the first `/dispatch` (full path), or `sdd-spec` on `/approve` (fast path) | every task sub-issue closes (full path), or the implementation PR merges (fast path) |
+| `sdd:in-progress` | the cascade is armed and tasks are being implemented (full path), or the single fast-path implementation is running | `sdd-dispatch` on the first `/dispatch` (full path), or `sdd-execute` on `/approve` (fast path) | every task sub-issue closes (full path), or the implementation PR merges (fast path) |
 | `sdd:review` | the implementation awaits human review | `sdd-validate` on a clean implementation pass | all task sub-issues closed |
 | `sdd:done` | every task is complete | `sdd-execute` when all tasks are closed (full path), or `sdd-execute` on the fast-path implementation PR merge | a human does the final close |
 

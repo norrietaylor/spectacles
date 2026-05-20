@@ -354,6 +354,13 @@ jobs:
             }
             if (run && !fastpathEntry) {
               let taskIssue = 0;
+              // A pull-request review/revise event on a fast-path
+              // implementation PR identifies the tracking issue (not a
+              // task sub-issue) via the head ref. The tracking issue
+              // has no `model:*` label by design (ADR 0012). Mark this
+              // case so the tier gate accepts a fast-path tracking
+              // issue in lieu of a model-label match.
+              let inferredFastpathFromPr = false;
               if (ctx.item_type === 'issue') {
                 taskIssue = ctx.item_number;
               } else if (ctx.item_type === 'pull_request') {
@@ -393,9 +400,13 @@ jobs:
                   // request it opens. This is robust against a future PR
                   // whose body omits `Closes #<task>` for any reason, and
                   // makes the route gate independent of body text. See #68.
+                  // A fast-path PR encodes the tracking issue here (no
+                  // `Closes #` reference exists, since the tracking issue
+                  // stays open until a human closes it per ADR 0012).
                   const refMatch = prHeadRef.match(/^sdd\/(\d+)-/);
                   if (refMatch) {
                     taskIssue = parseInt(refMatch[1], 10);
+                    inferredFastpathFromPr = true;
                   }
                 }
               }
@@ -407,8 +418,23 @@ jobs:
                     repo: context.repo.repo,
                     issue_number: taskIssue,
                   });
-                  tierMatch = (data.labels || []).some(
-                    (l) => (l.name || l) === 'model:' + TIER);
+                  const labels = (data.labels || []).map(
+                    (l) => l.name || l);
+                  const hasTier = labels.includes('model:' + TIER);
+                  // A fast-path tracking issue carries no `model:*` label
+                  // (ADR 0012); identify it by the lifecycle labels and
+                  // the absence of a parent. When a PR review/revise
+                  // event resolved its issue via the head ref, treat a
+                  // fast-path tracking issue as a tier match so this
+                  // wrapper does not silently drop the run.
+                  const isTracking = !data.parent_issue_url;
+                  const isFastpathTracking = isTracking && (
+                    labels.includes('sdd:fastpath')
+                    || labels.includes('sdd:fastpath-review')
+                    || labels.includes('sdd:in-progress')
+                    || labels.includes('sdd:done'));
+                  tierMatch = hasTier
+                    || (inferredFastpathFromPr && isFastpathTracking);
                 } catch (err) {
                   core.info('Could not read labels for #' + taskIssue
                     + ': ' + err.message);

@@ -125,7 +125,7 @@ a bare `#<tracking>`. Resolve the spec context by walking from the
 tracking issue: read the tracking issue's lifecycle label (if it
 carries `sdd:fastpath`, `sdd:fastpath-review`, or shows fast-path
 history), read the execution plan comment (the
-`<!-- sdd-spec:fastpath-plan -->` sentinel comment), and read the stub
+`[sdd-spec:fastpath-plan]` marker), and read the stub
 spec file linked from the stub spec PR. The R-IDs the
 spec-compliance concern checks against are the stub spec's R-IDs.
 The absence of an architecture record and a task sub-issue tree on a

@@ -68,7 +68,7 @@ one-comment explanation.
    body has the same shape as a full-path sub-task block (file scope,
    proof artifacts, `depends on:` typically empty, `model:*` tier) and
    lives only as a comment on the tracking issue carrying the
-   `<!-- sdd-spec:fastpath-plan -->` sentinel. There is exactly one task;
+   `[sdd-spec:fastpath-plan]` sentinel. There is exactly one task;
    the Feature → Unit → task tree from ADR 0005 is collapsed to "tracking
    issue → one execution plan."
 
@@ -212,7 +212,7 @@ one-comment explanation.
 - A `/fastpath` from a write-access author then produces, within one
   `sdd-spec` run, one stub spec PR (structurally complete: problem,
   requirement IDs, proof artifacts, one Unit) and one execution plan
-  comment carrying the `<!-- sdd-spec:fastpath-plan -->` sentinel on
+  comment carrying the `[sdd-spec:fastpath-plan]` sentinel on
   the tracking issue. The lifecycle moves to `sdd:fastpath-review`.
 - Merging the stub spec PR closes the spec sub-issue (via the
   `Closes #<spec-sub-issue>` keyword `sdd-pr-sanitize` added) and

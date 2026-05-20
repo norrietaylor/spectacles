@@ -58,13 +58,15 @@ markers:
 # The fast-path branch (ADR 0012) forks from sdd:spec on `/fastpath`
 # and re-joins the main flow at sdd:in-progress on `/approve`. The
 # branch oscillates sdd:fastpath ↔ sdd:fastpath-review while the stub
-# spec PR is open / merged.
+# spec PR is open / merged. `/spec` on a fast-path tracking issue is
+# the misclassification-escalation reset (ADR 0012, sdd-spec.md step
+# 3): both fast-path states transition back to sdd:spec.
 transitions:
   sdd:spec: [sdd:triage, sdd:fastpath]
   sdd:triage: [sdd:ready]
   sdd:ready: [sdd:in-progress]
-  sdd:fastpath: [sdd:fastpath-review, sdd:in-progress]
-  sdd:fastpath-review: [sdd:fastpath]
+  sdd:fastpath: [sdd:fastpath-review, sdd:in-progress, sdd:spec]
+  sdd:fastpath-review: [sdd:fastpath, sdd:spec]
   sdd:in-progress: [sdd:review]
   sdd:review: [sdd:done]
 

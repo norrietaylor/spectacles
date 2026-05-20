@@ -180,7 +180,7 @@ with the following adjustments:
 - The implementation boundary gate set still applies in full. The
   "changed files within task scope" gate reads the files-in-scope
   block from the execution plan comment (the
-  `<!-- sdd-spec:fastpath-plan -->` sentinel comment on the tracking
+  `[sdd-spec:fastpath-plan]` marker on the tracking
   issue) instead of from a task sub-issue body; the rest of the gate
   set is unchanged.
 

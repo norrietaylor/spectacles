@@ -106,11 +106,14 @@ jobs:
                   || permission === 'maintain' || permission === 'admin';
                 if (canWrite) {
                   // Fast-path carve-out (ADR 0012): /approve on a tracking
-                  // issue carrying sdd:fastpath is handled by the
-                  // sdd-spec wrapper's fastpath-approve job (it dispatches
-                  // sdd-execute-{tier} directly). This wrapper skips
-                  // /approve in that case so the two wrappers do not both
-                  // fire on the same comment.
+                  // issue carrying sdd:fastpath (or sdd:fastpath-review,
+                  // when the human typed /approve before the stub spec PR
+                  // merged) is handled by the sdd-spec wrapper's
+                  // fastpath-approve job (it dispatches sdd-execute-{tier}
+                  // directly, or noops with a guidance comment when the
+                  // stub PR is still open). This wrapper skips /approve in
+                  // both cases so the two wrappers do not both fire on the
+                  // same comment.
                   const isPr = !!payload.issue.pull_request;
                   let skipFastpath = false;
                   if (firstWord === '/approve' && !isPr) {
@@ -122,7 +125,8 @@ jobs:
                       });
                       const labels = (data.labels || []).map(
                         (l) => l.name || l);
-                      if (labels.includes('sdd:fastpath')) {
+                      if (labels.includes('sdd:fastpath')
+                          || labels.includes('sdd:fastpath-review')) {
                         skipFastpath = true;
                         core.info('/approve on a fast-path tracking'
                           + ' issue; sdd-spec wrapper will handle it.');
