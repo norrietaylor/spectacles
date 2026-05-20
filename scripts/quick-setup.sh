@@ -250,6 +250,81 @@ install_issue_templates() {
   done
 }
 
+# Ensure the target repository's .gitignore excludes Serena's working-tree
+# state directory. Serena's `activate_project` writes `.serena/.gitignore` and
+# `.serena/project.yml` into the project root by design — that state is
+# Serena's view of the project, not a project artifact. Without an ignore
+# entry those files become dirty paths in the working tree, the
+# `create_pull_request` safe-output sweeps them into the patch, and gh-aw's
+# `protect_top_level_dot_folders: true` rejects the whole PR (issue #65).
+#
+# The fix is structural: teach git to ignore `.serena/` on the consumer repo,
+# and the safe-output's "what is dirty in the working tree" question becomes
+# blind to it. This runs at install time so every freshly provisioned consumer
+# carries the entry from the start, and re-running quick-setup on an existing
+# consumer back-fills the entry idempotently. It does not clobber: it only
+# appends when the line is absent. When no .gitignore exists yet, it creates a
+# minimal one carrying only the spectacles entry.
+ensure_serena_gitignore() {
+  echo "quick-setup: ensuring .gitignore excludes Serena's .serena/ state."
+  local dest=".gitignore"
+  local marker=".serena/"
+  if [ "$dry_run" -eq 1 ]; then
+    echo "quick-setup: dry-run; would ensure $dest contains '$marker'."
+    return 0
+  fi
+  local existing_sha="" existing_b64="" existing=""
+  # Read the current .gitignore, if any. A 404 yields an empty sha and we fall
+  # through to the create path. `gh api` exits non-zero on 404; the `|| true`
+  # suppresses that so the script's `set -e` does not trip.
+  existing_sha="$(gh api \
+    "repos/$target_repo/contents/$dest" \
+    --jq '.sha' 2>/dev/null || true)"
+  if [ -n "$existing_sha" ]; then
+    existing_b64="$(gh api \
+      "repos/$target_repo/contents/$dest" \
+      --jq '.content' 2>/dev/null || true)"
+    if [ -n "$existing_b64" ]; then
+      # GitHub returns Contents API bodies as base64 with embedded newlines.
+      existing="$(printf '%s' "$existing_b64" | tr -d '\n' | base64 -d)"
+    fi
+  fi
+  # Idempotent: skip when the line is already present as a whole-line match.
+  if printf '%s\n' "$existing" | grep -Fxq "$marker"; then
+    echo "quick-setup: .gitignore already excludes $marker; no change."
+    return 0
+  fi
+  local block
+  # The blank line and header keep the appended block readable when it lands
+  # next to existing entries. When .gitignore is empty or absent, the leading
+  # blank line is harmless.
+  block=$'\n# Serena MCP working-tree state (spectacles quick-setup).\n'
+  block+=$'.serena/\n'
+  local updated
+  if [ -n "$existing" ]; then
+    updated="${existing}${block}"
+  else
+    # Strip the leading blank line for a fresh file so the first line is the
+    # header comment.
+    updated="${block#$'\n'}"
+  fi
+  local content
+  content="$(printf '%s' "$updated" | base64 | tr -d '\n')"
+  local message="chore: ignore Serena .serena/ state (spectacles quick-setup)"
+  if [ -n "$existing_sha" ]; then
+    gh api --method PUT "repos/$target_repo/contents/$dest" \
+      -f message="$message" \
+      -f content="$content" \
+      -f sha="$existing_sha" >/dev/null
+    echo "quick-setup: appended $marker to existing $dest."
+  else
+    gh api --method PUT "repos/$target_repo/contents/$dest" \
+      -f message="$message" \
+      -f content="$content" >/dev/null
+    echo "quick-setup: created $dest with $marker."
+  fi
+}
+
 # Detect the target repository's primary stack from the languages GitHub
 # reports, and name the Serena language server that matches it. When no
 # language server is known for the stack, the suite degrades gracefully to
@@ -368,6 +443,7 @@ echo "quick-setup: label sync complete."
 if [ "$suite" = "sdd" ]; then
   install_sdd_workflows
   install_issue_templates
+  ensure_serena_gitignore
   detect_serena_language_server
   provision_distillery_config
   report_configuration
