@@ -44,6 +44,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      issues: read
     outputs:
       should_run: ${{ steps.decide.outputs.should_run }}
       aw_context: ${{ steps.decide.outputs.aw_context }}
@@ -76,15 +77,43 @@ jobs:
             // A tracking issue gained sdd:ready: the triage boundary. This
             // agent has no needs-human-removal resume, so an unlabeled event
             // is not routed (see the header comment).
+            //
+            // sdd:ready is also applied by sdd-triage phase C to every
+            // unblocked task sub-issue, so the labelled item may be a task,
+            // not a tracking issue. The triage boundary is the tracking
+            // issue only: filter the event by the absence of a parent issue.
+            // A tracking issue has no parent; a Unit and a task each have
+            // one (their parent in the feature tree). The REST issue object
+            // exposes `parent_issue_url` for the sub-issues feature; a
+            // non-empty value means the labelled item is nested under
+            // another issue and is therefore not a tracking issue.
             if (event === 'issues') {
               const action = payload.action;
               const label = payload.label && payload.label.name;
               if (action === 'labeled' && label === 'sdd:ready') {
-                run = true;
-                ctx = {
-                  item_type: 'issue',
-                  item_number: payload.issue.number,
-                };
+                let parentUrl = '';
+                try {
+                  const { data } = await github.rest.issues.get({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    issue_number: payload.issue.number,
+                  });
+                  parentUrl = data.parent_issue_url || '';
+                } catch (err) {
+                  core.info('Could not fetch issue #'
+                    + payload.issue.number + ': ' + err.message);
+                }
+                if (parentUrl) {
+                  core.info('Issue #' + payload.issue.number
+                    + ' has a parent (' + parentUrl
+                    + '); not a tracking issue, ignoring.');
+                } else {
+                  run = true;
+                  ctx = {
+                    item_type: 'issue',
+                    item_number: payload.issue.number,
+                  };
+                }
               }
             }
 

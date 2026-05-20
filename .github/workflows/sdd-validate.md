@@ -80,6 +80,11 @@ applies from the `aw_context` input before doing anything else.
 2. **A tracking issue gained the `sdd:ready` label.** Validate the triage
    boundary: the task graph is a set of linked sub-issues, not a pull request,
    so the `sdd:ready` label event is the non-pull-request triage boundary.
+   `sdd:ready` is also applied by `sdd-triage` phase C to every unblocked task
+   sub-issue, so the wrapper's `route` job filters out an event whose subject
+   has a parent (a Unit or a task is not a tracking issue). The agent
+   re-confirms the same precondition at the bottom of this section as
+   defense in depth.
 
 This agent has no `needs-human`-removal resume trigger. A Blocker it escalates
 on a pull request is resumed by a fresh `pull_request: synchronize`: the human
@@ -96,6 +101,15 @@ When the triggering item already carries the `needs-human` label, stop
 immediately and emit `noop`. A `needs-human`-labelled item is off-limits during
 candidate selection (see the imported interaction contract); the hand-off
 comment has already been posted and must not be posted again.
+
+When the trigger is situation 2 (`sdd:ready` on an issue), confirm the
+labelled issue is a tracking issue before applying the triage gate set. A
+tracking issue has no parent; a Unit and a task each have a parent in the
+feature tree. Read the issue's `parent` (`parent_issue_url` in the REST issue
+object) and, when it resolves to another issue, stop and emit `noop` — the
+labelled item is a sub-issue, not a tracking issue, and the wrapper's routing
+filter has been bypassed somehow. This is the agent-level defense in depth
+for the wrapper's parent-absence filter.
 
 ## What this agent produces
 
