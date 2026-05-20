@@ -145,33 +145,24 @@ jobs:
               }
             }
 
-            if (body !== body0) {
-              await github.rest.pulls.update({
-                owner,
-                repo,
-                pull_number: pr.number,
-                body,
-              });
-              core.info('Corrected issue references in PR #' + pr.number);
-            } else if (deliverable) {
-              core.info('Pull request body already correct.');
-            }
-
             // Make the deliverable link visible on the sub-issue side. The
-            // `Closes` keyword written above closes the sub-issue on merge,
-            // but GitHub does not emit the `cross-referenced` event it would
-            // have emitted had the keyword been present at pull-request
-            // creation: a PATCH from an App identity suppresses it, and at
-            // merge time the close is attributed to the merger rather than
-            // the pull request (issue #69). Posting one comment on the
-            // sub-issue both adds a visible `commented` event and makes
-            // GitHub emit the missing `cross-referenced` event from the
-            // `#<pr>` reference. Idempotent: a prior sanitize run on this
-            // same pull request may have already posted the comment (on an
-            // `edited`/`reopened` event, or on the original `opened` event
-            // whose body-PATCH triggered this same workflow as an `edited`
-            // event), so we list the sub-issue's comments and skip when one
-            // already starts with the exact marker.
+            // `Closes` keyword that the PR body update below adds closes the
+            // sub-issue on merge, but GitHub does not emit the
+            // `cross-referenced` event it would have emitted had the
+            // keyword been present at pull-request creation: a PATCH from
+            // an App identity suppresses it, and at merge time the close
+            // is attributed to the merger rather than the pull request
+            // (issue #69). Posting one comment on the sub-issue both adds
+            // a visible `commented` event and makes GitHub emit the
+            // missing `cross-referenced` event from the `#<pr>` reference.
+            //
+            // Order of operations: this comment write runs **before** the
+            // PR-body update below. If the comment fails (rate limit,
+            // permission, 5xx), the body update never runs either, so a
+            // failed run leaves zero visible state to diverge from. On a
+            // re-fire (`edited`/`reopened`) the comment write is
+            // idempotent (paginate + marker-startsWith check) so it does
+            // not re-post.
             if (deliverable) {
               const marker = 'Delivered by #' + pr.number + '.';
               let comments;
@@ -203,6 +194,18 @@ jobs:
                   'Posted `Delivered by #' + pr.number + '.` on sub-issue #'
                   + deliverable + '.');
               }
+            }
+
+            if (body !== body0) {
+              await github.rest.pulls.update({
+                owner,
+                repo,
+                pull_number: pr.number,
+                body,
+              });
+              core.info('Corrected issue references in PR #' + pr.number);
+            } else if (deliverable) {
+              core.info('Pull request body already correct.');
             }
 
             // With the deliverable sub-issue unresolved, no `Closes` reference
