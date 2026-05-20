@@ -168,7 +168,8 @@ with the following adjustments:
   architecture-boundary check; the absence of a per-feature
   architecture record is not raised.
 - The triage boundary does not fire on a fast-path issue. A
-  fast-path tracking issue never gains `sdd:ready` (its lifecycle goes
+  fast-path tracking issue is never labelled `sdd:ready` by an agent
+  (its lifecycle goes
   `sdd:fastpath → sdd:fastpath-review → sdd:fastpath → sdd:in-progress`),
   so the `sdd:ready` label event that selects this boundary cannot
   occur. If the wrapper nonetheless routes this case (a fast-path

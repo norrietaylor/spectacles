@@ -204,10 +204,11 @@ fields, and treat that body as the task specification. The eligibility
 checks below apply: the `model:*` tier in the plan comment must equal
 this variant's tier, the tracking issue must not carry `needs-human`,
 and the `repo:` field must equal the running repository. Then move the
-tracking issue from `sdd:fastpath` to `sdd:in-progress` (one
-`remove-labels` + one `add-labels`) and skip the feature/grandparent
-walk and the per-task `sdd:ready → sdd:in-progress` move entirely —
-there is no task sub-issue to advance.
+tracking issue from `sdd:fastpath` to `sdd:in-progress` in one step.
+Remove the `sdd:fastpath` label (`remove-labels`).
+Apply the `sdd:in-progress` label (`add-labels`).
+Skip the feature/grandparent walk and the per-task `sdd:ready → sdd:in-progress`
+move entirely — there is no task sub-issue to advance.
 A task is **eligible** only when all of these hold:
 
 - It carries the `model:haiku` label, the tier this variant claims. A task
@@ -441,12 +442,13 @@ the issue tree (ADR 0005) for two completion transitions:
   'fastpath-complete'` (the wrapper saw the implementation PR merge on
   a `sdd/<tracking>-` branch whose work-item is a tracking issue, no
   task sub-issue). Move the tracking issue from `sdd:in-progress` to
-  `sdd:done`: `remove-labels` `sdd:in-progress` and `add-labels`
-  `sdd:done`. Then apply `needs-human` (`add-labels`) and post one
-  comment stating that the fast-path implementation has merged and a
-  human should do the final review and close. The agent **never**
-  closes the tracking issue itself; a human closes it. There is no
-  feature-grandparent walk and no remaining-tasks check (ADR 0012).
+  `sdd:done`. Remove the `sdd:in-progress` label (`remove-labels`) and
+  apply the `sdd:done` label (`add-labels`). Then apply the
+  `needs-human` label (`add-labels`) and post one comment stating that
+  the fast-path implementation has merged and a human should do the
+  final review and close. The agent **never** closes the tracking
+  issue itself; a human closes it. There is no feature-grandparent
+  walk and no remaining-tasks check (ADR 0012).
 - **Idle.** Neither transition applies. Emit `noop` and exit 0. A
   `sdd-dispatch`-fanned-out run that finds the named task already in flight,
   or a `/execute` on an ineligible task, both land here.

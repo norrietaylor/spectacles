@@ -51,7 +51,7 @@ safe-outputs:
   hide-comment:
     max: 5
   add-labels:
-    allowed: [sdd:triage, sdd:fastpath, sdd:fastpath-review, needs-human]
+    allowed: [sdd:spec, sdd:triage, sdd:fastpath, sdd:fastpath-review, needs-human]
     max: 2
   remove-labels:
     allowed: [sdd:spec, sdd:fastpath, sdd:fastpath-review]
@@ -248,9 +248,9 @@ the tracking issue and stop:
   "Comment `/fastpath` to confirm the fast-path classification, or
   `/spec` to keep the full flow. Default is the full flow if neither
   arrives."
-- Do **not** apply `sdd:fastpath`. The wrapper applies the label on
-  `/fastpath` from a write-access author; the agent's proposal does not
-  arm the path on its own. The lifecycle stays at `sdd:spec`.
+- Do **not** write the `sdd:fastpath` label here. The wrapper applies
+  it on `/fastpath` from a write-access author; the agent's proposal
+  does not arm the path on its own. The lifecycle stays at `sdd:spec`.
 - Emit `noop` and exit. Do not open a pull request and do not move any
   label.
 
@@ -264,12 +264,13 @@ the fast-path authoring branch in step 7a.
 
 On situation 2's misclassification-escalation case (the `/spec` comment
 arrived on a tracking issue currently at `sdd:fastpath` or
-`sdd:fastpath-review`), reset the lifecycle before classifying:
-`remove-labels` the fast-path label and `add-labels` `sdd:spec` in the
-same call, then continue down the full-path branch from step 4. The
-existing stub spec file (if any) is left in place under `docs/specs/`;
-the full-path spec authoring builds on it rather than against an empty
-tree.
+`sdd:fastpath-review`), reset the lifecycle before classifying.
+Remove the fast-path label (`remove-labels`).
+Apply the `sdd:spec` label (`add-labels`).
+Both writes go in the same call, then continue down the full-path
+branch from step 4. The existing stub spec file (if any) is left in
+place under `docs/specs/`; the full-path spec authoring builds on it
+rather than against an empty tree.
 
 ### 4. Assess confidence and scope
 
@@ -389,9 +390,10 @@ replaces steps 5, 6, and 7 above for the fast-path flow.
 
 0. **Ensure the lifecycle is at `sdd:fastpath`.** On entry, if the
    tracking issue still carries `sdd:spec` (the `/fastpath` arrived
-   before any label move), `remove-labels` `sdd:spec` and `add-labels`
-   `sdd:fastpath` in one move. If the tracking issue already carries
-   `sdd:fastpath` (the label-gain entry), skip this no-op and proceed.
+   before any label move), remove the `sdd:spec` label
+   (`remove-labels`) and apply the `sdd:fastpath` label (`add-labels`)
+   in one move. If the tracking issue already carries `sdd:fastpath`
+   (the label-gain entry), skip this no-op and proceed.
    `remove-labels` is idempotent in either direction.
 
 1. **Author the stub spec file.** Place it at
@@ -447,9 +449,10 @@ replaces steps 5, 6, and 7 above for the fast-path flow.
      `sdd-triage` uses for full-path tasks.
 
 5. **Move the lifecycle from `sdd:fastpath` to `sdd:fastpath-review`.**
-   `remove-labels` `sdd:fastpath` and `add-labels` `sdd:fastpath-review`
-   in the same step. The label move signals "the stub spec PR is open
-   and awaiting human merge."
+   Remove the `sdd:fastpath` label (`remove-labels`).
+   Apply the `sdd:fastpath-review` label (`add-labels`).
+   The label move signals "the stub spec PR is open and awaiting
+   human merge."
 
 For a `/revise` on a fast-path tracking issue (situation 5) between the
 plan-comment and `/approve`, do **not** re-author the stub spec and do
@@ -474,7 +477,8 @@ spec phase is complete. The tracking issue's current lifecycle label
 distinguishes a full-path spec PR merge from a fast-path stub spec PR merge.
 
 - **Full path** (the tracking issue currently carries `sdd:spec`):
-  - `remove-labels` `sdd:spec`, `add-labels` `sdd:triage`.
+  - Remove the `sdd:spec` label (`remove-labels`) and apply the
+    `sdd:triage` label (`add-labels`).
   - Post one comment on the tracking issue: note that the spec is merged,
     link the merged spec file, and state the next step in exact terms — a
     write-access author comments `/triage` on this tracking issue to start
@@ -483,7 +487,8 @@ distinguishes a full-path spec PR merge from a fast-path stub spec PR merge.
 
 - **Fast path** (the tracking issue currently carries
   `sdd:fastpath-review`):
-  - `remove-labels` `sdd:fastpath-review`, `add-labels` `sdd:fastpath`.
+  - Remove the `sdd:fastpath-review` label (`remove-labels`) and apply
+    the `sdd:fastpath` label (`add-labels`).
   - Post one comment on the tracking issue: note that the stub spec is
     merged, link the merged stub file, and state the next step in exact
     terms — a write-access author comments `/approve` on this tracking
