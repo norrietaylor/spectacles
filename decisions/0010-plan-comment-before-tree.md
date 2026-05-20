@@ -164,11 +164,13 @@ without changing the gate semantics in clauses 1 to 7.
 ## Consequences
 
 - `sdd-triage` declares two additional safe-outputs: `hide-comment`
-  (capped at 5 per run) to collapse prior plan comments as `OUTDATED`, and
-  `close-issue` with `target: '*'` (capped at 30 per run) to close Units
-  and tasks dropped by a post-approve `/revise`. `add-comment` stays at
-  `max: 1`; `create-issue`'s cap rises from 20 to 30 to cover Unit creations
-  alongside sub-tasks in one phase-C run.
+  (capped at 30 per run) to collapse prior plan comments as `OUTDATED`,
+  and `close-issue` with `target: '*'` (capped at 30 per run) to close
+  Units and tasks dropped by a post-approve `/revise`. `add-comment`
+  stays at `max: 1`; `create-issue`'s cap rises from 20 to 30 to cover
+  Unit creations alongside sub-tasks in one phase-C run. The
+  `hide-comment` cap matches the tree-level cap so repeated `/revise`
+  flows never leave a stale active plan comment.
 - ADR 0005's lifecycle model is unchanged. Unit and task sub-issues still
   close on the merge of their pull request or on `sdd-execute`'s
   completion sweep; this ADR's `close-issue` path is reserved for the
