@@ -81,20 +81,6 @@ CODE_FENCE_RE = re.compile(r"^```(?P<lang>\w*)\n(?P<body>.*?)^```", re.MULTILINE
 TABLE_ROW_RE = re.compile(r"^\|\s*`(/[a-z][a-z-]+)(?:\s+[^`]*)?`\s*\|", re.MULTILINE)
 
 
-def strip_non_mermaid_fences(text: str) -> str:
-    """Drop fenced code blocks except mermaid. The mermaid block in
-    `docs/sdd/index.md` includes node labels like `comment /triage` that
-    are user-facing prose and should be checked. Other fenced blocks
-    (text, yaml, json, bash) are code, not prose."""
-
-    def repl(m: re.Match[str]) -> str:
-        if m.group("lang") == "mermaid":
-            return m.group("body")
-        return ""
-
-    return CODE_FENCE_RE.sub(repl, text)
-
-
 def load_exceptions() -> dict[str, list[str]]:
     if not EXCEPTIONS_FILE.exists():
         return {}
@@ -163,15 +149,9 @@ def collect_prose_commands() -> dict[str, list[tuple[str, int]]]:
         if not path.exists():
             continue
         raw = path.read_text(encoding="utf-8")
-        cleaned = strip_non_mermaid_fences(raw)
-        # Map cleaned-text offsets back to line numbers via a running
-        # count: cleaned text drops fenced bodies but preserves the
-        # fence line itself? — no, the substitution drops the whole
-        # match including the fences. To keep line numbers honest,
-        # scan the raw text and skip matches that fall inside a
-        # non-mermaid fence.
-        del cleaned
-
+        # To keep line numbers honest, scan the raw text and skip
+        # matches that fall inside a non-mermaid fence rather than
+        # stripping fences first (which would shift offsets).
         # Build a list of (start, end, lang) for every fenced block so a
         # raw-text scan can decide whether a `/command` hit is inside a
         # non-mermaid fence (and therefore code, not prose).
