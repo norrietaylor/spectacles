@@ -68,9 +68,12 @@ jobs:
             // feature/bug templates apply `sdd:spec` on creation, before a
             // parent link can exist; if a sub-issue is hand-labelled
             // `sdd:spec` the agent itself bails (situation 4's noop precondition
-            // also covers a re-labelled sub-issue). The fetch uses the
-            // sub-issues parent endpoint, which is the structural truth — a
-            // tracking issue is exactly an issue with no parent.
+            // also covers a re-labelled sub-issue). The check reads
+            // `parent_issue_url` from the standard REST issue payload — the
+            // same field `wrappers/sdd-validate.yml` uses for the same kind
+            // of filter, kept symmetric to keep the two routing layers in
+            // step. A non-empty `parent_issue_url` means the item is nested
+            // under another issue (i.e. a sub-issue, not a tracking issue).
             if (event === 'issues') {
               const action = payload.action;
               const label = payload.label && payload.label.name;
@@ -78,30 +81,27 @@ jobs:
                 run = true;
               } else if (action === 'unlabeled' && label === 'needs-human') {
                 run = true;
-                let parent = null;
+                let parentUrl = '';
                 try {
-                  const resp = await github.request(
-                    'GET /repos/{owner}/{repo}/issues/{issue_number}/parent',
-                    {
-                      owner: context.repo.owner,
-                      repo: context.repo.repo,
-                      issue_number: payload.issue.number,
-                    });
-                  parent = resp.data;
+                  const { data } = await github.rest.issues.get({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    issue_number: payload.issue.number,
+                  });
+                  parentUrl = data.parent_issue_url || '';
                 } catch (err) {
-                  // 404 means no parent (i.e. a tracking issue); other errors
-                  // also fall through to the unparented branch so a transient
-                  // API failure does not silently swallow a legitimate
-                  // tracking-issue resume. The agent's situation-4 noop
-                  // precondition is the second line of defence.
+                  // Transient errors fall through to "proceed" so a real
+                  // tracking-issue resume is never silently swallowed. The
+                  // agent's situation-4 noop precondition is the second
+                  // line of defence.
                   core.info(
-                    'No parent issue resolved for #' + payload.issue.number
-                    + ': ' + err.message);
+                    'Could not fetch issue #' + payload.issue.number + ': '
+                    + err.message);
                 }
-                if (parent && parent.number) {
+                if (parentUrl) {
                   core.info('Issue #' + payload.issue.number
-                    + ' is a sub-issue of #' + parent.number
-                    + '; sdd-spec only acts on tracking issues. Skipping.');
+                    + ' has a parent (' + parentUrl
+                    + '); sdd-spec only acts on tracking issues. Skipping.');
                   run = false;
                 }
               }
