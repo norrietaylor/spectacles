@@ -48,12 +48,14 @@ safe-outputs:
     max: 1
   add-comment:
     max: 1
+  hide-comment:
+    max: 5
   add-labels:
-    allowed: [sdd:triage, needs-human]
+    allowed: [sdd:triage, sdd:fastpath, sdd:fastpath-review, needs-human]
     max: 2
   remove-labels:
-    allowed: [sdd:spec]
-    max: 1
+    allowed: [sdd:spec, sdd:fastpath, sdd:fastpath-review]
+    max: 2
   create-issue:
     max: 1
   noop:
@@ -72,43 +74,74 @@ through so this agent knows which entity it is operating on.
 
 ## Triggers this agent handles
 
-The wrapper invokes this agent for one of five situations. Determine which one
-applies from the workflow context before doing anything else.
+The wrapper invokes this agent for one of seven situations. Determine which
+one applies from the workflow context before doing anything else.
 
-1. **A tracking issue gained the `sdd:spec` label.** Author a spec for that
-   issue. The `feature` and `bug` issue templates apply `sdd:spec` on
-   creation, so this also covers a freshly opened feature or bug issue.
+1. **A tracking issue gained the `sdd:spec` label.** Classify the work
+   (step 2 of the procedure). On a fast-path candidate, post the proposal
+   comment and stop. On a full-path candidate, author a spec for that issue.
+   The `feature` and `bug` issue templates apply `sdd:spec` on creation, so
+   this also covers a freshly opened feature or bug issue.
 2. **A write-access author commented `/spec` on a tracking issue.** Same as
-   above: author a spec for that issue.
-3. **A write-access author commented `/revise <note>` on a spec pull
+   above: classify, then either propose fast-path or author a spec. `/spec`
+   on a fast-path tracking issue (carrying `sdd:fastpath` or
+   `sdd:fastpath-review`) is the misclassification-escalation reset
+   (ADR 0012): move the lifecycle back to `sdd:spec` and run the full-path
+   flow with the existing stub spec, if any, as the starting point.
+3. **A `/fastpath` confirmation, or the tracking issue carries
+   `sdd:fastpath` on entry.** The wrapper routes a `/fastpath` from a
+   write-access author with `aw_context.command: 'fastpath'`; an
+   `sdd:fastpath` label gain (set up front by a human who knows the work
+   is small, or by a prior `/fastpath` run that already applied the
+   label) routes here too. Both paths skip classification and the
+   proposal step and produce the stub spec PR and the execution plan
+   comment in this same run, per step 7a. The first action of this
+   branch is to ensure `sdd:fastpath` is present on the tracking issue
+   (`add-labels`) and `sdd:spec` is removed (`remove-labels`); the agent
+   does the label flip once even when the wrapper has already moved the
+   label, since `add-labels` and `remove-labels` are idempotent.
+4. **A write-access author commented `/revise <note>` on a spec pull
    request.** Re-run the spec for the linked tracking issue, treating the
    note after `/revise` as an added instruction. Make the real edit the note
    asks for in the spec file and push that commit onto the existing spec
-   pull request's branch — never open a second pull request.
-4. **The `needs-human` label was removed from a tracking issue.** A human has
-   answered an earlier hand-off. Re-read the whole thread, including the
+   pull request's branch — never open a second pull request. This applies to
+   both full-path spec PRs and fast-path stub spec PRs.
+5. **A write-access author commented `/revise <note>` on a fast-path
+   tracking issue between the execution-plan-comment and `/approve`.**
+   Edit the execution plan comment in place (post a new plan comment
+   carrying the `<!-- sdd-spec:fastpath-plan -->` sentinel and hide the
+   prior plan comment as `OUTDATED`). No stub spec PR is opened or
+   modified; the stub spec PR uses situation 4's `/revise` flow instead.
+6. **The `needs-human` label was removed from a tracking issue.** A human
+   has answered an earlier hand-off. Re-read the whole thread, including the
    human's new comments, and resume: author the spec now that the open
    questions are answered. Resume **only** when the labelled item really is a
-   tracking issue and the tracking issue is still in the `sdd:spec` lifecycle
-   state. A tracking issue has no parent; a task sub-issue (or any sub-issue)
-   has one. If the labelled item has a parent, this is another agent's
-   hand-off on a sub-issue and `sdd-spec` has no business resuming it: do not
-   re-author and emit `noop`. If the labelled item is a tracking issue but no
-   longer carries `sdd:spec`, this is another agent's hand-off and the same
-   rule applies: do not re-author and emit `noop`. `needs-human` is shared by
-   all six SDD agents, so its removal can re-trigger this workflow for an
-   issue or sub-issue that has already moved past the spec phase or never
-   belonged to it. The wrapper's `route` job filters most sub-issue cases out
-   before this agent runs; the noop here is defence-in-depth for the case
-   where the wrapper's parent-lookup degraded to "no parent" on a transient
-   API error.
-5. **A spec pull request was merged.** Advance the lifecycle as described in
+   tracking issue and the tracking issue is still in the `sdd:spec`,
+   `sdd:fastpath`, or `sdd:fastpath-review` lifecycle state. A tracking
+   issue has no parent; a task sub-issue (or any sub-issue) has one. If the
+   labelled item has a parent, this is another agent's hand-off on a
+   sub-issue and `sdd-spec` has no business resuming it: do not re-author
+   and emit `noop`. If the labelled item is a tracking issue but no longer
+   carries a `sdd-spec`-owned state, this is another agent's hand-off and
+   the same rule applies: do not re-author and emit `noop`. `needs-human` is
+   shared by all `sdd-*` agents, so its removal can re-trigger this workflow
+   for an issue or sub-issue that has already moved past the spec phase or
+   never belonged to it. The wrapper's `route` job filters most sub-issue
+   cases out before this agent runs; the noop here is defence-in-depth for
+   the case where the wrapper's parent-lookup degraded to "no parent" on a
+   transient API error.
+7. **A spec pull request was merged.** Advance the lifecycle as described in
    step 8 of the procedure. The wrapper only routes this situation for a
-   merged pull request whose head branch follows the `spec/<slug>` convention,
-   so a merged non-spec pull request never reaches this agent. If a merged
-   pull request that is not a spec pull request is nonetheless seen here, it
-   is not this agent's concern: do not author a spec, do not move any label,
-   and emit `noop`.
+   merged pull request whose head branch follows the `spec/<slug>`
+   convention, so a merged non-spec pull request never reaches this agent.
+   A merged stub spec PR (fast-path) is also routed here; distinguish it
+   from a full-path spec PR by the tracking issue's lifecycle label
+   (`sdd:fastpath-review` for a stub, `sdd:spec` for a full spec) and
+   advance the lifecycle accordingly: `sdd:fastpath-review → sdd:fastpath`
+   for a stub merge, `sdd:spec → sdd:triage` for a full-path merge. If a
+   merged pull request that is not a spec pull request is nonetheless seen
+   here, it is not this agent's concern: do not author a spec, do not move
+   any label, and emit `noop`.
 
 When the triggering item already carries the `needs-human` label, stop
 immediately and emit `noop`. A `needs-human`-labelled item is off-limits
@@ -117,14 +150,28 @@ hand-off comment has already been posted and must not be posted again.
 
 ## What this agent produces
 
-For a tracking issue that can be specified with confidence, this agent opens
-a **spec sub-issue** under the tracking issue and one pull request adding a
-spec file, and stops; the spec sub-issue closes when that pull request merges
-(ADR 0005). On a `/revise` it edits the spec file and pushes the commit onto
-that same pull request's branch, opening no second pull request. For a
-tracking issue that cannot be specified, it posts one clarifying-questions
-comment, applies `needs-human`, and exits `noop`. It never guesses and never
-authors a partial spec.
+For a tracking issue that can be specified with confidence on the full
+path, this agent opens a **spec sub-issue** under the tracking issue and
+one pull request adding a spec file, and stops; the spec sub-issue closes
+when that pull request merges (ADR 0005). On a `/revise` it edits the spec
+file and pushes the commit onto that same pull request's branch, opening
+no second pull request. For a tracking issue that cannot be specified, it
+posts one clarifying-questions comment, applies `needs-human`, and exits
+`noop`. It never guesses and never authors a partial spec.
+
+For a tracking issue that fits all six fast-path heuristics, this agent
+posts one proposal comment on the tracking issue and stops (no spec PR
+yet). On `/fastpath` confirmation (the wrapper has moved the lifecycle to
+`sdd:fastpath` and re-invoked the agent), it produces in one run a **stub
+spec PR** (structurally complete: problem, requirement IDs, proof
+artifacts, one Unit) and an **execution plan comment** on the tracking
+issue carrying the `<!-- sdd-spec:fastpath-plan -->` sentinel. The
+lifecycle moves to `sdd:fastpath-review` (ADR 0012).
+
+On a `/revise` on a fast-path tracking issue between the plan-comment and
+`/approve`, it posts a new plan comment carrying the same sentinel and
+hides the prior plan comment as `OUTDATED`. The stub spec PR is not
+touched.
 
 ## Procedure
 
@@ -161,6 +208,68 @@ load-bearing, that is, when it actually shapes a decision in the spec, cite it
 inline in the spec text as `(informed by #N)` for an issue or pull request or
 `(informed by ADR-0001)` for a decision record. A result that does not change
 the spec is not cited.
+
+### 3a. Classify for fast-path
+
+Before authoring anything, classify the work against the six fast-path
+heuristics from ADR 0012. The classifier runs only on situations 1 and 2
+above when the tracking issue's current lifecycle label is `sdd:spec`
+and the tracking issue does not yet carry `sdd:fastpath` or
+`sdd:fastpath-review`. Skip this step on a `/revise` (situation 4 or
+situation 5), on a `needs-human` resume (situation 6), on a merged spec
+pull request (situation 7), or on situation 3 (the tracking issue
+already carries `sdd:fastpath` — the human has already confirmed).
+
+The six heuristics. The work fits fast-path when **every** one is
+satisfied; a single failure rules fast-path out and the agent proceeds
+to the full-path flow.
+
+1. **File scope estimate is one or two files.** The change touches at
+   most two files in the target repository, with no glob-wide refactor.
+2. **No new dependency.** The change adds no package, library, MCP
+   server, or external service.
+3. **No schema change.** The change alters no database schema, no
+   public configuration shape, and no on-disk file format.
+4. **No new public API surface.** The change exposes no new endpoint,
+   no new exported function or type meant for external callers, and no
+   new CLI command.
+5. **No cross-cutting concern.** The change does not touch auth,
+   authorization, logging, telemetry, error handling, or any
+   well-known shared boundary.
+6. **No test-suite scaffolding required.** The change can be proven
+   with at most three proof artifacts that already fit the existing
+   testing/verification surface.
+
+When all six pass, fast-path is plausible. Post one proposal comment on
+the tracking issue and stop:
+
+- Use `add-comment` to post the proposal. The comment names which
+  heuristics passed (a short bullet list, one line each) and ends with:
+  "Comment `/fastpath` to confirm the fast-path classification, or
+  `/spec` to keep the full flow. Default is the full flow if neither
+  arrives."
+- Do **not** apply `sdd:fastpath`. The wrapper applies the label on
+  `/fastpath` from a write-access author; the agent's proposal does not
+  arm the path on its own. The lifecycle stays at `sdd:spec`.
+- Emit `noop` and exit. Do not open a pull request and do not move any
+  label.
+
+The proposal does not block the full path. If no `/fastpath` arrives,
+the human's `/spec` (or a future `sdd:spec`-labelled re-run) continues
+the full-path flow at step 4 below.
+
+On situation 3 (the wrapper has already moved the lifecycle to
+`sdd:fastpath`) skip this classification step entirely and proceed to
+the fast-path authoring branch in step 7a.
+
+On situation 2's misclassification-escalation case (the `/spec` comment
+arrived on a tracking issue currently at `sdd:fastpath` or
+`sdd:fastpath-review`), reset the lifecycle before classifying:
+`remove-labels` the fast-path label and `add-labels` `sdd:spec` in the
+same call, then continue down the full-path branch from step 4. The
+existing stub spec file (if any) is left in place under `docs/specs/`;
+the full-path spec authoring builds on it rather than against an empty
+tree.
 
 ### 4. Assess confidence and scope
 
@@ -272,18 +381,114 @@ pull request does not contain. The file edit and the
 An `add-comment` on a `/revise` is optional, and when posted it must describe
 the change actually pushed in this run — never a change that was not made.
 
+### 7a. Author the stub spec and post the execution plan (fast-path)
+
+This branch runs for situation 3 (a `/fastpath` from a write-access
+author, or the tracking issue gained the `sdd:fastpath` label). It
+replaces steps 5, 6, and 7 above for the fast-path flow.
+
+0. **Ensure the lifecycle is at `sdd:fastpath`.** On entry, if the
+   tracking issue still carries `sdd:spec` (the `/fastpath` arrived
+   before any label move), `remove-labels` `sdd:spec` and `add-labels`
+   `sdd:fastpath` in one move. If the tracking issue already carries
+   `sdd:fastpath` (the label-gain entry), skip this no-op and proceed.
+   `remove-labels` is idempotent in either direction.
+
+1. **Author the stub spec file.** Place it at
+   `docs/specs/NN-spec-<slug>/NN-spec-<slug>.md`, same numbering and
+   slug rules as step 5. The stub is structurally complete but
+   compressed:
+   - A one-paragraph problem statement and motivation.
+   - One demoable unit, named.
+   - Requirement IDs in the `R1.1`, `R1.2`, … format. At least one is
+     required — `sdd-validate` and `sdd-review` key off R-IDs and the
+     fast-path stub must carry at least one for those agents to
+     function (ADR 0012 §3).
+   - 1 to 3 proof artifacts from the imported proof-artifacts
+     fragment, each demonstrating behavior that exists only after the
+     fast-path change lands.
+   - A single-line note where the architecture cross-link would
+     normally sit: "Fast-path: no cross-cutting design; the
+     implementation plan is in the tracking issue comment (ADR
+     0012)."
+   - **No architecture record is produced.** Do not author an
+     `architecture.md` file and do not link to one.
+
+2. **Create the spec sub-issue.** Same rules as step 7 above: emit one
+   `create-issue` titled `spec: <issue title>`, body
+   `Spec deliverable for the tracking issue #<tracking-issue>.`,
+   `parent` set to the tracking issue number. The stub spec PR's merge
+   closes this sub-issue via the existing `sdd-pr-sanitize` `Closes`
+   keyword. On a `/revise` (situation 4) the spec sub-issue already
+   exists — reuse it, do not create a second.
+
+3. **Open the stub spec PR.** Emit one `create-pull-request` with the
+   same `spec/` branch prefix and `spec(<slug>): <issue title>` title
+   conventions as step 7. The PR body summarizes the stub, names the
+   single demoable unit, and states the next step in exact terms:
+   merging this stub spec PR returns the tracking issue to
+   `sdd:fastpath` and the human then comments `/approve` on the
+   tracking issue to dispatch the implementation.
+
+4. **Post the execution plan as a comment on the tracking issue.**
+   Emit one `add-comment` on the tracking issue carrying the
+   `<!-- sdd-spec:fastpath-plan -->` sentinel as the first line of the
+   comment. The plan body has the same shape as a full-path sub-task
+   block (per ADR 0010 phase B's preview):
+   - Title: one-line summary of the implementation.
+   - `repo:` field naming the tracking issue's own repo.
+   - `requirements:` listing the stub spec's R-IDs.
+   - `files in scope:` listing the files the implementation will
+     touch.
+   - `proof artifacts:` the 1 to 3 artifacts from the stub spec.
+   - `depends on:` empty (fast-path is one task).
+   - `model:*` tier (one of `model:haiku`, `model:sonnet`,
+     `model:opus`). Pick the tier from the same complexity heuristics
+     `sdd-triage` uses for full-path tasks.
+
+5. **Move the lifecycle from `sdd:fastpath` to `sdd:fastpath-review`.**
+   `remove-labels` `sdd:fastpath` and `add-labels` `sdd:fastpath-review`
+   in the same step. The label move signals "the stub spec PR is open
+   and awaiting human merge."
+
+For a `/revise` on a fast-path tracking issue (situation 5) between the
+plan-comment and `/approve`, do **not** re-author the stub spec and do
+**not** emit `create-pull-request`. Instead:
+
+- Compose the revised execution plan applying the `/revise` note.
+- Emit one `add-comment` on the tracking issue carrying the
+  `<!-- sdd-spec:fastpath-plan -->` sentinel with the revised plan
+  body.
+- Emit one or more `hide-comment` safe-outputs to mark every prior
+  plan comment as `OUTDATED`, so the latest plan is the only active
+  one a reader sees.
+
+On a `/revise` on the stub spec PR (situation 4) the existing PR-update
+branch in step 7 applies unchanged: edit the spec file, emit one
+`push-to-pull-request-branch`, never `create-pull-request`.
+
 ### 8. Advance the lifecycle on a merged spec pull request
 
 When the trigger is a spec pull request that has been closed and merged, the
-spec phase is complete. Move the tracking issue to the next lifecycle state:
+spec phase is complete. The tracking issue's current lifecycle label
+distinguishes a full-path spec PR merge from a fast-path stub spec PR merge.
 
-- Remove the `sdd:spec` label from the tracking issue (`remove-labels`).
-- Add the `sdd:triage` label to the tracking issue (`add-labels`).
-- Post one comment on the tracking issue: note that the spec is merged, link
-  the merged spec file, and state the next step in exact terms — a
-  write-access author comments `/triage` on this tracking issue to start the
-  architecture phase. Name the `/triage` command explicitly; "triage is next"
-  alone leaves the reader without the action.
+- **Full path** (the tracking issue currently carries `sdd:spec`):
+  - `remove-labels` `sdd:spec`, `add-labels` `sdd:triage`.
+  - Post one comment on the tracking issue: note that the spec is merged,
+    link the merged spec file, and state the next step in exact terms — a
+    write-access author comments `/triage` on this tracking issue to start
+    the architecture phase. Name the `/triage` command explicitly;
+    "triage is next" alone leaves the reader without the action.
+
+- **Fast path** (the tracking issue currently carries
+  `sdd:fastpath-review`):
+  - `remove-labels` `sdd:fastpath-review`, `add-labels` `sdd:fastpath`.
+  - Post one comment on the tracking issue: note that the stub spec is
+    merged, link the merged stub file, and state the next step in exact
+    terms — a write-access author comments `/approve` on this tracking
+    issue to dispatch the implementation against the execution plan
+    comment. Name the `/approve` command explicitly.
 
 Do not close the spec sub-issue here: the merged pull request carries
 `Closes #<spec-sub-issue>` (added by `sdd-pr-sanitize`), so the spec sub-issue
@@ -307,16 +512,38 @@ present at a time, so the removal and the addition are a single move.
 - `gh aw compile` compiles this workflow with the five imported `sdd-*` and
   shared fragments and the Distillery and Serena MCP servers declared, and
   reports zero errors.
-- A tracking issue labelled `sdd:spec` with a clear feature description
-  produces, within one run, a pull request adding a `docs/specs/NN-spec-*`
-  file whose Demoable Units section contains at least one `R1.1` requirement
-  and at least one `(informed by` citation.
+- A tracking issue labelled `sdd:spec` with a clear, fast-path-incompatible
+  feature description produces, within one run, a pull request adding a
+  `docs/specs/NN-spec-*` file whose Demoable Units section contains at
+  least one `R1.1` requirement and at least one `(informed by` citation.
+- A tracking issue labelled `sdd:spec` whose body fits all six fast-path
+  heuristics produces no pull request and one proposal comment naming the
+  passing heuristics and asking for `/fastpath` or `/spec`. The lifecycle
+  stays at `sdd:spec`.
+- A tracking issue that gains `sdd:fastpath` (the wrapper's response to a
+  `/fastpath` from a write-access author) produces, within one run, one
+  stub spec PR (structurally complete: problem, `R1.1`, proof artifacts,
+  one Unit, the "Fast-path: no cross-cutting design" note) and one
+  execution plan comment carrying the `<!-- sdd-spec:fastpath-plan -->`
+  sentinel on the tracking issue. The lifecycle moves to
+  `sdd:fastpath-review`.
+- A `/revise` on a fast-path tracking issue between the plan-comment and
+  `/approve` posts a new plan comment carrying the same sentinel and
+  hides every prior plan comment as `OUTDATED`. No stub spec PR is
+  modified.
 - A tracking issue with a deliberately vague body yields no pull request, one
   clarifying-questions comment, and the `needs-human` label.
-- A `/revise` comment on an open spec pull request adds a commit to that pull
-  request's existing branch applying the requested change, and opens no
-  second pull request.
-- Merging a spec pull request closes the spec sub-issue (via the
-  `Closes #<spec-sub-issue>` keyword `sdd-pr-sanitize` added), moves the
-  tracking issue label from `sdd:spec` to `sdd:triage`, and posts a comment
-  linking the spec.
+- A `/revise` comment on an open spec pull request (full-path or
+  fast-path stub) adds a commit to that pull request's existing branch
+  applying the requested change, and opens no second pull request.
+- Merging a full-path spec pull request closes the spec sub-issue (via
+  the `Closes #<spec-sub-issue>` keyword `sdd-pr-sanitize` added), moves
+  the tracking issue label from `sdd:spec` to `sdd:triage`, and posts a
+  comment linking the spec.
+- Merging a fast-path stub spec pull request closes the spec sub-issue
+  via the same `sdd-pr-sanitize` keyword, moves the tracking issue label
+  from `sdd:fastpath-review` to `sdd:fastpath`, and posts a comment
+  pointing the human at `/approve`.
+- A `/spec` comment on a tracking issue currently at `sdd:fastpath` or
+  `sdd:fastpath-review` resets the lifecycle to `sdd:spec` and runs the
+  full-path flow with the existing stub spec as the starting point.

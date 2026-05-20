@@ -28,6 +28,12 @@
 - name: sdd:spec
   color: 1d76db
   description: Lifecycle - the feature is being specified by sdd-spec.
+- name: sdd:fastpath
+  color: 1f6feb
+  description: Lifecycle - fast-path is armed; awaiting stub spec merge or /approve. See ADR 0012.
+- name: sdd:fastpath-review
+  color: 5294e2
+  description: Lifecycle - fast-path stub spec PR is open, awaiting human merge. See ADR 0012.
 - name: sdd:triage
   color: 0052cc
   description: Lifecycle - the spec is in architecture and triage by sdd-triage.

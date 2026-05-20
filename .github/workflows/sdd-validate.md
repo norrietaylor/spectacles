@@ -149,6 +149,40 @@ files of more than one boundary, resolve to the boundary of the most
 significant change in this order: spec, then architecture, then
 implementation. State the resolved boundary in the findings comment.
 
+**Fast-path awareness** (ADR 0012). When the tracking issue linked to
+the triggering item carries `sdd:fastpath`, `sdd:fastpath-review`, or
+shows fast-path history (the tracking issue was a fast-path tracking
+issue on the implementation-boundary check, identifiable by the
+absence of a sub-issue tree under it), apply the boundary's gate set
+with the following adjustments:
+
+- The spec boundary check accepts a stub spec (the structural minimum
+  from ADR 0012 §3: a one-paragraph problem statement, at least one
+  R-ID, 1–3 proof artifacts, one Unit, and the single-line "Fast-path:
+  no cross-cutting design" note). The "no architecture record" is not
+  a finding for a stub spec.
+- The architecture boundary does not fire on a fast-path issue: there
+  is no architecture PR. A run that nonetheless resolves to the
+  architecture boundary on a fast-path issue (e.g. an unrelated
+  `decisions/` edit pushed alongside the stub) is treated as a normal
+  architecture-boundary check; the absence of a per-feature
+  architecture record is not raised.
+- The triage boundary does not fire on a fast-path issue. A
+  fast-path tracking issue never gains `sdd:ready` (its lifecycle goes
+  `sdd:fastpath → sdd:fastpath-review → sdd:fastpath → sdd:in-progress`),
+  so the `sdd:ready` label event that selects this boundary cannot
+  occur. If the wrapper nonetheless routes this case (a fast-path
+  tracking issue with a hand-applied `sdd:ready`), confirm there is
+  no sub-issue tree to walk and emit a single Info finding naming the
+  inconsistency; do not file Blockers for "no R-ID covered" or "no
+  task" on an empty tree.
+- The implementation boundary gate set still applies in full. The
+  "changed files within task scope" gate reads the files-in-scope
+  block from the execution plan comment (the
+  `<!-- sdd-spec:fastpath-plan -->` sentinel comment on the tracking
+  issue) instead of from a task sub-issue body; the rest of the gate
+  set is unchanged.
+
 ### 3. Apply that boundary's gate set
 
 Apply only the resolved boundary's gate set from the imported validation-gates

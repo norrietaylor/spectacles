@@ -72,6 +72,15 @@ jobs:
             // returns the actual permission level; only write, maintain, or
             // admin may run a command. /dispatch on a pull request is
             // ignored: it is a tracking-issue command only.
+            //
+            // Fast-path carve-out (ADR 0012): /dispatch on a tracking
+            // issue carrying any fast-path lifecycle label (sdd:fastpath,
+            // sdd:fastpath-review) is a noop. The fast-path flow has one
+            // task, so the cascade fan-out is unused. The noop-comment
+            // job posts a one-comment explanation pointing the human at
+            // /approve. We mark this by routing with kind='fastpath_noop'
+            // so the noop-comment job knows which message to post and the
+            // compute/dispatch/lifecycle jobs all short-circuit.
             if (event === 'issue_comment' && payload.action === 'created') {
               const body = (payload.comment.body || '').trim();
               const firstWord = body.split(/\s+/)[0];
@@ -98,9 +107,27 @@ jobs:
                   const canWrite = permission === 'write'
                     || permission === 'maintain' || permission === 'admin';
                   if (canWrite) {
+                    // Check for the fast-path carve-out before admitting
+                    // the /dispatch. A tracking issue carrying any
+                    // fast-path lifecycle label routes to the noop branch.
+                    let isFastpath = false;
+                    try {
+                      const { data } = await github.rest.issues.get({
+                        owner: context.repo.owner,
+                        repo: context.repo.repo,
+                        issue_number: payload.issue.number,
+                      });
+                      const labels = (data.labels || []).map(
+                        (l) => l.name || l);
+                      isFastpath = labels.includes('sdd:fastpath')
+                        || labels.includes('sdd:fastpath-review');
+                    } catch (err) {
+                      core.info('Could not fetch issue #'
+                        + payload.issue.number + ': ' + err.message);
+                    }
                     run = true;
                     tracking = payload.issue.number;
-                    kind = 'command';
+                    kind = isFastpath ? 'fastpath_noop' : 'command';
                   } else {
                     core.info(
                       '/dispatch from an author without write access ('
@@ -192,7 +219,9 @@ jobs:
   # lifecycle and noop-comment jobs know whether to proceed.
   compute:
     needs: route
-    if: needs.route.outputs.should_run == 'true'
+    if: |
+      needs.route.outputs.should_run == 'true'
+      && needs.route.outputs.trigger_kind != 'fastpath_noop'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -541,7 +570,9 @@ jobs:
   # every task is closed, remove sdd:dispatched so the cascade disarms.
   lifecycle:
     needs: [route, compute]
-    if: needs.route.outputs.should_run == 'true'
+    if: |
+      needs.route.outputs.should_run == 'true'
+      && needs.route.outputs.trigger_kind != 'fastpath_noop'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -732,4 +763,57 @@ jobs:
             } catch (err) {
               core.info('Could not post noop comment on #' + tracking
                 + ': ' + err.message);
+            }
+
+  # Fast-path /dispatch noop (ADR 0012).
+  #
+  # /dispatch on a tracking issue carrying a fast-path lifecycle label
+  # (sdd:fastpath, sdd:fastpath-review) does not arm the cascade — the
+  # fast-path flow has one task, so the fan-out machinery is unused.
+  # Post one comment pointing the human at /approve and exit. No labels
+  # are moved; the fast-path flow continues to be steered by sdd-spec's
+  # wrapper.
+  fastpath-noop-comment:
+    needs: route
+    if: |
+      needs.route.outputs.should_run == 'true'
+      && needs.route.outputs.trigger_kind == 'fastpath_noop'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: read
+    steps:
+      - name: Mint App token
+        id: app
+        uses: actions/create-github-app-token@v3
+        with:
+          app-id: ${{ vars.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
+      - name: Post the fast-path noop comment
+        uses: actions/github-script@v9
+        env:
+          APP_TOKEN: ${{ steps.app.outputs.token }}
+          TRACKING: ${{ needs.route.outputs.tracking_issue }}
+        with:
+          github-token: ${{ env.APP_TOKEN }}
+          script: |
+            const tracking = parseInt(process.env.TRACKING, 10);
+            const body = '`/dispatch` is a noop on fast-path tracking'
+              + ' issues. The fast-path flow runs a single implementation'
+              + ' task, so the cascade fan-out is unused. Comment'
+              + ' `/approve` on this tracking issue (after the stub spec'
+              + ' PR merges) to dispatch the implementation directly'
+              + ' against the execution plan comment. See ADR 0012.';
+            try {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: tracking,
+                body,
+              });
+            } catch (err) {
+              core.info('Could not post fast-path noop comment on #'
+                + tracking + ': ' + err.message);
             }

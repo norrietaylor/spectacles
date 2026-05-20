@@ -105,13 +105,41 @@ jobs:
                 const canWrite = permission === 'write'
                   || permission === 'maintain' || permission === 'admin';
                 if (canWrite) {
-                  run = true;
+                  // Fast-path carve-out (ADR 0012): /approve on a tracking
+                  // issue carrying sdd:fastpath is handled by the
+                  // sdd-spec wrapper's fastpath-approve job (it dispatches
+                  // sdd-execute-{tier} directly). This wrapper skips
+                  // /approve in that case so the two wrappers do not both
+                  // fire on the same comment.
                   const isPr = !!payload.issue.pull_request;
-                  ctx = {
-                    item_type: isPr ? 'pull_request' : 'issue',
-                    item_number: payload.issue.number,
-                    comment_id: payload.comment.id,
-                  };
+                  let skipFastpath = false;
+                  if (firstWord === '/approve' && !isPr) {
+                    try {
+                      const { data } = await github.rest.issues.get({
+                        owner: context.repo.owner,
+                        repo: context.repo.repo,
+                        issue_number: payload.issue.number,
+                      });
+                      const labels = (data.labels || []).map(
+                        (l) => l.name || l);
+                      if (labels.includes('sdd:fastpath')) {
+                        skipFastpath = true;
+                        core.info('/approve on a fast-path tracking'
+                          + ' issue; sdd-spec wrapper will handle it.');
+                      }
+                    } catch (err) {
+                      core.info('Could not fetch issue #'
+                        + payload.issue.number + ': ' + err.message);
+                    }
+                  }
+                  if (!skipFastpath) {
+                    run = true;
+                    ctx = {
+                      item_type: isPr ? 'pull_request' : 'issue',
+                      item_number: payload.issue.number,
+                      comment_id: payload.comment.id,
+                    };
+                  }
                 } else {
                   core.info(
                     'Command from an author without write access ('

@@ -51,8 +51,14 @@ on:
     types: [unlabeled]
   # The needs-human label being cleared on a pull request this agent opened,
   # which re-triggers the agent to resume a hand-off it applied at step 7.
+  # The `closed` action covers the fast-path completion path (ADR 0012): a
+  # merged implementation PR on a `sdd/` branch whose work-item is a
+  # tracking issue (no parent_issue_url, no task sub-issue tree) re-fires
+  # the agent with `entry: 'fastpath-complete'` so step 8's completion
+  # sweep can move the tracking issue from `sdd:in-progress` to `sdd:done`
+  # directly.
   pull_request:
-    types: [unlabeled]
+    types: [unlabeled, closed]
 
 permissions:
   contents: read
@@ -248,6 +254,65 @@ jobs:
               }
             }
 
+            // A fast-path implementation PR was merged. The wrapper detects
+            // a merged PR whose head ref follows the `sdd/<n>-` convention
+            // and whose referenced work-item is the tracking issue itself
+            // (no parent_issue_url, no task sub-issue tree). On that match
+            // the agent is invoked with `entry: 'fastpath-complete'` to run
+            // step 8's completion sweep: `sdd:in-progress → sdd:done` on
+            // the tracking issue, plus `needs-human` for the human's final
+            // close. A merged full-path implementation PR (whose head ref
+            // also follows `sdd/<task-id>-` but whose work-item is a task
+            // sub-issue) is left to the existing flow: the merge closes
+            // the task sub-issue via `Closes #<task>`, the `issues.closed`
+            // event re-fires `sdd-dispatch`, and `sdd-execute`'s next idle
+            // run (step 8) handles the feature-completion sweep. See
+            // ADR 0012.
+            if (event === 'pull_request' && payload.action === 'closed'
+                && payload.pull_request.merged === true) {
+              const headRef = payload.pull_request.head
+                && payload.pull_request.head.ref || '';
+              const headMatch = headRef.match(/^sdd\/(\d+)-/);
+              if (headMatch) {
+                const refNumber = parseInt(headMatch[1], 10);
+                let isFastpath = false;
+                try {
+                  const { data } = await github.rest.issues.get({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    issue_number: refNumber,
+                  });
+                  // A tracking issue has no parent_issue_url. A task
+                  // sub-issue has its Unit as parent. We treat
+                  // "no parent and currently in-progress" as the
+                  // fast-path completion signal.
+                  const parentUrl = data.parent_issue_url || '';
+                  const labels = (data.labels || []).map(
+                    (l) => l.name || l);
+                  const fastpathSignal = labels.includes('sdd:fastpath')
+                    || labels.includes('sdd:fastpath-review')
+                    || (!parentUrl
+                      && labels.includes('sdd:in-progress')
+                      && !labels.includes('sdd:dispatched'));
+                  if (!parentUrl && fastpathSignal) {
+                    isFastpath = true;
+                  }
+                } catch (err) {
+                  core.info('Could not fetch ref #' + refNumber + ': '
+                    + err.message);
+                }
+                if (isFastpath) {
+                  run = true;
+                  ctx = {
+                    trigger: 'command',
+                    entry: 'fastpath-complete',
+                    item_type: 'issue',
+                    item_number: refNumber,
+                  };
+                }
+              }
+            }
+
             // Tier gate. sdd-triage assigns each task sub-issue exactly one
             // model:* label. Every trigger this wrapper handles resolves to a
             // specific task sub-issue: directly for an issue event, through
@@ -261,7 +326,33 @@ jobs:
             // the wrapper file by tier), so the tier gate here is a
             // defence-in-depth check that catches the corner where a task's
             // model:* label has changed between dispatch and pickup.
-            if (run) {
+            //
+            // The fast-path entries (`entry: 'fastpath'` from sdd-spec's
+            // /approve, and `entry: 'fastpath-complete'` from a merged
+            // implementation PR) bypass the tier gate: the work-item on a
+            // fast-path entry is the tracking issue, which carries no
+            // model:* label by design. The completion entry only moves
+            // labels and posts a comment; the dispatch entry's tier match
+            // is enforced by sdd-spec when it picks the variant to
+            // workflow_dispatch.
+            const fastpathEntry = ctx && (
+              ctx.entry === 'fastpath' || ctx.entry === 'fastpath-complete');
+            if (run && fastpathEntry && ctx.entry === 'fastpath') {
+              // For the fastpath dispatch entry, the wrapper still confirms
+              // that the variant matches the tier the plan comment names.
+              // sdd-spec is expected to dispatch the matching variant
+              // directly, but a misroute (operator-run workflow_dispatch
+              // with a hand-supplied aw_context) is rejected here.
+              const planTier = (ctx.tier || '').toLowerCase();
+              if (planTier && planTier !== TIER) {
+                core.info('Fast-path dispatch tier (' + planTier
+                  + ') does not match this variant (' + TIER
+                  + '); this variant skips it.');
+                run = false;
+                ctx = {};
+              }
+            }
+            if (run && !fastpathEntry) {
               let taskIssue = 0;
               if (ctx.item_type === 'issue') {
                 taskIssue = ctx.item_number;
