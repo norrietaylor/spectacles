@@ -72,9 +72,10 @@ A sub-task born with one or more `blocked by` lines is not born `sdd:ready`.
 When the last blocker closes, that sub-task is structurally eligible but still
 carries no `sdd:ready` label, so `sdd-execute`'s eligibility check rejects it.
 Issue #63 calls this the post-merge gap. Closing it requires a new
-event-driven hook (an agent that listens on issue-close events for blocked
-sub-tasks and promotes them), which is a different change and is tracked
-separately. This ADR keeps the scope to creation time.
+event-driven hook (a deterministic workflow that listens on `issues.closed`
+and promotes any sibling whose last blocker just closed), which is a
+different change and is tracked separately in issue #78. This ADR keeps the
+scope to creation time.
 
 ## Verification
 
@@ -95,5 +96,4 @@ separately. This ADR keeps the scope to creation time.
   move is unchanged.
 - The post-merge promotion of a blocked task to `sdd:ready` (when its last
   blocker closes) remains unimplemented and is the only remaining path by
-  which a created-blocked task becomes eligible. It is tracked separately
-  from this ADR.
+  which a created-blocked task becomes eligible. It is tracked in issue #78.
