@@ -11,10 +11,10 @@
 #
 # --suite sdd therefore installs, onto the target repo: the eight thin
 # wrappers (the seven sdd-* agents and distillery-sync), the sdd-pr-sanitize
-# utility workflow, the sdd:* and model:* labels, and the issue templates. No
-# .lock.yml, no agent .md source, and no .github/aw/imports tree is copied —
-# the locks are self-contained (compiled with inlined-imports) and hosted, not
-# vendored.
+# and sdd-triage-dedupe-tasks utility workflows, the sdd:* and model:*
+# labels, and the issue templates. No .lock.yml, no agent .md source, and no
+# .github/aw/imports tree is copied — the locks are self-contained (compiled
+# with inlined-imports) and hosted, not vendored.
 #
 # Nothing in this script is org-specific. The GitHub App identity, the
 # Distillery HTTP endpoint and OAuth credentials, and the Serena language-server
@@ -33,9 +33,10 @@ Options:
   --target-repo  Repository to install into (required).
   --suite sdd    Install the full SDD agent suite: the eight thin agent
                  wrappers (the seven sdd-* agents and distillery-sync), the
-                 sdd-pr-sanitize utility workflow, the sdd:* and model:*
-                 labels, and the issue templates. Without this flag only the
-                 base labels are synced.
+                 sdd-pr-sanitize and sdd-triage-dedupe-tasks utility
+                 workflows, the sdd:* and model:* labels, and the issue
+                 templates. Without this flag only the base labels are
+                 synced.
   --ref <ref>    The spectacles ref the installed wrappers pin their hosted
                  reusable workflows to. Default: main. Set this to a release
                  tag to pin a consumer to an immutable suite version.
@@ -129,10 +130,13 @@ fi
 # event triggers and calls a hosted reusable workflow in the spectacles
 # repository (see ADR 0004 and workflows/README.md). The seven sdd-* agents
 # are event-driven; distillery-sync is scheduled; sdd-execute ships in three
-# model-tier variants. sdd-pr-sanitize is a utility workflow, not an agent
-# wrapper: it neutralizes a stray issue-closing keyword in a spec or
-# architecture pull request body so a merge cannot auto-close the feature
-# tracking issue (ADR 0006).
+# model-tier variants. sdd-pr-sanitize and sdd-triage-dedupe-tasks are utility
+# workflows, not agent wrappers: sdd-pr-sanitize neutralizes a stray
+# issue-closing keyword in a spec or architecture pull request body so a
+# merge cannot auto-close the feature tracking issue (ADR 0006), and
+# sdd-triage-dedupe-tasks closes a phase-C task sub-issue when an
+# earlier-numbered sibling under the same Unit already carries the same
+# title (ADR 0008).
 wrappers=(
   "sdd-spec"
   "sdd-triage"
@@ -143,6 +147,7 @@ wrappers=(
   "sdd-review"
   "distillery-sync"
   "sdd-pr-sanitize"
+  "sdd-triage-dedupe-tasks"
 )
 
 # Sync the labels. labels.yml is a flat list of '- name:' records, so it is
@@ -228,9 +233,10 @@ install_wrapper() {
 }
 
 # Install the consumer workflows: the eight thin agent wrappers and the
-# sdd-pr-sanitize utility workflow. No .lock.yml, .md source, or imports tree
-# is copied: under the ADR 0004 distribution model the wrappers call
-# self-contained hosted reusable workflows by pinned ref.
+# sdd-pr-sanitize and sdd-triage-dedupe-tasks utility workflows. No .lock.yml,
+# .md source, or imports tree is copied: under the ADR 0004 distribution
+# model the wrappers call self-contained hosted reusable workflows by pinned
+# ref.
 install_sdd_workflows() {
   echo "quick-setup: installing the sdd-* agent suite wrappers (ref: $ref)."
   local agent

@@ -46,8 +46,8 @@ spectacles repository by cross-repo `uses:`. This is the GitHub-native way to
 distribute a reusable workflow, and it has three consequences:
 
 - A consumer carries eight small, auditable wrappers — plus the
-  `sdd-pr-sanitize` utility workflow — not ~700 KB of generated locks plus a
-  vendored import cache.
+  `sdd-pr-sanitize` and `sdd-triage-dedupe-tasks` utility workflows — not
+  ~700 KB of generated locks plus a vendored import cache.
 - A suite update is a ref bump, not a re-install on every consumer.
 - The compiled locks must be self-contained. A lock that resolves imports or
   re-checks itself at run time fails when called cross-repo, because that
@@ -92,9 +92,10 @@ reusable workflow fronted by a thin wrapper.
 
 `scripts/quick-setup.sh --suite sdd` writes, under the consumer repository's
 `.github/workflows/`, the eight thin wrappers listed in the table above and
-the `sdd-pr-sanitize` utility workflow — and nothing else under that
-directory. No `.lock.yml`, no agent `.md` source, and no `.github/aw/imports/`
-tree is copied: the locks are hosted, and they are self-contained.
+the `sdd-pr-sanitize` and `sdd-triage-dedupe-tasks` utility workflows — and
+nothing else under that directory. No `.lock.yml`, no agent `.md` source, and
+no `.github/aw/imports/` tree is copied: the locks are hosted, and they are
+self-contained.
 
 `sdd-pr-sanitize` is not an agent wrapper: it is a plain workflow that corrects
 the issue references in every `spec/*` and `arch/*` pull request body. It
@@ -102,6 +103,13 @@ rewrites a stray issue-closing keyword aimed at the feature to `Refs` so a
 merge cannot auto-close the feature tracking issue, and it adds
 `Closes #<sub-issue>` for the deliverable spec or architecture sub-issue so the
 merge closes it (ADR 0005, ADR 0006).
+
+`sdd-triage-dedupe-tasks` is the other utility workflow. It runs on every
+issue opened in the consumer repository and closes a phase-C task sub-issue
+as a duplicate when an earlier-numbered sibling under the same Unit already
+carries the same title — the deterministic backstop for `sdd-triage` phase C
+emitting two `create-issue` safe-outputs for the same single-session task
+(ADR 0008).
 
 The installer also syncs the `sdd:*` and `model:*` labels and installs the
 issue templates. `--ref <ref>` pins the `uses:` lines in the installed
