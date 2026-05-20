@@ -52,9 +52,16 @@ jobs:
   # agent job is skipped.
   route:
     runs-on: ubuntu-latest
+    # pull-requests: read is needed for the tier gate on a /revise issue_comment
+    # (situation 6): the route fetches the pull request to read its body and
+    # extract the `Closes #<task>` reference. Without this grant, the GET
+    # /repos/{owner}/{repo}/pulls/{N} call returns 403 "Resource not accessible
+    # by integration" and the tier gate defaults to false, skipping every
+    # variant. See #68.
     permissions:
       contents: read
       issues: read
+      pull-requests: read
     outputs:
       should_run: ${{ steps.decide.outputs.should_run }}
       aw_context: ${{ steps.decide.outputs.aw_context }}
@@ -214,25 +221,45 @@ jobs:
               } else if (ctx.item_type === 'pull_request') {
                 // A pull_request_review_comment event carries the pull
                 // request inline; an issue_comment event (a /revise comment)
-                // does not, so fetch the pull request to read its body.
+                // does not, so fetch the pull request to read its body and
+                // head ref.
                 let prBody = (payload.pull_request
                   && payload.pull_request.body) || '';
-                if (!prBody) {
+                let prHeadRef = (payload.pull_request
+                  && payload.pull_request.head
+                  && payload.pull_request.head.ref) || '';
+                if (!prBody || !prHeadRef) {
                   try {
                     const { data } = await github.rest.pulls.get({
                       owner: context.repo.owner,
                       repo: context.repo.repo,
                       pull_number: ctx.item_number,
                     });
-                    prBody = data.body || '';
+                    prBody = prBody || (data.body || '');
+                    prHeadRef = prHeadRef
+                      || (data.head && data.head.ref) || '';
                   } catch (err) {
                     core.info('Could not fetch pull request #'
                       + ctx.item_number + ': ' + err.message);
                   }
                 }
+                // The pull request body is the documented place for the task
+                // sub-issue reference (`Closes #<task>`); prefer it.
                 const m = prBody.match(
                   /(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s+#(\d+)/i);
-                if (m) { taskIssue = parseInt(m[1], 10); }
+                if (m) {
+                  taskIssue = parseInt(m[1], 10);
+                } else {
+                  // Fall back to the head ref, which this agent encodes as
+                  // `sdd/<task-id>-<slug>` for every implementation pull
+                  // request it opens. This is robust against a future PR
+                  // whose body omits `Closes #<task>` for any reason, and
+                  // makes the route gate independent of body text. See #68.
+                  const refMatch = prHeadRef.match(/^sdd\/(\d+)-/);
+                  if (refMatch) {
+                    taskIssue = parseInt(refMatch[1], 10);
+                  }
+                }
               }
               let tierMatch = false;
               if (taskIssue) {
