@@ -6,10 +6,10 @@ edit_uri: edit/main/docs/
 theme:
   name: material
   logo: assets/svg/logo-dark.svg
-  favicon: assets/svg/favicon.svg
+  favicon: assets/svg/favicon-light.svg
   font:
-    text: Source Serif 4
-    code: Roboto Mono
+    text: Inter
+    code: JetBrains Mono
   palette:
     - media: "(prefers-color-scheme: light)"
       scheme: default

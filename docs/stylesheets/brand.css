@@ -1,32 +1,32 @@
 /* spectacles brand overrides for Material for MkDocs.
    Palette values from docs/assets/BRAND.md. */
 
-/* Fraunces (display face) for headings and the wordmark. The body and code
-   faces load from theme.font in mkdocs.yml. */
-@import url("https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400..600&display=swap");
+/* Inter (display + UI) for headings and the wordmark. The body and code
+   faces also load from theme.font in mkdocs.yml. */
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap");
 
-/* Light scheme: ink on parchment, brass accent. */
+/* Light scheme: ink on white, sapphire accent. */
 [data-md-color-scheme="default"] {
-  --md-primary-fg-color: #1a1f2e;
-  --md-primary-fg-color--light: #5a5246;
-  --md-primary-fg-color--dark: #1a1f2e;
-  --md-accent-fg-color: #b8862a;
-  --md-default-bg-color: #f4ecd8;
-  --md-typeset-a-color: #b8862a;
+  --md-primary-fg-color: #1a1a1a;
+  --md-primary-fg-color--light: #4a4a4a;
+  --md-primary-fg-color--dark: #1a1a1a;
+  --md-accent-fg-color: #1e3a8a;
+  --md-default-bg-color: #ffffff;
+  --md-typeset-a-color: #1e3a8a;
 }
 
-/* Dark scheme: parchment on ink, brighter brass accent. */
+/* Dark scheme: light ink on near-black, brightened sapphire accent. */
 [data-md-color-scheme="slate"] {
-  --md-primary-fg-color: #1a1f2e;
-  --md-primary-fg-color--light: #a8a08c;
-  --md-primary-fg-color--dark: #1a1f2e;
-  --md-accent-fg-color: #d4a445;
-  --md-default-bg-color: #1a1f2e;
-  --md-default-fg-color: #f4ecd8;
-  --md-typeset-a-color: #d4a445;
+  --md-primary-fg-color: #0e0e10;
+  --md-primary-fg-color--light: #a8a8a8;
+  --md-primary-fg-color--dark: #0e0e10;
+  --md-accent-fg-color: #3b5fc9;
+  --md-default-bg-color: #0e0e10;
+  --md-default-fg-color: #f5f5f5;
+  --md-typeset-a-color: #3b5fc9;
 }
 
-/* Headings and the wordmark use Fraunces; body copy stays in the text face. */
+/* Headings and the wordmark use Inter SemiBold; body copy stays in the text face. */
 .md-header__topic,
 .md-nav__title,
 .md-typeset h1,
@@ -35,7 +35,9 @@
 .md-typeset h4,
 .md-typeset h5,
 .md-typeset h6 {
-  font-family: "Fraunces", Georgia, "Times New Roman", serif;
+  font-family: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-weight: 600;
+  letter-spacing: -0.01em;
 }
 
 /* Material renders h1 in a muted foreground; restore full-strength ink. */
