@@ -359,8 +359,11 @@ jobs:
               // task sub-issue) via the head ref. The tracking issue
               // has no `model:*` label by design (ADR 0012). Mark this
               // case so the tier gate accepts a fast-path tracking
-              // issue in lieu of a model-label match.
+              // issue in lieu of a model-label match. `prBody` is
+              // hoisted to outer scope so the tier-marker scan in the
+              // label-check block can read it.
               let inferredFastpathFromPr = false;
+              let prBody = '';
               if (ctx.item_type === 'issue') {
                 taskIssue = ctx.item_number;
               } else if (ctx.item_type === 'pull_request') {
@@ -368,7 +371,7 @@ jobs:
                 // request inline; an issue_comment event (a /revise comment)
                 // does not, so fetch the pull request to read its body and
                 // head ref.
-                let prBody = (payload.pull_request
+                prBody = (payload.pull_request
                   && payload.pull_request.body) || '';
                 let prHeadRef = (payload.pull_request
                   && payload.pull_request.head
@@ -423,18 +426,39 @@ jobs:
                   const hasTier = labels.includes('model:' + TIER);
                   // A fast-path tracking issue carries no `model:*` label
                   // (ADR 0012); identify it by the lifecycle labels and
-                  // the absence of a parent. When a PR review/revise
-                  // event resolved its issue via the head ref, treat a
-                  // fast-path tracking issue as a tier match so this
-                  // wrapper does not silently drop the run.
+                  // the absence of a parent. On a fast-path PR
+                  // review/revise event, prefer the durable PR-body
+                  // tier marker `[sdd-fastpath: tracking=<N>
+                  // tier=<tier>]` written by sdd-execute on PR open
+                  // (per sdd-execute-{tier}.md, step 5 fast-path
+                  // paragraph). The marker is the strong routing
+                  // signal: it pinpoints the tier so only the matching
+                  // variant runs. When the marker is absent (e.g. a
+                  // pre-marker PR), fall back to the
+                  // fast-path-tracking-issue heuristic, which lets all
+                  // three variants pass the route gate; the agent
+                  // itself then noops on tier mismatch.
                   const isTracking = !data.parent_issue_url;
                   const isFastpathTracking = isTracking && (
                     labels.includes('sdd:fastpath')
                     || labels.includes('sdd:fastpath-review')
                     || labels.includes('sdd:in-progress')
                     || labels.includes('sdd:done'));
-                  tierMatch = hasTier
-                    || (inferredFastpathFromPr && isFastpathTracking);
+                  let fastpathTierMatch = false;
+                  if (inferredFastpathFromPr && isFastpathTracking) {
+                    const markerRe = new RegExp(
+                      '\\[sdd-fastpath:\\s*tracking=\\d+\\s+'
+                      + 'tier=(haiku|sonnet|opus)\\]', 'i');
+                    const markerHit = (prBody || '').match(markerRe);
+                    if (markerHit) {
+                      fastpathTierMatch =
+                        markerHit[1].toLowerCase() === TIER;
+                    } else {
+                      // No marker: defensive pass-through.
+                      fastpathTierMatch = true;
+                    }
+                  }
+                  tierMatch = hasTier || fastpathTierMatch;
                 } catch (err) {
                   core.info('Could not read labels for #' + taskIssue
                     + ': ' + err.message);

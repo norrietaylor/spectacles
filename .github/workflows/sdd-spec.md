@@ -78,12 +78,12 @@ The wrapper invokes this agent for one of seven situations. Determine which
 one applies from the workflow context before doing anything else.
 
 1. **A tracking issue gained the `sdd:spec` label.** Classify the work
-   (step 2 of the procedure). On a fast-path candidate, post the proposal
+   (step 3a of the procedure). On a fast-path candidate, post the proposal
    comment and stop. On a full-path candidate, author a spec for that issue.
    The `feature` and `bug` issue templates apply `sdd:spec` on creation, so
    this also covers a freshly opened feature or bug issue.
 2. **A write-access author commented `/spec` on a tracking issue.** Same as
-   above: classify, then either propose fast-path or author a spec. `/spec`
+   above: classify (step 3a), then either propose fast-path or author a spec. `/spec`
    on a fast-path tracking issue (carrying `sdd:fastpath` or
    `sdd:fastpath-review`) is the misclassification-escalation reset
    (ADR 0012): move the lifecycle back to `sdd:spec` and run the full-path
@@ -522,7 +522,9 @@ present at a time, so the removal and the addition are a single move.
 - A tracking issue labelled `sdd:spec` with a clear, fast-path-incompatible
   feature description produces, within one run, a pull request adding a
   `docs/specs/NN-spec-*` file whose Demoable Units section contains at
-  least one `R1.1` requirement and at least one `(informed by` citation.
+  least one `R1.1` requirement and, when prior work is load-bearing on
+  the spec, an `(informed by ...)` citation per the evidence-rigor
+  standard.
 - A tracking issue labelled `sdd:spec` whose body fits all six fast-path
   heuristics produces no pull request and one proposal comment naming the
   passing heuristics and asking for `/fastpath` or `/spec`. The lifecycle

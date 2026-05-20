@@ -1,4 +1,4 @@
-# gh-aw-metadata: {"schema_version":"v3","frontmatter_hash":"f424617be52af2ca878d81c727b7c41f07f244b1d5623c95f8d0d7e617b1069f","compiler_version":"v0.74.3","agent_id":"copilot"}
+# gh-aw-metadata: {"schema_version":"v3","frontmatter_hash":"5b6d899ffa83d1bb73bcdfd3271d424d38f1fff84f7b0dee52451205ff983a37","compiler_version":"v0.74.3","agent_id":"copilot"}
 # gh-aw-manifest: {"version":1,"secrets":["APP_PRIVATE_KEY","COPILOT_GITHUB_TOKEN","DISTILLERY_OAUTH_TOKEN","GH_AW_CI_TRIGGER_TOKEN","GH_AW_GITHUB_MCP_SERVER_TOKEN","GH_AW_GITHUB_TOKEN","GITHUB_TOKEN"],"actions":[{"repo":"actions/checkout","sha":"de0fac2e4500dabe0009e67214ff5f5447ce83dd","version":"v6.0.2"},{"repo":"actions/create-github-app-token","sha":"bcd2ba49218906704ab6c1aa796996da409d3eb1","version":"v3.2.0"},{"repo":"actions/download-artifact","sha":"3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c","version":"v8.0.1"},{"repo":"actions/github-script","sha":"3a2844b7e9c422d3c10d287c895573f7108da1b3","version":"v9.0.0"},{"repo":"actions/setup-node","sha":"48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e","version":"v6.4.0"},{"repo":"actions/upload-artifact","sha":"043fb46d1a93c77aae656e7c1c64a875d1fc6a0a","version":"v7.0.1"},{"repo":"github/gh-aw-actions/setup","sha":"8a9a52673cb8f97ebb43b344618af2d6f2c9ac7f","version":"v0.74.3"}],"containers":[{"image":"ghcr.io/github/gh-aw-firewall/agent:0.25.46"},{"image":"ghcr.io/github/gh-aw-firewall/api-proxy:0.25.46"},{"image":"ghcr.io/github/gh-aw-firewall/squid:0.25.46"},{"image":"ghcr.io/github/gh-aw-mcpg:v0.3.9","digest":"sha256:64828b42a4482f58fab16509d7f8f495a6d97c972a98a68aff20543531ac0388","pinned_image":"ghcr.io/github/gh-aw-mcpg:v0.3.9@sha256:64828b42a4482f58fab16509d7f8f495a6d97c972a98a68aff20543531ac0388"},{"image":"ghcr.io/github/github-mcp-server:v1.0.4"},{"image":"ghcr.io/github/serena-mcp-server:latest","digest":"sha256:bf343399e3725c45528f531a230f3a04521d4cdef29f9a5af6282ff0d3c393c5","pinned_image":"ghcr.io/github/serena-mcp-server:latest@sha256:bf343399e3725c45528f531a230f3a04521d4cdef29f9a5af6282ff0d3c393c5"},{"image":"node:lts-alpine","digest":"sha256:d1b3b4da11eefd5941e7f0b9cf17783fc99d9c6fc34884a665f40a06dbdfc94f","pinned_image":"node:lts-alpine@sha256:d1b3b4da11eefd5941e7f0b9cf17783fc99d9c6fc34884a665f40a06dbdfc94f"}]}
 #    ___                   _   _      
 #   / _ \                 | | (_)     
@@ -247,24 +247,24 @@ jobs:
         run: |
           bash "${RUNNER_TEMP}/gh-aw/actions/create_prompt_first.sh"
           {
-          cat << 'GH_AW_PROMPT_a500fa6d42c470af_EOF'
+          cat << 'GH_AW_PROMPT_f3baf6945f95f14e_EOF'
           <system>
-          GH_AW_PROMPT_a500fa6d42c470af_EOF
+          GH_AW_PROMPT_f3baf6945f95f14e_EOF
           cat "${RUNNER_TEMP}/gh-aw/prompts/xpia.md"
           cat "${RUNNER_TEMP}/gh-aw/prompts/temp_folder_prompt.md"
           cat "${RUNNER_TEMP}/gh-aw/prompts/markdown.md"
           cat "${RUNNER_TEMP}/gh-aw/prompts/safe_outputs_prompt.md"
-          cat << 'GH_AW_PROMPT_a500fa6d42c470af_EOF'
+          cat << 'GH_AW_PROMPT_f3baf6945f95f14e_EOF'
           <safe-output-tools>
           Tools: add_comment, create_issue, create_pull_request, add_labels(max:2), remove_labels(max:2), push_to_pull_request_branch, hide_comment(max:5), missing_tool, missing_data, noop
-          GH_AW_PROMPT_a500fa6d42c470af_EOF
+          GH_AW_PROMPT_f3baf6945f95f14e_EOF
           cat "${RUNNER_TEMP}/gh-aw/prompts/safe_outputs_create_pull_request.md"
           cat "${RUNNER_TEMP}/gh-aw/prompts/safe_outputs_push_to_pr_branch.md"
-          cat << 'GH_AW_PROMPT_a500fa6d42c470af_EOF'
+          cat << 'GH_AW_PROMPT_f3baf6945f95f14e_EOF'
           </safe-output-tools>
-          GH_AW_PROMPT_a500fa6d42c470af_EOF
+          GH_AW_PROMPT_f3baf6945f95f14e_EOF
           cat "${RUNNER_TEMP}/gh-aw/prompts/mcp_cli_tools_prompt.md"
-          cat << 'GH_AW_PROMPT_a500fa6d42c470af_EOF'
+          cat << 'GH_AW_PROMPT_f3baf6945f95f14e_EOF'
           <github-context>
           The following GitHub context information is available for this workflow:
           {{#if github.actor}}
@@ -293,9 +293,9 @@ jobs:
           {{/if}}
           </github-context>
           
-          GH_AW_PROMPT_a500fa6d42c470af_EOF
+          GH_AW_PROMPT_f3baf6945f95f14e_EOF
           cat "${RUNNER_TEMP}/gh-aw/prompts/github_mcp_tools_with_safeoutputs_prompt.md"
-          cat << 'GH_AW_PROMPT_a500fa6d42c470af_EOF'
+          cat << 'GH_AW_PROMPT_f3baf6945f95f14e_EOF'
           </system>
           # Core principles
           
@@ -698,12 +698,12 @@ jobs:
           one applies from the workflow context before doing anything else.
           
           1. **A tracking issue gained the `sdd:spec` label.** Classify the work
-             (step 2 of the procedure). On a fast-path candidate, post the proposal
+             (step 3a of the procedure). On a fast-path candidate, post the proposal
              comment and stop. On a full-path candidate, author a spec for that issue.
              The `feature` and `bug` issue templates apply `sdd:spec` on creation, so
              this also covers a freshly opened feature or bug issue.
           2. **A write-access author commented `/spec` on a tracking issue.** Same as
-             above: classify, then either propose fast-path or author a spec. `/spec`
+             above: classify (step 3a), then either propose fast-path or author a spec. `/spec`
              on a fast-path tracking issue (carrying `sdd:fastpath` or
              `sdd:fastpath-review`) is the misclassification-escalation reset
              (ADR 0012): move the lifecycle back to `sdd:spec` and run the full-path
@@ -1142,7 +1142,9 @@ jobs:
           - A tracking issue labelled `sdd:spec` with a clear, fast-path-incompatible
             feature description produces, within one run, a pull request adding a
             `docs/specs/NN-spec-*` file whose Demoable Units section contains at
-            least one `R1.1` requirement and at least one `(informed by` citation.
+            least one `R1.1` requirement and, when prior work is load-bearing on
+            the spec, an `(informed by ...)` citation per the evidence-rigor
+            standard.
           - A tracking issue labelled `sdd:spec` whose body fits all six fast-path
             heuristics produces no pull request and one proposal comment naming the
             passing heuristics and asking for `/fastpath` or `/spec`. The lifecycle
@@ -1175,7 +1177,7 @@ jobs:
             `sdd:fastpath-review` resets the lifecycle to `sdd:spec` and runs the
             full-path flow with the existing stub spec as the starting point.
           
-          GH_AW_PROMPT_a500fa6d42c470af_EOF
+          GH_AW_PROMPT_f3baf6945f95f14e_EOF
           } > "$GH_AW_PROMPT"
       - name: Interpolate variables and render templates
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
@@ -1385,9 +1387,9 @@ jobs:
           mkdir -p "${RUNNER_TEMP}/gh-aw/safeoutputs"
           mkdir -p /tmp/gh-aw/safeoutputs
           mkdir -p /tmp/gh-aw/mcp-logs/safeoutputs
-          cat > "${RUNNER_TEMP}/gh-aw/safeoutputs/config.json" << 'GH_AW_SAFE_OUTPUTS_CONFIG_b9fe0d76bbd0503f_EOF'
+          cat > "${RUNNER_TEMP}/gh-aw/safeoutputs/config.json" << 'GH_AW_SAFE_OUTPUTS_CONFIG_35cd4dabfb39088b_EOF'
           {"add_comment":{"max":1},"add_labels":{"allowed":["sdd:spec","sdd:triage","sdd:fastpath","sdd:fastpath-review","needs-human"],"max":2},"create_issue":{"max":1},"create_pull_request":{"branch_prefix":"spec/","draft":false,"max":1,"max_patch_files":100,"max_patch_size":1024,"protect_top_level_dot_folders":true,"protected_files":["package.json","bun.lockb","bunfig.toml","deno.json","deno.jsonc","deno.lock","global.json","NuGet.Config","Directory.Packages.props","mix.exs","mix.lock","go.mod","go.sum","stack.yaml","stack.yaml.lock","pom.xml","build.gradle","build.gradle.kts","settings.gradle","settings.gradle.kts","gradle.properties","package-lock.json","yarn.lock","pnpm-lock.yaml","npm-shrinkwrap.json","requirements.txt","Pipfile","Pipfile.lock","pyproject.toml","setup.py","setup.cfg","Gemfile","Gemfile.lock","uv.lock","CODEOWNERS","DESIGN.md","README.md","CONTRIBUTING.md","CHANGELOG.md","SECURITY.md","CODE_OF_CONDUCT.md","AGENTS.md","CLAUDE.md","GEMINI.md"],"title_prefix":"spec"},"create_report_incomplete_issue":{},"hide_comment":{"max":5},"missing_data":{},"missing_tool":{},"noop":{"max":1,"report-as-issue":"true"},"push_to_pull_request_branch":{"if_no_changes":"warn","max":1,"max_patch_size":1024,"protect_top_level_dot_folders":true,"protected_files":["package.json","bun.lockb","bunfig.toml","deno.json","deno.jsonc","deno.lock","global.json","NuGet.Config","Directory.Packages.props","mix.exs","mix.lock","go.mod","go.sum","stack.yaml","stack.yaml.lock","pom.xml","build.gradle","build.gradle.kts","settings.gradle","settings.gradle.kts","gradle.properties","package-lock.json","yarn.lock","pnpm-lock.yaml","npm-shrinkwrap.json","requirements.txt","Pipfile","Pipfile.lock","pyproject.toml","setup.py","setup.cfg","Gemfile","Gemfile.lock","uv.lock","CODEOWNERS","DESIGN.md","README.md","CONTRIBUTING.md","CHANGELOG.md","SECURITY.md","CODE_OF_CONDUCT.md","AGENTS.md","CLAUDE.md","GEMINI.md"]},"remove_labels":{"allowed":["sdd:spec","sdd:fastpath","sdd:fastpath-review"],"max":2},"report_incomplete":{}}
-          GH_AW_SAFE_OUTPUTS_CONFIG_b9fe0d76bbd0503f_EOF
+          GH_AW_SAFE_OUTPUTS_CONFIG_35cd4dabfb39088b_EOF
       - name: Generate Safe Outputs Tools
         env:
           GH_AW_TOOLS_META_JSON: |
@@ -1747,7 +1749,7 @@ jobs:
           
           mkdir -p /home/runner/.copilot
           GH_AW_NODE=$(which node 2>/dev/null || command -v node 2>/dev/null || echo node)
-          cat << GH_AW_MCP_CONFIG_fa0f922e764e1421_EOF | "$GH_AW_NODE" "${RUNNER_TEMP}/gh-aw/actions/start_mcp_gateway.cjs"
+          cat << GH_AW_MCP_CONFIG_f40ee8008b70a1be_EOF | "$GH_AW_NODE" "${RUNNER_TEMP}/gh-aw/actions/start_mcp_gateway.cjs"
           {
             "mcpServers": {
               "distillery": {
@@ -1848,7 +1850,7 @@ jobs:
               "payloadDir": "${MCP_GATEWAY_PAYLOAD_DIR}"
             }
           }
-          GH_AW_MCP_CONFIG_fa0f922e764e1421_EOF
+          GH_AW_MCP_CONFIG_f40ee8008b70a1be_EOF
       - name: Mount MCP servers as CLIs
         id: mount-mcp-clis
         continue-on-error: true

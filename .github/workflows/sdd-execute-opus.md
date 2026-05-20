@@ -385,6 +385,17 @@ the merge does not auto-close anything. The next-step line in the PR
 body reads "merging this pull request advances the tracking issue
 from `sdd:in-progress` to `sdd:done`; a human does the final close."
 
+Include a fast-path routing marker as the first line of the PR body,
+on its own line, in the literal form `[sdd-fastpath: tracking=<N>
+tier=<tier>]` where `<N>` is the tracking issue number and `<tier>`
+is one of `haiku`, `sonnet`, `opus` matching this variant's tier.
+This is the durable machine-readable marker the execute wrappers
+parse on later review/revise events to recover the work item and
+the tier without re-reading the plan comment; without it, a
+review-comment event would have to land on all three tier variants
+to be sure of routing. The marker is on its own line so a plain
+`includes()` substring scan picks it up.
+
 ### 7. Address review comments in place
 
 This step runs for a `pull_request_review_comment` event, and for a

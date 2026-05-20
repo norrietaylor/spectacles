@@ -67,7 +67,9 @@ transitions:
   sdd:ready: [sdd:in-progress]
   sdd:fastpath: [sdd:fastpath-review, sdd:in-progress, sdd:spec]
   sdd:fastpath-review: [sdd:fastpath, sdd:spec]
-  sdd:in-progress: [sdd:review]
+  # Fast path skips sdd:review and goes straight to sdd:done; full path
+  # routes through sdd:review on a clean validate pass.
+  sdd:in-progress: [sdd:review, sdd:done]
   sdd:review: [sdd:done]
 
 # Writer assignment. Exactly one workflow is the authoritative writer

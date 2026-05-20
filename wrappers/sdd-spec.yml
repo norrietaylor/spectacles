@@ -205,7 +205,17 @@ jobs:
                     });
                     const labels = (data.labels || []).map(
                       (l) => l.name || l);
-                    isFastpathTracking = labels.includes('sdd:fastpath');
+                    // Accept /approve on either sdd:fastpath (the
+                    // documented post-stub-merge state, per ADR 0012) or
+                    // sdd:fastpath-review (a human typed /approve before
+                    // the stub PR merged). The fastpath-approve job
+                    // below detects fastpath-review and posts a
+                    // guidance comment instead of dispatching, so this
+                    // carve-out only owns routing — not dispatch policy.
+                    // Kept symmetric with wrappers/sdd-triage.yml's
+                    // skipFastpath check.
+                    isFastpathTracking = labels.includes('sdd:fastpath')
+                      || labels.includes('sdd:fastpath-review');
                   } catch (err) {
                     core.info('Could not fetch issue #'
                       + payload.issue.number + ': ' + err.message);
@@ -331,6 +341,54 @@ jobs:
             const tracking = parseInt(process.env.TRACKING, 10);
             const sentinel = '[sdd-spec:fastpath-plan]';
 
+            // Before dispatching, confirm the tracking issue is in
+            // `sdd:fastpath` (the documented `/approve` state, per ADR
+            // 0012). If it is still in `sdd:fastpath-review` the stub
+            // spec PR has not merged yet; post a guidance comment
+            // pointing at the merge gate and stop. This lets the
+            // route-job carve-out accept either state symmetrically
+            // (kept consistent with sdd-triage's skipFastpath check)
+            // while keeping dispatch policy here.
+            try {
+              const { data: issueData } = await github.rest.issues.get({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: tracking,
+              });
+              const issueLabels = (issueData.labels || []).map(
+                (l) => l.name || l);
+              if (issueLabels.includes('sdd:fastpath-review')
+                  && !issueLabels.includes('sdd:fastpath')) {
+                core.info('/approve on #' + tracking
+                  + ' while sdd:fastpath-review is present; the stub'
+                  + ' spec PR has not merged. Posting guidance and'
+                  + ' exiting without dispatch.');
+                try {
+                  await github.rest.issues.createComment({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    issue_number: tracking,
+                    body: 'Fast-path `/approve` is gated on the stub'
+                      + ' spec PR merging. Merge the open stub spec'
+                      + ' pull request first; the tracking issue'
+                      + ' returns to `sdd:fastpath` and then `/approve`'
+                      + ' dispatches the implementation.',
+                  });
+                } catch (e) {
+                  core.info('Could not post guidance comment: '
+                    + e.message);
+                }
+                return;
+              }
+            } catch (err) {
+              // A transient fetch error falls through to the dispatch
+              // path; the agent's lifecycle move below is idempotent
+              // and the worst case is a duplicate run on the right
+              // state.
+              core.info('Could not pre-check labels on #' + tracking
+                + ': ' + err.message);
+            }
+
             // List comments on the tracking issue and find the latest plan
             // comment by the sentinel marker. `/revise` between the plan
             // post and `/approve` posts a new plan comment and hides the
@@ -405,35 +463,14 @@ jobs:
             }
             const tier = tierMatch[1].toLowerCase();
 
-            // Move the lifecycle: sdd:fastpath -> sdd:in-progress on the
-            // tracking issue. The remove and add are idempotent. We do
-            // this before the workflow_dispatch so the sdd-execute-{tier}
-            // wrapper's tier-gate (which reads the tracking issue's
-            // labels) sees the correct lifecycle state when it runs.
-            try {
-              await github.rest.issues.removeLabel({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                issue_number: tracking,
-                name: 'sdd:fastpath',
-              });
-            } catch (err) {
-              core.info('Could not remove sdd:fastpath from #' + tracking
-                + ': ' + err.message);
-            }
-            try {
-              await github.rest.issues.addLabels({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                issue_number: tracking,
-                labels: ['sdd:in-progress'],
-              });
-            } catch (err) {
-              core.info('Could not add sdd:in-progress to #' + tracking
-                + ': ' + err.message);
-            }
-
             // Dispatch sdd-execute-{tier} with the fast-path entry context.
+            // Dispatch *before* moving the lifecycle label so that a
+            // dispatch failure leaves the tracking issue in
+            // `sdd:fastpath` (where the human can simply retype
+            // `/approve`) instead of stranded in `sdd:in-progress` with
+            // no execute run. The sdd-execute fast-path entry bypasses
+            // the route-job tier gate via `fastpathEntry`, so it does
+            // not depend on the lifecycle label being moved first.
             const workflow = 'sdd-execute-' + tier + '.yml';
             const awContext = JSON.stringify({
               trigger: 'command',
@@ -479,6 +516,35 @@ jobs:
             } catch (err) {
               core.setFailed('Failed to dispatch ' + workflow
                 + ' for fast-path #' + tracking + ': ' + err.message);
+              return;
+            }
+
+            // Dispatch succeeded; now move the lifecycle from
+            // sdd:fastpath (or sdd:fastpath-review, if the early-state
+            // pre-check above did not catch the case) to
+            // sdd:in-progress on the tracking issue. The remove and
+            // add are idempotent.
+            try {
+              await github.rest.issues.removeLabel({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: tracking,
+                name: 'sdd:fastpath',
+              });
+            } catch (err) {
+              core.info('Could not remove sdd:fastpath from #' + tracking
+                + ': ' + err.message);
+            }
+            try {
+              await github.rest.issues.addLabels({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: tracking,
+                labels: ['sdd:in-progress'],
+              });
+            } catch (err) {
+              core.info('Could not add sdd:in-progress to #' + tracking
+                + ': ' + err.message);
             }
 
   sdd-spec:

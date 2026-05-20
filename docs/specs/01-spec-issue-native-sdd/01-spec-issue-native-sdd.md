@@ -1138,7 +1138,7 @@ every later unit runs against them.
 
 **Greenfield bootstrapping:** Unit 1 is the bootstrapping unit. It sets
 `verification.pre` and `verification.post` to empty for itself and establishes
-the commands above for Units 2 to 11.
+the commands above for Units 2 to 12.
 
 ## Technical Considerations
 
@@ -1223,7 +1223,7 @@ the commands above for Units 2 to 11.
 
 ## Success Metrics
 
-- All eleven demoable units land with proof artifacts passing.
+- All twelve demoable units land with proof artifacts passing.
 - Each `sdd-*` source compiles clean under `gh aw compile`, including the
   three `sdd-execute` model-tier variants.
 - The `leak-scan` CI check passes on every commit; no private term ever

@@ -110,6 +110,12 @@ jobs:
                     // Check for the fast-path carve-out before admitting
                     // the /dispatch. A tracking issue carrying any
                     // fast-path lifecycle label routes to the noop branch.
+                    // A fast-path tracking issue in `sdd:in-progress` (the
+                    // implementation is running) also routes to noop: it
+                    // has no sub-issues, so /dispatch has nothing to
+                    // cascade. Detect this by the absence of children;
+                    // the full-path `sdd:in-progress` always has a
+                    // sub-issue tree under it (ADR 0010 / ADR 0011).
                     let isFastpath = false;
                     try {
                       const { data } = await github.rest.issues.get({
@@ -119,8 +125,36 @@ jobs:
                       });
                       const labels = (data.labels || []).map(
                         (l) => l.name || l);
-                      isFastpath = labels.includes('sdd:fastpath')
+                      const hasFastpathLabel = labels.includes('sdd:fastpath')
                         || labels.includes('sdd:fastpath-review');
+                      let inProgressFastpathHistory = false;
+                      if (!hasFastpathLabel
+                          && !data.parent_issue_url
+                          && labels.includes('sdd:in-progress')
+                          && !labels.includes('sdd:dispatched')) {
+                        try {
+                          const childrenResp = await github.request(
+                            'GET /repos/{owner}/{repo}/issues/{issue_number}/sub_issues',
+                            {
+                              owner: context.repo.owner,
+                              repo: context.repo.repo,
+                              issue_number: payload.issue.number,
+                              per_page: 1,
+                              page: 1,
+                            });
+                          inProgressFastpathHistory =
+                            (childrenResp.data || []).length === 0;
+                        } catch (subErr) {
+                          // Sub-issues endpoint failure leaves
+                          // inProgressFastpathHistory false; the run
+                          // proceeds as a normal dispatch, which is the
+                          // safer default for a full-path tracking issue.
+                          core.info('Could not list sub-issues for #'
+                            + payload.issue.number + ': ' + subErr.message);
+                        }
+                      }
+                      isFastpath = hasFastpathLabel
+                        || inProgressFastpathHistory;
                     } catch (err) {
                       core.info('Could not fetch issue #'
                         + payload.issue.number + ': ' + err.message);
