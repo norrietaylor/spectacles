@@ -358,8 +358,8 @@ removal and the addition are a single move. Per-task `sdd:ready` is **not**
 applied here — every unblocked sub-task already carries `sdd:ready` from its
 `create-issue` call in step 6 (ADR 0009). A sub-task with an open `blocked by`
 dependency does not yet carry `sdd:ready`; promoting such a task once its last
-blocker closes is out of scope for this agent and is tracked separately (the
-post-merge gap noted in issue #63).
+blocker closes is out of scope for this agent and is tracked separately
+(issue #78).
 
 ## Boundaries
 
