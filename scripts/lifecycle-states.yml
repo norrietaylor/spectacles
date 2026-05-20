@@ -23,11 +23,16 @@
 
 # Lifecycle states. Exactly one is present on a tracking issue at a
 # time. The order here is presentation-only; the directed graph below
-# is the actual ordering authority.
+# is the actual ordering authority. The fast-path branch (sdd:fastpath,
+# sdd:fastpath-review) is the single-session ADR-0012 alternative to the
+# spec → triage → ready flow; the two branches re-converge at
+# sdd:in-progress.
 lifecycle:
   - sdd:spec
   - sdd:triage
   - sdd:ready
+  - sdd:fastpath
+  - sdd:fastpath-review
   - sdd:in-progress
   - sdd:review
   - sdd:done
@@ -36,8 +41,6 @@ lifecycle:
 # may coexist with any lifecycle label, and `add-labels` of a marker
 # does not need to be paired with a `remove-labels` of a previous state.
 # `needs-human` is the universal agent-to-human hand-off (ADR 0001).
-# Future marker labels — `sdd:fastpath` and `sdd:fastpath-review` (#82)
-# — land here when they ship.
 markers:
   - needs-human
   # sdd:dispatched marks a tracking issue as armed for cascade
@@ -51,11 +54,22 @@ markers:
 # edges, and `sdd:done` is the only state allowed to have no outgoing
 # edges (terminal). A state with no outgoing edges that is not
 # `sdd:done` is a dead-end and fails the validator.
+#
+# The fast-path branch (ADR 0012) forks from sdd:spec on `/fastpath`
+# and re-joins the main flow at sdd:in-progress on `/approve`. The
+# branch oscillates sdd:fastpath ↔ sdd:fastpath-review while the stub
+# spec PR is open / merged. `/spec` on a fast-path tracking issue is
+# the misclassification-escalation reset (ADR 0012, sdd-spec.md step
+# 3): both fast-path states transition back to sdd:spec.
 transitions:
-  sdd:spec: [sdd:triage]
+  sdd:spec: [sdd:triage, sdd:fastpath]
   sdd:triage: [sdd:ready]
   sdd:ready: [sdd:in-progress]
-  sdd:in-progress: [sdd:review]
+  sdd:fastpath: [sdd:fastpath-review, sdd:in-progress, sdd:spec]
+  sdd:fastpath-review: [sdd:fastpath, sdd:spec]
+  # Fast path skips sdd:review and goes straight to sdd:done; full path
+  # routes through sdd:review on a clean validate pass.
+  sdd:in-progress: [sdd:review, sdd:done]
   sdd:review: [sdd:done]
 
 # Writer assignment. Exactly one workflow is the authoritative writer
@@ -70,6 +84,8 @@ transitions:
 writers:
   sdd:triage: sdd-spec
   sdd:ready: sdd-triage
+  sdd:fastpath: sdd-spec
+  sdd:fastpath-review: sdd-spec
   sdd:in-progress: sdd-execute
   sdd:review: sdd-validate
   sdd:done: sdd-execute

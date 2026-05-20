@@ -13,12 +13,18 @@ no new tool to install and no separate task board.
 
 | Agent | Turns | Into |
 |---|---|---|
-| `sdd-spec` | a tracking issue | a structured spec, delivered as a PR |
+| `sdd-spec` | a tracking issue | full path: a structured spec, delivered as a PR. Fast path: a stub spec PR plus a single execution-plan comment on the tracking issue (ADR 0012) |
 | `sdd-triage` | a merged spec | an architecture record, then a task graph of sub-issues |
-| `sdd-dispatch` | `/dispatch` on a tracking issue, or a task sub-issue closing | fan-out of ready tasks to `sdd-execute` variants, bounded by `max-parallel` |
-| `sdd-execute` | a ready task sub-issue | an implementation PR with proof artifacts |
+| `sdd-dispatch` | `/dispatch` on a tracking issue, or a task sub-issue closing | fan-out of ready tasks to `sdd-execute` variants, bounded by `max-parallel` (noop on fast-path issues) |
+| `sdd-execute` | a ready task sub-issue, or a fast-path tracking issue on `/approve` | an implementation PR with proof artifacts |
 | `sdd-validate` | a phase-boundary artifact | advisory findings posted as a comment |
 | `sdd-review` | an implementation PR | code-review comments on correctness, security, and spec compliance |
+
+Lifecycle labels on the tracking issue: `sdd:spec`, `sdd:fastpath`,
+`sdd:fastpath-review`, `sdd:triage`, `sdd:ready`, `sdd:in-progress`,
+`sdd:review`, `sdd:done`. The `sdd:fastpath` and `sdd:fastpath-review`
+labels mark the fast-path states (ADR 0012); a fast-path tracking issue
+never carries `sdd:triage`, `sdd:ready`, or `sdd:review`.
 
 `sdd-triage` runs three phases under one workflow: architecture design, a
 plan-comment proposal on the tracking issue, and — on `/approve` — the
@@ -30,6 +36,17 @@ ready set from the dependency graph and fans out to `sdd-execute` variants
 in a bounded matrix; it then re-fires on every task close until the tree
 is drained. Execution is fully event-driven (ADR 0011): there is no daily
 cron.
+
+`sdd-spec` has two modes: full-path (the default) and fast-path. On
+intake it classifies the work against six heuristics and, when all pass,
+posts a proposal asking the human to comment `/fastpath` to confirm or
+`/spec` to keep the full flow (ADR 0012). On `/fastpath` it produces a
+compressed stub spec PR plus a single execution-plan comment on the
+tracking issue; the human merges the stub and comments `/approve` to
+dispatch the implementation directly. Two extra lifecycle labels —
+`sdd:fastpath` and `sdd:fastpath-review` — mark the fast-path states.
+`/dispatch` is a noop on a fast-path tracking issue (the fan-out is
+unused).
 
 ## End-to-end flow
 
@@ -53,8 +70,16 @@ flowchart TD
     open([Human: open a feature or bug issue<br/>the template applies sdd:spec]):::human
 
     subgraph s_spec [Tracking issue state: sdd:spec]
+        a_classify[sdd-spec classifies the issue<br/>full path: draft a spec<br/>fast path: post a /fastpath proposal]:::agent
         a_spec[sdd-spec drafts the spec<br/>opens a spec sub-issue and a spec PR]:::agent
         h_spec([Human: review and merge the spec PR<br/>the spec sub-issue closes on merge]):::human
+    end
+
+    subgraph s_fast [Fast path: sdd:fastpath then sdd:fastpath-review]
+        h_fast([Human: comment /fastpath]):::human
+        a_fast[sdd-spec: stub spec PR + execution plan comment]:::agent
+        h_fast_merge([Human: review and merge the stub spec PR]):::human
+        h_approve_fast([Human: comment /approve]):::human
     end
 
     subgraph s_triage [Tracking issue state: sdd:triage]
@@ -88,15 +113,20 @@ flowchart TD
         h_close([Human: final review, then close the tracking issue]):::human
     end
 
-    open --> a_spec --> h_spec --> h_triage --> a_arch --> h_arch
+    open --> a_classify
+    a_classify -->|full path| a_spec --> h_spec --> h_triage --> a_arch --> h_arch
+    a_classify -->|fast-path proposal| h_fast
+    h_fast --> a_fast --> h_fast_merge --> h_approve_fast --> a_exec
     h_arch --> a_units --> h_approve --> a_tasks --> h_dispatch
     h_dispatch --> a_dispatch --> a_exec --> a_check --> h_merge
-    h_merge -->|tasks remain| a_dispatch
-    h_merge -->|last task done| a_done --> h_close
+    h_merge -->|tasks remain, full path| a_dispatch
+    h_merge -->|last task done, or fast path| a_done --> h_close
 
     hand[/"Any agent, on low confidence or a blocker:<br/>posts questions, applies needs-human, stops"/]:::handoff
     ans([Human: answer the questions, remove needs-human<br/>the agent re-runs and resumes]):::human
+    a_classify -.-> hand
     a_spec -.-> hand
+    a_fast -.-> hand
     a_arch -.-> hand
     a_tasks -.-> hand
     a_exec -.-> hand
@@ -126,14 +156,45 @@ single comment on the tracking issue, so a `/revise <note>` is cheap:
 `sdd-triage` re-posts the plan with the note applied and there is no tree
 to garbage-collect. ADR 0010 records the gate semantics.
 
+### Fast-path steps
+
+The fast-path flow (ADR 0012) compresses spec, architecture, and plan
+into one agent run for single-session work. The steps below run in
+place of the full table above when the tracking issue's lifecycle
+forks off to `sdd:fastpath` after `/fastpath`.
+
+| Step | Who acts | What happens | Lifecycle label |
+|---|---|---|---|
+| 1. Open the issue | you | Open from the `feature` or `bug` template (same as the full path). | `sdd:spec` |
+| 2. Classify | `sdd-spec` | The agent reads the issue, checks six fast-path heuristics, and posts one proposal comment asking for `/fastpath` (small change) or `/spec` (full flow). Silence means the full flow runs. | `sdd:spec` |
+| 3. Confirm fast-path | you | Comment `/fastpath` on the tracking issue. The wrapper moves the lifecycle to `sdd:fastpath` and re-invokes `sdd-spec`. | `sdd:fastpath` |
+| 4. Author the stub | `sdd-spec` | One run produces a stub spec PR (problem statement, R-IDs, proof artifacts, one Unit) and an execution plan comment on the tracking issue. | `sdd:fastpath-review` |
+| 5. Merge the stub spec PR | you | Review and merge. The spec sub-issue closes via the existing `Closes` keyword. | `sdd:fastpath` |
+| 6. Approve and dispatch | you | Comment `/approve` on the tracking issue. The `sdd-spec` wrapper finds the plan comment, parses the `model:*` tier, and dispatches one `sdd-execute-{tier}` against the plan. No Unit or task sub-issues are created. | `sdd:in-progress` |
+| 7. Implementation runs | `sdd-execute` | The variant opens one implementation PR with proof artifacts. `sdd-validate` and `sdd-review` run as on the full path; the absence of an architecture record and a sub-task tree is not a finding. | `sdd:in-progress` |
+| 8. Merge and close | you | Merge the implementation PR. `sdd-execute` moves the tracking issue to `sdd:done` and applies `needs-human` for your final close. | `sdd:done` |
+
+`/dispatch` on a fast-path tracking issue is a noop with a one-comment
+explanation pointing to `/approve`. A `/revise <note>` between the
+execution plan comment and `/approve` edits the plan in place (a new
+plan comment is posted; the prior one is hidden as `OUTDATED`).
+
+If during execution `sdd-execute` finds the work is materially bigger
+than fast-path assumed, it posts one comment naming the mismatch and
+applies `needs-human`. Your recourse is the standard `needs-human`
+flow: answer in a comment and either tighten the scope (the executor
+resumes) or comment `/spec` to bounce the issue into the full
+pipeline (`sdd:fastpath` becomes `sdd:spec`; the stub is the
+starting point of a fuller spec).
+
 ## What a human does
 
 Across the whole pipeline a human takes only four kinds of action:
 
 - **Open an issue** from the `feature` or `bug` template to start a feature.
-- **Comment a command** to steer: `/spec`, `/triage`, `/approve`,
-  `/dispatch`, `/revise`, or `/execute`. See the command table in
-  `shared/sdd-interaction.md`.
+- **Comment a command** to steer: `/spec`, `/fastpath`, `/triage`,
+  `/approve`, `/dispatch`, `/revise`, or `/execute`. See the command
+  table in `shared/sdd-interaction.md`.
 - **Review and merge PRs.** Merging a PR is the approval signal that advances
   the pipeline. No agent merges a PR; merge authority stays with humans and
   consumer CI.

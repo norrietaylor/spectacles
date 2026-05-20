@@ -117,6 +117,20 @@ reference, and from it the R-IDs the task is scoped to. The spec-compliance
 concern in step 3 checks the diff against those R-IDs, so the set of R-IDs the
 task claims to satisfy is the reference for that concern.
 
+**Fast-path awareness** (ADR 0012). On a fast-path implementation PR
+there is no `Closes #<task>` reference (the tracking issue stays open
+until a human closes it; see ADR 0012). The PR's head branch follows
+`sdd/<tracking>-<slug>` and its body references the tracking issue as
+a bare `#<tracking>`. Resolve the spec context by walking from the
+tracking issue: read the tracking issue's lifecycle label (if it
+carries `sdd:fastpath`, `sdd:fastpath-review`, or shows fast-path
+history), read the execution plan comment (the
+`[sdd-spec:fastpath-plan]` marker), and read the stub
+spec file linked from the stub spec PR. The R-IDs the
+spec-compliance concern checks against are the stub spec's R-IDs.
+The absence of an architecture record and a task sub-issue tree on a
+fast-path issue is **not** a spec-compliance finding.
+
 ### 3. Review the diff across three concerns
 
 Review the pull request diff across exactly these three concerns:

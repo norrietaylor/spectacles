@@ -418,6 +418,12 @@ get a spec PR.
 - **R4.7**: On a merged spec PR (a trigger on `pull_request: closed, merged`),
   the agent shall move the tracking issue label from `sdd:spec` to
   `sdd:triage` and comment linking the spec.
+- **R4.8**: `sdd-spec` may exit with a proposal-only comment and no
+  spec PR when the issue body fits the fast-path heuristics (Unit 12,
+  R12.1). The proposal-only run leaves the lifecycle at `sdd:spec`;
+  the human's `/fastpath` confirmation then drives the fast-path
+  authoring branch (R12.2). The full-path R4.4 spec PR is not produced
+  on this branch.
 
 **Proof Artifacts:**
 
@@ -876,6 +882,198 @@ schedule cron removed, concurrency group added), `templates/.github/labels.yml`
 - CLI: `grep -R "schedule:" .github/workflows/sdd-execute-*.md` returns
   no lines.
 
+### Unit 12: Fast-path for single-session features and bugs
+
+**Purpose:** Compress spec, architecture, and plan into one agent run
+for single-session work, gated by a single `/approve`, while preserving
+enough of an artifact trail that `sdd-validate` and `sdd-review` still
+function. Demoable: open a fast-path issue, comment `/fastpath`, merge
+the one-page stub spec PR, comment `/approve`, and one implementation
+PR opens against the execution plan comment. No Unit or task sub-issues
+are created.
+**Depends on:** Units 4, 5, 6, 7, 8, 11
+**Affected areas:** `workflows/sdd-spec.md` (modified; classifier and
+fast-path authoring branches), `wrappers/sdd-spec.yml` (modified;
+`/fastpath` and `/approve` handling, plus the fast-path dispatcher
+job), `workflows/sdd-execute-{haiku,sonnet,opus}.md` (modified;
+`entry: 'fastpath'` and `entry: 'fastpath-complete'` branches),
+`wrappers/sdd-execute-{haiku,sonnet,opus}.yml` (modified; fast-path
+completion routing on `pull_request.closed`), `wrappers/sdd-triage.yml`
+(modified; carve-out so `/approve` on a fast-path issue is left to
+`sdd-spec`'s wrapper), `wrappers/sdd-dispatch.yml` (modified; noop
+branch for fast-path tracking issues), `workflows/sdd-dispatch.md`,
+`workflows/sdd-validate.md`, `workflows/sdd-review.md` (modified;
+fast-path awareness), `shared/sdd-interaction.md` (modified;
+`/fastpath` row, `/approve` row layered), `templates/.github/labels.yml`
+(new `sdd:fastpath` and `sdd:fastpath-review` labels),
+`templates/.github/ISSUE_TEMPLATE/{feature,bug}.md` (modified;
+fast-path prompt), `decisions/0012-fastpath.md` (new ADR).
+
+**Functional Requirements:**
+
+- **R12.1**: `sdd-spec` shall classify the tracking issue on intake
+  against six fast-path heuristics: (1) file scope ≤ 1–2 files, (2)
+  no new dependency, (3) no schema change, (4) no new public API
+  surface, (5) no cross-cutting concern, (6) no test-suite scaffolding.
+  When all six pass, the agent shall post exactly one proposal comment
+  on the tracking issue naming the passing heuristics and asking for
+  `/fastpath` (confirm) or `/spec` (keep full flow), and emit `noop`.
+  No spec PR is opened. The lifecycle stays at `sdd:spec`. When any
+  heuristic fails, the agent shall continue down the full-path flow as
+  before. The classifier shall not run on a `/revise`, on a
+  `needs-human` resume, on a merged spec PR, or on an entry where the
+  tracking issue already carries `sdd:fastpath` or
+  `sdd:fastpath-review`.
+- **R12.2**: `/fastpath` from a write-access author on a tracking
+  issue shall route through `wrappers/sdd-spec.yml` and invoke the
+  agent with `aw_context.command: 'fastpath'`. The agent (or its
+  re-entry via the `sdd:fastpath` label gain) shall, in one run,
+  ensure the tracking issue carries `sdd:fastpath` (remove `sdd:spec`
+  if present); produce a stub spec at
+  `docs/specs/NN-spec-<slug>/NN-spec-<slug>.md` containing a
+  one-paragraph problem statement, at least one R-ID, 1–3 proof
+  artifacts, one named demoable unit, and a single-line "Fast-path:
+  no cross-cutting design; the implementation plan is in the tracking
+  issue comment" note in place of the architecture cross-link; create
+  the spec sub-issue and open the stub spec PR using the same
+  `spec/<slug>` branch and `spec(<slug>): <title>` conventions as the
+  full path; post the execution plan as one comment on the tracking
+  issue carrying the `[sdd-spec:fastpath-plan]` sentinel and
+  the structured fields (`repo:`, `requirements:`, `files in scope:`,
+  `proof artifacts:`, `verification:`, `depends on:` empty,
+  `model:{haiku,sonnet,opus}`); and move the lifecycle from
+  `sdd:fastpath` to `sdd:fastpath-review`.
+- **R12.3**: Merging the stub spec PR shall move the tracking issue
+  from `sdd:fastpath-review` to `sdd:fastpath` and post a comment
+  pointing the human at `/approve`. The spec sub-issue closes via the
+  existing `sdd-pr-sanitize` `Closes #<spec-sub-issue>` keyword, the
+  same as the full path.
+- **R12.4**: `/approve` from a write-access author on a tracking
+  issue carrying `sdd:fastpath` shall be handled by
+  `wrappers/sdd-spec.yml`'s deterministic `fastpath-approve` job.
+  The job shall find the latest execution-plan comment by the
+  `[sdd-spec:fastpath-plan]` sentinel, parse the `model:*` tier
+  from the comment body, mint an App token, move the tracking issue
+  from `sdd:fastpath` to `sdd:in-progress`, and dispatch
+  `sdd-execute-{tier}.yml` via `workflow_dispatch` with
+  `aw_context.entry: 'fastpath'`, `item_number` = tracking issue
+  number, `plan_comment_id` = the plan comment's id, and `tier` = the
+  parsed tier. **No `create-issue` safe-output runs; no Unit or task
+  sub-issues are created.**
+- **R12.5**: `wrappers/sdd-triage.yml` shall short-circuit `/approve`
+  when the tracking issue carries `sdd:fastpath`: do not invoke the
+  `sdd-triage` agent. This carve-out ensures `/approve` is handled by
+  exactly one wrapper per path (sdd-triage for full, sdd-spec for
+  fast).
+- **R12.6**: Each `sdd-execute-{tier}` agent shall accept a fast-path
+  entry: when `aw_context.entry == 'fastpath'`, the work-item is the
+  tracking issue itself; the task specification is read from the
+  execution plan comment named by `aw_context.plan_comment_id`. The
+  agent shall move the tracking issue from `sdd:fastpath` to
+  `sdd:in-progress` (idempotent — the wrapper already did this) and
+  proceed through implementation steps 4–7 with the plan comment's
+  body in place of a task sub-issue body. The implementation PR's
+  branch shall follow `sdd/<tracking>-<slug>`; the PR body shall
+  reference the tracking issue as a bare `#<tracking>` (no closing
+  keyword), so merging the PR does not auto-close the tracking issue.
+  The misclassification-escalation branch in step 4 applies fully: an
+  implementer that detects the work is materially bigger than
+  fast-path assumed posts one comment naming the specific failed
+  heuristic(s), applies `needs-human`, and exits.
+- **R12.7**: Each `sdd-execute-{tier}` wrapper shall subscribe to
+  `pull_request: closed` in addition to its existing triggers. When a
+  merged PR's head ref follows `sdd/<n>-` and the referenced
+  work-item is a tracking issue (no `parent_issue_url`, and the
+  tracking issue carries `sdd:fastpath`, `sdd:fastpath-review`, or is
+  in fast-path `sdd:in-progress` without `sdd:dispatched`), the
+  wrapper shall re-invoke the agent with
+  `aw_context.entry: 'fastpath-complete'`. The agent's step 8
+  completion branch shall move the tracking issue from
+  `sdd:in-progress` to `sdd:done`, apply `needs-human`, and post one
+  comment stating that the fast-path implementation has merged and a
+  human should do the final review and close. The agent never closes
+  the tracking issue itself (ADR 0001).
+- **R12.8**: `wrappers/sdd-dispatch.yml` shall short-circuit
+  `/dispatch` when the tracking issue carries `sdd:fastpath` or
+  `sdd:fastpath-review`. The wrapper's `route` job sets
+  `trigger_kind: 'fastpath_noop'`; the `compute`, `dispatch`, and
+  `lifecycle` jobs all short-circuit; a `fastpath-noop-comment` job
+  posts one comment pointing the human at `/approve`. The
+  `sdd:dispatched` cascade marker is never applied to a fast-path
+  tracking issue.
+- **R12.9**: `sdd-validate` and `sdd-review` shall recognize
+  fast-path: the absence of an architecture record and a sub-task
+  tree is not raised as a finding when the tracking issue carries
+  `sdd:fastpath`, `sdd:fastpath-review`, or shows fast-path history
+  (an `sdd:in-progress` tracking issue with no parent and no task
+  sub-issue tree). The implementation-boundary gates still apply in
+  full, reading the files-in-scope block from the execution plan
+  comment instead of from a task sub-issue body.
+- **R12.10**: `templates/.github/labels.yml` shall define
+  `sdd:fastpath` and `sdd:fastpath-review` labels with the lifecycle
+  semantics named in `shared/sdd-interaction.md` and ADR 0012. Both
+  shall be lifecycle labels (exclusive with the existing `sdd:*`
+  lifecycle labels), not orthogonal markers.
+- **R12.11**: A `/revise <note>` on a fast-path tracking issue
+  between the execution plan comment and `/approve` shall edit the
+  plan in place: `sdd-spec` posts a new plan comment carrying the
+  same sentinel and hides every prior plan comment as `OUTDATED`.
+  The stub spec PR is not modified by this revise; a `/revise <note>`
+  on the stub spec PR uses the existing per-PR `/revise` flow.
+- **R12.12**: A `/spec` on a tracking issue carrying `sdd:fastpath`
+  or `sdd:fastpath-review` shall be the misclassification-escalation
+  reset: the agent removes the fast-path label, adds `sdd:spec`, and
+  runs the full-path flow with the existing stub spec as the
+  starting point.
+
+**Proof Artifacts:**
+
+- File: `decisions/0012-fastpath.md` records the four decisions
+  (proposal-confirm with default-to-full-flow, stub spec preserves
+  the trace, `/approve` is the shared gate, escalation goes through
+  `needs-human`) and cross-links ADRs 0001, 0005, 0010, 0011.
+- File: `templates/.github/labels.yml` contains the `sdd:fastpath`
+  and `sdd:fastpath-review` entries with their lifecycle descriptions.
+- File: `workflows/sdd-spec.md` contains a "Classify for fast-path"
+  step naming all six heuristics, a "Author the stub spec and post
+  the execution plan (fast-path)" step, and the `sdd:fastpath` /
+  `sdd:fastpath-review` allowlist entries in its `safe-outputs`.
+- File: `wrappers/sdd-spec.yml` carries a `fastpath-approve` job
+  whose script (a) finds a comment by the
+  `[sdd-spec:fastpath-plan]` sentinel, (b) parses
+  `model:{haiku,sonnet,opus}`, (c) calls
+  `createWorkflowDispatch` on the matching `sdd-execute-{tier}.yml`,
+  (d) moves the tracking issue from `sdd:fastpath` to
+  `sdd:in-progress`.
+- File: `wrappers/sdd-dispatch.yml` carries a `fastpath-noop-comment`
+  job that posts a one-comment explanation pointing to `/approve`
+  when the tracking issue carries `sdd:fastpath` or
+  `sdd:fastpath-review`.
+- Test: an issue body fitting all six heuristics yields one proposal
+  comment and no spec PR. The lifecycle stays at `sdd:spec`.
+- Test: `/fastpath` from a write-access author produces, within one
+  run, one stub spec PR (structurally complete) and one execution
+  plan comment carrying the sentinel on the tracking issue. The
+  lifecycle moves to `sdd:fastpath-review`.
+- Test: merging the stub spec PR moves the lifecycle from
+  `sdd:fastpath-review` to `sdd:fastpath` and closes the spec
+  sub-issue.
+- Test: `/approve` on a `sdd:fastpath` tracking issue dispatches one
+  `sdd-execute-{tier}` matching the plan comment's tier with
+  `entry: 'fastpath'` in `aw_context`, moves the lifecycle to
+  `sdd:in-progress`, and creates no sub-issues.
+- Test: merging the fast-path implementation PR moves the tracking
+  issue to `sdd:done` and applies `needs-human` for the human's
+  final close.
+- Test: `/dispatch` on a fast-path tracking issue produces one
+  comment pointing to `/approve` and dispatches no
+  `sdd-execute-*` runs. `sdd:dispatched` is not applied.
+- Test: an implementer that posts a misclassification-escalation
+  comment with the specific failed heuristic(s) and `needs-human` is
+  not re-run until a human clears the label. A subsequent `/spec`
+  resets the lifecycle to `sdd:spec` and runs the full pipeline with
+  the stub spec as the starting point.
+
 ## Non-Goals (Out of Scope)
 
 - **Cross-repo task execution.** The task schema and DAG support cross-repo
@@ -940,7 +1138,7 @@ every later unit runs against them.
 
 **Greenfield bootstrapping:** Unit 1 is the bootstrapping unit. It sets
 `verification.pre` and `verification.post` to empty for itself and establishes
-the commands above for Units 2 to 11.
+the commands above for Units 2 to 12.
 
 ## Technical Considerations
 
@@ -1025,7 +1223,7 @@ the commands above for Units 2 to 11.
 
 ## Success Metrics
 
-- All eleven demoable units land with proof artifacts passing.
+- All twelve demoable units land with proof artifacts passing.
 - Each `sdd-*` source compiles clean under `gh aw compile`, including the
   three `sdd-execute` model-tier variants.
 - The `leak-scan` CI check passes on every commit; no private term ever

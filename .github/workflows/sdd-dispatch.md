@@ -125,6 +125,16 @@ A tracking issue carrying `needs-human` defers unconditionally. A
 the imported interaction contract); the hand-off comment has already been
 posted and must not be posted again.
 
+**Fast-path tracking issues are not eligible for `/dispatch`** (ADR
+0012). A tracking issue carrying `sdd:fastpath` or `sdd:fastpath-review`
+runs a single-task flow; the cascade fan-out machinery is unused. On
+that input, the wrapper's `route` job emits `trigger_kind:
+'fastpath_noop'`, the `compute`, `dispatch`, and `lifecycle` jobs all
+short-circuit, and the `fastpath-noop-comment` job posts one comment
+pointing the human at `/approve` (which `sdd-spec`'s wrapper handles
+on a fast-path issue). `sdd:dispatched` is never applied on this
+input.
+
 ## Parallelism
 
 Bounded matrix fan-out. The dispatcher expands the ready set into a
