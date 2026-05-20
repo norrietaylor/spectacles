@@ -1,7 +1,8 @@
 name: sdd-pr-sanitize
 
-# Corrects the issue references in a spec or architecture pull request body.
-# Two deterministic corrections, on every spec/* and arch/* pull request:
+# Corrects the issue references in a spec or architecture pull request body,
+# and makes the deliverable link visible on the sub-issue side.
+# Three deterministic corrections, on every spec/* and arch/* pull request:
 #
 # 1. The feature tracking issue must stay open as the lifecycle anchor, so a
 #    spec or architecture pull request must never close it. The agents are told
@@ -21,9 +22,23 @@ name: sdd-pr-sanitize
 #    merging the pull request closes the sub-issue — the way an implementation
 #    pull request's `Closes #<task>` already closes its task.
 #
-# Both corrections are owned by ADR 0006; the sub-issue closing model is
+# 3. When the sanitizer PATCHes the pull-request body to add `Closes #<sub>`
+#    after the App-authenticated creation, GitHub suppresses the
+#    `cross-referenced` event it would normally emit on the sub-issue, and at
+#    merge time it attributes the close to the merger rather than the pull
+#    request. The closing link exists in the data model (the pull request's
+#    `closingIssuesReferences` returns the sub-issue), but neither of the two
+#    timeline events that normally make the deliverable link visible in the UI
+#    fires (issue #69). This workflow posts one `Delivered by #<pr>.` comment
+#    on the sub-issue, which both produces a visible `commented` event and
+#    causes GitHub to emit the missing `cross-referenced` event from the
+#    `#<pr>` reference in the comment body.
+#
+# All three corrections are owned by ADR 0006; the sub-issue closing model is
 # ADR 0005. Implementation pull requests on sdd/* branches are not touched:
-# their `Closes #<task>` is already correct.
+# their `Closes #<task>` is already correct, and GitHub already emits the
+# normal cross-reference and "closed via #<pr>" events because the closing
+# keyword was present at pull-request creation, not added by a later PATCH.
 
 on:
   pull_request:
@@ -31,7 +46,11 @@ on:
 
 permissions:
   contents: read
-  issues: read
+  # `issues: write` is required to post the `Delivered by #<pr>.` comment on
+  # the deliverable sub-issue. Reading the sub-issue and its comments to
+  # resolve it and to enforce idempotency only needs `issues: read`; the
+  # write scope is solely for the comment add (3) below.
+  issues: write
   pull-requests: write
 
 jobs:
@@ -123,6 +142,57 @@ jobs:
               if (!hasClose) {
                 body = body.replace(/\s*$/, '')
                   + '\n\nCloses #' + deliverable + '\n';
+              }
+            }
+
+            // Make the deliverable link visible on the sub-issue side. The
+            // `Closes` keyword that the PR body update below adds closes the
+            // sub-issue on merge, but GitHub does not emit the
+            // `cross-referenced` event it would have emitted had the
+            // keyword been present at pull-request creation: a PATCH from
+            // an App identity suppresses it, and at merge time the close
+            // is attributed to the merger rather than the pull request
+            // (issue #69). Posting one comment on the sub-issue both adds
+            // a visible `commented` event and makes GitHub emit the
+            // missing `cross-referenced` event from the `#<pr>` reference.
+            //
+            // Order of operations: this comment write runs **before** the
+            // PR-body update below. If the comment fails (rate limit,
+            // permission, 5xx), the body update never runs either, so a
+            // failed run leaves zero visible state to diverge from. On a
+            // re-fire (`edited`/`reopened`) the comment write is
+            // idempotent (paginate + marker-startsWith check) so it does
+            // not re-post.
+            if (deliverable) {
+              const marker = 'Delivered by #' + pr.number + '.';
+              let comments;
+              try {
+                comments = await github.paginate(
+                  github.rest.issues.listComments,
+                  { owner, repo, issue_number: deliverable, per_page: 100 });
+              } catch (err) {
+                comments = [];
+                core.info(
+                  'Could not list comments on #' + deliverable + ': '
+                  + err.message + '; will attempt to post.');
+              }
+              const already = comments.some((c) =>
+                (c.body || '').trimStart().startsWith(marker));
+              if (already) {
+                core.info(
+                  'Sub-issue #' + deliverable
+                  + ' already has a `Delivered by` comment for PR #'
+                  + pr.number + '; skipping.');
+              } else {
+                await github.rest.issues.createComment({
+                  owner,
+                  repo,
+                  issue_number: deliverable,
+                  body: marker,
+                });
+                core.info(
+                  'Posted `Delivered by #' + pr.number + '.` on sub-issue #'
+                  + deliverable + '.');
               }
             }
 
