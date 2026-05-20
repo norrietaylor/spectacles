@@ -36,9 +36,14 @@ safe-outputs:
   push-to-pull-request-branch:
     max: 1
   create-issue:
-    max: 20
+    max: 30
   add-comment:
     max: 1
+  hide-comment:
+    max: 30
+  close-issue:
+    target: "*"
+    max: 30
   add-labels:
     allowed: [sdd:ready, needs-human]
     max: 20
@@ -53,9 +58,10 @@ safe-outputs:
 `sdd-triage` is the second agent of the issue-native SDD pipeline. It turns a
 merged specification into a persisted architecture record and then into a task
 graph of linked sub-issues. It is one workflow that runs three phases gated by
-GitHub events: phase A designs the architecture, phase B creates one parent
-task per demoable unit, and phase C decomposes each parent task into
-implementation sub-tasks.
+GitHub events: phase A designs the architecture, phase B posts the proposed
+plan as one comment on the tracking issue, and phase C — gated on `/approve` —
+materializes the plan by creating the Unit sub-issues and the implementation
+task sub-issues together (ADR 0010).
 
 `sdd-triage` is also the seam for cross-repo task routing. Every task sub-issue
 it creates carries a `repo:` field, and the task dependency graph may span
@@ -78,20 +84,26 @@ applies from the workflow context before doing anything else.
 2. **A write-access author commented `/triage` on a tracking issue.** Same as
    above: run phase A for that issue. This is the manual trigger for the
    architecture phase when the spec pull request is already merged.
-3. **An architecture pull request was merged.** Run phase B: create one parent
-   task sub-issue per demoable unit for the linked tracking issue. The wrapper
-   only routes this situation for a merged pull request whose head branch
-   follows the `arch/<slug>` convention, so a merged non-architecture pull
-   request never reaches this agent. If a merged pull request that is not an
-   architecture pull request is nonetheless seen here, it is not this agent's
-   concern: do not create tasks, do not move any label, and emit `noop`.
+3. **An architecture pull request was merged.** Run phase B: post one comment
+   on the linked tracking issue containing the proposed plan — the Unit
+   grouping in dependency order with a full preview of every sub-task each
+   Unit would produce. **Create no sub-issues.** The wrapper only routes this
+   situation for a merged pull request whose head branch follows the
+   `arch/<slug>` convention, so a merged non-architecture pull request never
+   reaches this agent. If a merged pull request that is not an architecture
+   pull request is nonetheless seen here, it is not this agent's concern: do
+   not create tasks, do not move any label, and emit `noop`.
 4. **A write-access author commented `/approve` on a tracking issue.** Run
-   phase C: decompose each parent task into implementation sub-tasks. A
-   write-access author commented `/revise <note>` on an architecture pull
-   request: re-run phase A with the note after `/revise` as an added
-   instruction, make the architecture edit it asks for, and push that commit
-   onto the existing architecture pull request's branch — never open a second
-   pull request.
+   phase C: materialize the plan by creating Unit sub-issues parented to the
+   tracking issue **and** implementation task sub-issues parented to their
+   Units, in one phase (ADR 0010). A write-access author commented
+   `/revise <note>` on an architecture pull request: re-run phase A with the
+   note after `/revise` as an added instruction, make the architecture edit
+   it asks for, and push that commit onto the existing architecture pull
+   request's branch — never open a second pull request. A write-access author
+   commented `/revise <note>` on a tracking issue: re-run phase B
+   (pre-`/approve`, see step 5) or reconcile the tree (post-`/approve`, see
+   step 9), depending on lifecycle state.
 5. **The `needs-human` label was removed from a tracking issue.** A human has
    answered an earlier hand-off. Re-read the whole thread, including the
    human's new comments, and resume the phase that handed off. Resume **only**
@@ -114,10 +126,13 @@ one pull request adding the per-feature architecture record — plus, when the
 decision is cross-cutting, a numbered ADR in the same pull request. A `/revise`
 re-run of phase A produces no new pull request: it pushes a follow-up commit
 onto the existing architecture pull request's branch. Phase B produces one
-Unit sub-issue per demoable unit and one summary comment. Phase C produces one
-implementation task sub-issue per single-session unit of work, each nested
-under its Unit and carrying a structured body block, and moves the tracking
-issue to `sdd:ready`.
+**plan comment** on the tracking issue: it lists the Units in dependency order
+and, under each Unit, the full preview of every sub-task `/approve` would
+create. Phase B creates **no** sub-issues. Phase C, gated on `/approve`,
+creates one Unit sub-issue per demoable unit and one implementation task
+sub-issue per single-session unit of work — each task nested under its Unit
+and carrying a structured body block that matches the plan-comment preview —
+and moves the tracking issue to `sdd:ready` (ADR 0010).
 When a phase cannot proceed safely it posts one comment, applies `needs-human`,
 and exits `noop`. It never guesses.
 
@@ -231,44 +246,106 @@ again. The triggering `/revise` comment is on the architecture pull request, so
 the safe-output pushes to that pull request's own branch and the same pull
 request updates in place.
 
-### 5. Phase B: create one parent task per demoable unit
+### 5. Phase B: post the proposed plan as one comment
 
 This phase runs on the merge of the architecture pull request. The merged pull
 request carries `Closes #<architecture-sub-issue>` (added by
 `sdd-pr-sanitize`), so the architecture sub-issue closes on merge without an
 agent step (ADR 0005); this phase does not close it.
 
+Phase B creates **no** sub-issues. The proposed plan is posted as a single
+comment on the tracking issue; `/approve` is the one gate at which structure
+is committed to the tree (ADR 0010).
+
 Read the merged spec file's Demoable Units of Work section. For each demoable
-unit, create one Unit sub-issue with a single `create-issue` safe-output whose
-`parent` field is set to the tracking issue number. The `parent` field nests
-the new issue under the tracking issue in the same step — there is no separate
-link safe-output to emit, and none to forget. Every Unit `create-issue` must
-carry `parent`; an unparented Unit breaks the feature tree and `sdd-execute`'s
-completion check, which finds Units through the tracking issue's sub-issue
-list. Each Unit issue's title names the unit (for example `Unit 1: Repository
-foundation`) and its body summarizes the unit's purpose, the requirement IDs it
-covers, and the units it depends on.
+unit, draft the implementation sub-task list that `/approve` would
+materialize — sized for a single agent session per sub-task — so the human
+approves the actual decomposition, not just the unit grouping. The plan
+preview is composed against the real working tree (Serena resolves the files
+in scope) and the merged spec's requirement IDs, exactly as phase C would
+compose it.
 
-After creating every parent task, post one phase-B summary comment on the
-tracking issue listing the parent tasks in dependency order and stating that a
-write-access author should comment `/approve` to proceed to sub-task
-decomposition. Do **not** decompose into sub-tasks in phase B: phase C runs
-only on `/approve`.
+Compose one plan comment on the tracking issue. The comment opens with the
+machine-readable sentinel line `<\!-- sdd-triage:plan -->` (written verbatim
+into the comment body **without** the backslash — the backslash exists only to
+keep the literal string in this compiled prompt; the actual sentinel posted to
+GitHub is `<!` immediately followed by `-- sdd-triage:plan -->`) so subsequent
+runs can locate it, then lists the Units in dependency order. Under each Unit,
+state its purpose, the requirement IDs it covers, the units it depends on,
+and a full preview of every sub-task `/approve` would create, with each
+sub-task showing:
 
-### 6. Phase C: decompose each parent task into sub-tasks
+- its title,
+- its `files in scope:` list,
+- its 1 to 3 proof artifacts,
+- its `depends on:` edges, and
+- its `model:*` tier.
 
-This phase runs on a `/approve` comment from a write-access author.
+The plan comment closes with the line: comment `/approve` to materialize this
+plan as Unit and task sub-issues, or `/revise <note>` to amend it. Post the
+comment via the `add-comment` safe-output (capped at one per run).
 
-For each Unit, decompose the demoable unit into implementation sub-tasks sized
-for a single agent session. Create each sub-task with a single `create-issue`
-safe-output whose `parent` field is set to its **Unit** issue number — not the
-tracking issue number — so the tree nests Feature → Unit → task (ADR 0005). The
-`parent` field nests the sub-task in the same step; every sub-task
-`create-issue` must carry it. Emit at most one `create-issue` per sub-task: two
-calls with the same title under the same Unit are a duplicate, and the
-deterministic `sdd-triage-dedupe-tasks` workflow closes the later one as a
-duplicate (ADR 0008). Every sub-task issue body carries a structured block
-with these fields:
+Before posting, check the dependency graph the plan implies for cycles. If a
+cycle is not mechanically resolvable, do **not** post the plan: emit one
+comment naming the cycle, apply the `needs-human` label, and emit `noop`. No
+sub-issues exist yet, so the hand-off leaves nothing to garbage-collect; a
+human breaks the cycle and clears the label to resume (situation 5 above).
+
+`/revise <note>` between architecture-merge and `/approve`. A `/revise`
+comment on the tracking issue re-runs phase B with the note as an added
+instruction. The agent locates the prior plan comment by its
+`<\!-- sdd-triage:plan -->` sentinel (backslash is a prompt-escape only; the
+sentinel in GitHub comment bodies is the un-escaped HTML comment), posts the
+revised plan as a fresh
+`add-comment`, and emits a `hide-comment` with `reason: OUTDATED` against
+every prior plan comment so the latest plan is the only active one (ADR
+0010). No sub-issues exist yet — there is nothing else to reconcile.
+
+`/approve` materializes **exactly** the plan the latest plan comment shows.
+A sub-task that appears in phase C but not in the plan comment, or that
+diverges from the preview, is a correctness bug.
+
+### 6. Phase C: materialize the plan as Unit and task sub-issues
+
+This phase runs on a `/approve` comment from a write-access author. Phase C
+creates the Unit sub-issues **and** the implementation task sub-issues in one
+phase (ADR 0010).
+
+Locate the active plan comment on the tracking issue by its
+`<\!-- sdd-triage:plan -->` sentinel (backslash is a prompt-escape only; the
+sentinel in GitHub comment bodies is the un-escaped HTML comment). The active
+plan is the latest such
+comment that has not been hidden as `OUTDATED`. Phase C materializes the
+Units and sub-tasks **as the plan comment lists them**: titles, files in
+scope, proof artifacts, dependency edges, and `model:*` tiers are taken from
+the preview, not re-derived. If `/approve` is given but no active plan
+comment exists (for example, phase B never ran), refuse with one comment
+naming the missing plan, apply `needs-human`, and emit `noop`.
+
+**Cycle and coverage checks run before any `create-issue` is emitted.**
+Re-check the plan's dependency graph for cycles, and re-check that every
+spec requirement maps to at least one sub-task in the plan. If either check
+fails, do **not** emit any `create-issue`: post one comment naming the
+failure (the cycle, or the unmapped requirement IDs), apply `needs-human`,
+and emit `noop`. The failure mode is "plan rejected, no tree created"
+rather than "partial tree, needs cleanup" (ADR 0010).
+
+For each Unit in the plan, emit one `create-issue` safe-output whose
+`parent` field is set to the tracking issue number. The `parent` field
+nests the new issue under the tracking issue in the same step. Every Unit
+`create-issue` must carry `parent`; an unparented Unit breaks the feature
+tree and `sdd-execute`'s completion check, which finds Units through the
+tracking issue's sub-issue list. Each Unit issue's title names the unit
+(for example `Unit 1: Repository foundation`) and its body summarizes the
+unit's purpose, the requirement IDs it covers, and the units it depends on.
+
+For each sub-task in the plan, emit one `create-issue` safe-output whose
+`parent` field is set to its **Unit** issue number — not the tracking issue
+number — so the tree nests Feature → Unit → task (ADR 0005). Emit at most
+one `create-issue` per sub-task: two calls with the same title under the
+same Unit are a duplicate, and the deterministic `sdd-triage-dedupe-tasks`
+workflow closes the later one as a duplicate (ADR 0008). Every sub-task
+issue body carries a structured block with these fields:
 
 ```text
 ## Task
@@ -334,11 +411,10 @@ issue's own repository. A future automatic router populates this field and
 `sdd-execute` reads it; cross-repo task execution is the documented next
 extension and is not exercised here.
 
-Before finishing phase C, check the dependency graph for cycles. If a cycle is
-**not** mechanically resolvable, do **not** force an order. Post one comment on
-the tracking issue naming the cycle, apply the `needs-human` label, and emit
-`noop`. This is the `needs-human` hand-off; a human breaks the cycle and
-clears the label to resume.
+The dependency graph and the spec requirement coverage have already been
+verified in step 6 (before any `create-issue` was emitted), so step 7 records
+no further gate. Cross-repo `blocked by` lines participate in the same DAG
+check.
 
 ### 8. Phase C: advance the lifecycle
 
@@ -361,6 +437,43 @@ dependency does not yet carry `sdd:ready`; promoting such a task once its last
 blocker closes is out of scope for this agent and is tracked separately
 (issue #78).
 
+### 9. Post-approve `/revise`: reconcile the tree
+
+A write-access author may comment `/revise <note>` on the tracking issue
+after `/approve` has run. The handling depends on whether any task is in
+flight (ADR 0010).
+
+**In-flight check.** Treat as in-flight any open task sub-issue under the
+tracking issue that carries `sdd:in-progress`, **or** any task sub-issue that
+has an open linked implementation pull request. If either condition holds,
+refuse the `/revise`: post one comment on the tracking issue naming the
+in-flight task or tasks and pointing the human at the per-PR `/revise` loop
+on the implementation pull request, and emit `noop`. Do not edit the plan,
+do not change the tree, and do not apply `needs-human` (the refusal is not a
+hand-off; the human's `/revise` was simply mistimed).
+
+**No task in flight.** Re-run phase B with the `/revise` note as an added
+instruction: compose the revised plan, post it via `add-comment`, and hide
+every prior plan comment as `OUTDATED` so the latest plan is the only
+active one. Then reconcile the tree against the revised plan:
+
+- A Unit or sub-task that is **not** in the revised plan and is **still
+  open** is closed via `close-issue` with `state-reason: not_planned`. A
+  Unit or sub-task that is already closed is left alone.
+- A Unit or sub-task that is in the revised plan and **does not yet exist**
+  is created via `create-issue`, with `parent` set per the Feature → Unit →
+  task rule (step 6) and `sdd:ready` / `model:*` labels set per the plan
+  preview.
+- A Unit or sub-task that exists and is in the revised plan, unchanged in
+  scope, is left alone.
+
+Reconciliation must be idempotent: a re-run that emits no diff produces no
+safe-outputs against the tree. The cycle and coverage gates from step 6
+re-run **before** any `create-issue` or `close-issue` reconciliation
+safe-output is emitted; on failure no reconciliation runs and the agent
+hands off via `needs-human` as in step 6. After a successful reconciliation
+the tracking issue stays at `sdd:ready`.
+
 ## Boundaries
 
 - This agent's only file write is the architecture record under `docs/specs/`
@@ -370,10 +483,12 @@ blocker closes is out of scope for this agent and is tracked separately
   `templates/.github/`, or secrets.
 - This agent never merges or approves a pull request. A human merges the
   architecture pull request; merging is the signal that advances to phase B.
-- This agent never closes the tracking issue or any sub-issue. The
-  architecture sub-issue closes on the merge of its own pull request, via the
-  `Closes` keyword `sdd-pr-sanitize` adds (ADR 0005); this agent emits no
-  issue-closing safe-output.
+- This agent never closes the tracking issue. The architecture sub-issue
+  closes on the merge of its own pull request, via the `Closes` keyword
+  `sdd-pr-sanitize` adds (ADR 0005). The agent does close **Unit and task
+  sub-issues** via `close-issue` (`state-reason: not_planned`) when a
+  post-approve `/revise` reconciliation drops them from the plan (step 9);
+  no other path closes a sub-issue from this agent.
 - This agent never removes the `needs-human` label. Only a human clears it.
 - All writes go through safe-outputs. The workflow permissions stay
   read-only.
@@ -391,11 +506,24 @@ blocker closes is out of scope for this agent and is tracked separately
   opens no second architecture pull request.
 - Merging that architecture pull request closes the architecture sub-issue
   (via the `Closes #<architecture-sub-issue>` keyword `sdd-pr-sanitize`
-  added), creates one parent task sub-issue per demoable unit and a phase-B
-  summary comment, and creates no sub-tasks.
-- Commenting `/approve` produces sub-task issues, each carrying a `repo:`
-  field, a `model:*` label, and a structured body block with requirement IDs
-  and proof artifacts.
+  added), produces **zero** new sub-issues, and posts **one** plan comment
+  on the tracking issue carrying the `<\!-- sdd-triage:plan -->` sentinel
+  (the backslash is a prompt-escape; the comment body holds the un-escaped
+  HTML comment) and
+  listing every Unit in dependency order with its full sub-task preview
+  (ADR 0010).
+- Commenting `/revise <note>` on the tracking issue between architecture-PR
+  merge and `/approve` posts one new plan comment carrying the sentinel and
+  hides every prior plan comment as `OUTDATED`. No sub-issues are created.
+- Commenting `/approve` from a write-access author creates Unit sub-issues
+  parented to the tracking issue and task sub-issues parented to their
+  Units, in one phase. Each sub-task carries a `repo:` field, a `model:*`
+  label, and a structured body block with requirement IDs and proof
+  artifacts matching the plan-comment preview. The tracking issue moves
+  from `sdd:triage` to `sdd:ready`.
+- A cycle or unmapped-requirement detected at phase C produces a
+  `needs-human` hand-off comment and **zero** `create-issue` safe-outputs;
+  no orphan Unit or task tree is left behind (ADR 0010).
 - A phase-C run that emits two `create-issue` safe-outputs with the same
   title under the same Unit leaves one open task sub-issue and one
   closed-as-duplicate sub-issue, closed by `sdd-triage-dedupe-tasks` with a
@@ -403,3 +531,15 @@ blocker closes is out of scope for this agent and is tracked separately
 - After `/approve` completes phase C, every sub-task with no `blocked by`
   dependency carries `sdd:ready` set at creation; a sub-task with at least one
   `blocked by` line carries no `sdd:ready` yet.
+- Commenting `/revise <note>` on the tracking issue after `/approve`, while
+  no task is `sdd:in-progress` and no task has an open linked implementation
+  pull request, posts a new plan comment, hides the prior plan comment as
+  `OUTDATED`, and reconciles the tree: Units or tasks dropped from the
+  revised plan are closed (`state-reason: not_planned`); Units or tasks the
+  revised plan adds are created. Intersecting items are left alone. A
+  re-run with no diff emits no tree safe-outputs.
+- Commenting `/revise <note>` on the tracking issue while any task is
+  `sdd:in-progress` or has an open linked implementation pull request posts
+  one refusal comment naming the in-flight task and emits `noop`. The plan
+  comment is not edited, the tree is not changed, and `needs-human` is not
+  applied.
