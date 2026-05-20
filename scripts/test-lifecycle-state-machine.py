@@ -64,7 +64,7 @@ FRONTMATTER_RE = re.compile(r"^---\n(.*?)\n---\n(.*)$", re.DOTALL)
 # and a remove of the relevant lifecycle labels appear within one such
 # subsection. A `## ` heading also closes a subsection (the prose may
 # leave Procedure for Boundaries/Verification without a `### `).
-SUBSECTION_HEADING_RE = re.compile(r"^(##+)\s", re.MULTILINE)
+SUBSECTION_HEADING_RE = re.compile(r"^(##+)\s+(.+?)\s*$", re.MULTILINE)
 
 # Imperative phrasings the agents use to write a label, paired with the
 # safe-output that effects the write. These mirror the patterns #83's
@@ -174,16 +174,27 @@ def split_step_subsections(body: str) -> list[tuple[str, str]]:
 
     A subsection runs from one `### ` heading up to the next heading
     of any level. The heading line itself is the first line of the
-    slice so a diagnostic can name the step.
+    slice so a diagnostic can name the step. Only `### ` blocks whose
+    nearest preceding `## ` heading is `## Procedure` are returned —
+    `### ` blocks under `## Verification`, `## Boundaries`, or any
+    other level-2 section are filtered out so descriptive prose
+    ("moves to `sdd:done`") cannot trigger the pairing check.
     """
     sections: list[tuple[str, str]] = []
     stripped = strip_code_fences(body)
     # Index all headings to find subsection terminators.
     headings = [
-        (m.start(), len(m.group(1))) for m in SUBSECTION_HEADING_RE.finditer(stripped)
+        (m.start(), len(m.group(1)), m.group(2))
+        for m in SUBSECTION_HEADING_RE.finditer(stripped)
     ]
-    for i, (start, level) in enumerate(headings):
+    current_h2: str | None = None
+    for i, (start, level, title) in enumerate(headings):
+        if level == 2:
+            current_h2 = title
+            continue
         if level != 3:  # only `### ` level subsections
+            continue
+        if current_h2 != "Procedure":
             continue
         end = headings[i + 1][0] if i + 1 < len(headings) else len(stripped)
         chunk = stripped[start:end]
