@@ -266,8 +266,11 @@ in scope) and the merged spec's requirement IDs, exactly as phase C would
 compose it.
 
 Compose one plan comment on the tracking issue. The comment opens with the
-machine-readable sentinel line `<!-- sdd-triage:plan -->` so subsequent runs
-can locate it, then lists the Units in dependency order. Under each Unit,
+machine-readable sentinel line `<\!-- sdd-triage:plan -->` (written verbatim
+into the comment body **without** the backslash — the backslash exists only to
+keep the literal string in this compiled prompt; the actual sentinel posted to
+GitHub is `<!` immediately followed by `-- sdd-triage:plan -->`) so subsequent
+runs can locate it, then lists the Units in dependency order. Under each Unit,
 state its purpose, the requirement IDs it covers, the units it depends on,
 and a full preview of every sub-task `/approve` would create, with each
 sub-task showing:
@@ -291,7 +294,9 @@ human breaks the cycle and clears the label to resume (situation 5 above).
 `/revise <note>` between architecture-merge and `/approve`. A `/revise`
 comment on the tracking issue re-runs phase B with the note as an added
 instruction. The agent locates the prior plan comment by its
-`<!-- sdd-triage:plan -->` sentinel, posts the revised plan as a fresh
+`<\!-- sdd-triage:plan -->` sentinel (backslash is a prompt-escape only; the
+sentinel in GitHub comment bodies is the un-escaped HTML comment), posts the
+revised plan as a fresh
 `add-comment`, and emits a `hide-comment` with `reason: OUTDATED` against
 every prior plan comment so the latest plan is the only active one (ADR
 0010). No sub-issues exist yet — there is nothing else to reconcile.
@@ -307,7 +312,9 @@ creates the Unit sub-issues **and** the implementation task sub-issues in one
 phase (ADR 0010).
 
 Locate the active plan comment on the tracking issue by its
-`<!-- sdd-triage:plan -->` sentinel. The active plan is the latest such
+`<\!-- sdd-triage:plan -->` sentinel (backslash is a prompt-escape only; the
+sentinel in GitHub comment bodies is the un-escaped HTML comment). The active
+plan is the latest such
 comment that has not been hidden as `OUTDATED`. Phase C materializes the
 Units and sub-tasks **as the plan comment lists them**: titles, files in
 scope, proof artifacts, dependency edges, and `model:*` tiers are taken from
@@ -500,7 +507,9 @@ the tracking issue stays at `sdd:ready`.
 - Merging that architecture pull request closes the architecture sub-issue
   (via the `Closes #<architecture-sub-issue>` keyword `sdd-pr-sanitize`
   added), produces **zero** new sub-issues, and posts **one** plan comment
-  on the tracking issue carrying the `<!-- sdd-triage:plan -->` sentinel and
+  on the tracking issue carrying the `<\!-- sdd-triage:plan -->` sentinel
+  (the backslash is a prompt-escape; the comment body holds the un-escaped
+  HTML comment) and
   listing every Unit in dependency order with its full sub-task preview
   (ADR 0010).
 - Commenting `/revise <note>` on the tracking issue between architecture-PR
