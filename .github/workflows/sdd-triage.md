@@ -264,8 +264,11 @@ for a single agent session. Create each sub-task with a single `create-issue`
 safe-output whose `parent` field is set to its **Unit** issue number — not the
 tracking issue number — so the tree nests Feature → Unit → task (ADR 0005). The
 `parent` field nests the sub-task in the same step; every sub-task
-`create-issue` must carry it. Every sub-task issue body carries a structured
-block with these fields:
+`create-issue` must carry it. Emit at most one `create-issue` per sub-task: two
+calls with the same title under the same Unit are a duplicate, and the
+deterministic `sdd-triage-dedupe-tasks` workflow closes the later one as a
+duplicate (ADR 0008). Every sub-task issue body carries a structured block
+with these fields:
 
 ```text
 ## Task
@@ -380,3 +383,7 @@ dependency does not get `sdd:ready` until its dependency closes.
 - Commenting `/approve` produces sub-task issues, each carrying a `repo:`
   field, a `model:*` label, and a structured body block with requirement IDs
   and proof artifacts.
+- A phase-C run that emits two `create-issue` safe-outputs with the same
+  title under the same Unit leaves one open task sub-issue and one
+  closed-as-duplicate sub-issue, closed by `sdd-triage-dedupe-tasks` with a
+  comment naming the original (ADR 0008).

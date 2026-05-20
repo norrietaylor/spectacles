@@ -51,6 +51,11 @@ DISTILLERY_OAUTH_TOKEN=<machine-token> \
   in a spec or architecture pull request body: it keeps a stray closing
   keyword from auto-closing the feature tracking issue, and adds the
   `Closes #<sub-issue>` link to the deliverable sub-issue (ADR 0005, ADR 0006);
+- the `sdd-triage-dedupe-tasks` utility workflow, which closes a phase-C
+  task sub-issue when an earlier-numbered sibling under the same Unit
+  already carries the same title — the deterministic backstop for the
+  prose-only "emit each task at most once" rule in `sdd-triage` phase C
+  (ADR 0008);
 - the `sdd:*` lifecycle labels and the `model:*` tier labels;
 - the `feature`, `bug`, and `chore` issue templates.
 
@@ -201,10 +206,10 @@ Before running a feature through the pipeline, confirm the install resolved
 its dependencies:
 
 1. **Workflows present.** Confirm the eight wrappers — the seven `sdd-*`
-   wrappers and `distillery-sync.yml` — and `sdd-pr-sanitize.yml` appear under
-   `.github/workflows/` on the target repository. The `.lock.yml` reusable
-   workflows are hosted in the spectacles repository and are not copied onto
-   the consumer.
+   wrappers and `distillery-sync.yml` — and `sdd-pr-sanitize.yml` and
+   `sdd-triage-dedupe-tasks.yml` appear under `.github/workflows/` on the
+   target repository. The `.lock.yml` reusable workflows are hosted in the
+   spectacles repository and are not copied onto the consumer.
 2. **Labels present.** Confirm all six `sdd:*` labels and all three `model:*`
    labels exist on the target repository.
 3. **MCP reachable.** Dispatch `distillery-sync` once and confirm its run logs
