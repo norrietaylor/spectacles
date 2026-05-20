@@ -130,3 +130,26 @@ jobs:
         run: pip install pyyaml
       - name: Assert lifecycle state-machine invariants
         run: python scripts/test-lifecycle-state-machine.py
+
+  # Assert every `R<unit>.<seq>` requirement-ID citation in workflow
+  # prose, ADRs, and shared fragments resolves to a declared requirement
+  # in some `docs/specs/*/` spec file. A spec edit that renumbers or
+  # deletes a requirement breaks every dangling reference; without this
+  # check those breakages reach runtime, where an agent cites a
+  # non-existent requirement. The script also warns (non-fatal) on dead
+  # requirements: declared IDs never cited outside their own spec.
+  # Independent of `compile` for the same reason as the three jobs
+  # above: it reads the .md sources directly.
+  req-ids:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install PyYAML
+        run: pip install pyyaml
+      - name: Assert requirement-ID cross-references resolve
+        run: python scripts/test-requirement-ids.py

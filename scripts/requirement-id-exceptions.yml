@@ -1,0 +1,29 @@
+# Documented exceptions to the requirement-ID cross-reference checks
+# enforced by scripts/test-requirement-ids.py. Every entry carries a
+# one-line `reason:` so a future reader knows why the asymmetry exists.
+#
+# The script enforces two checks:
+#
+# 1. Unresolved citation -> hard failure. There is no exception bucket
+#    for this: a citation that does not resolve to a declared
+#    requirement is a bug (typo or stale reference), not documented
+#    drift, and must be fixed in the citing file.
+#
+# 2. Dead requirement -> warning only. A declared requirement that no
+#    workflow source, ADR, or shared fragment cites outside the spec
+#    file itself is reported as a warning. Many foundation
+#    requirements are legitimately "satisfied by the tree existing"
+#    (e.g. R1.1 — the repo is public) and need no prose citation; the
+#    warning is a nudge, not a gate.
+#
+# Schema:
+#   dead-requirement:
+#     - name: R1.1
+#       reason: <one-line reason the requirement is intentionally not
+#         cited outside its own spec>
+#
+# An entry under `dead-requirement` suppresses the warning for that
+# ID. No entry is required for the checks to pass; this file is
+# documentation surface, not a gate.
+
+dead-requirement: []
