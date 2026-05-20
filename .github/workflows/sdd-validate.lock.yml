@@ -1,4 +1,4 @@
-# gh-aw-metadata: {"schema_version":"v3","frontmatter_hash":"7ec877dd689cb8fec88da04a06a56a381321a9e2326b6b9c141419bf3c7fdca3","compiler_version":"v0.74.3","agent_id":"copilot"}
+# gh-aw-metadata: {"schema_version":"v3","frontmatter_hash":"6f2a13867f8c685feb40773275379aca9623b3fae62fd69e2422dfbecd2748c9","compiler_version":"v0.74.3","agent_id":"copilot"}
 # gh-aw-manifest: {"version":1,"secrets":["APP_PRIVATE_KEY","COPILOT_GITHUB_TOKEN","GH_AW_GITHUB_MCP_SERVER_TOKEN","GH_AW_GITHUB_TOKEN","GITHUB_TOKEN"],"actions":[{"repo":"actions/checkout","sha":"de0fac2e4500dabe0009e67214ff5f5447ce83dd","version":"v6.0.2"},{"repo":"actions/create-github-app-token","sha":"bcd2ba49218906704ab6c1aa796996da409d3eb1","version":"v3.2.0"},{"repo":"actions/download-artifact","sha":"3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c","version":"v8.0.1"},{"repo":"actions/github-script","sha":"3a2844b7e9c422d3c10d287c895573f7108da1b3","version":"v9.0.0"},{"repo":"actions/setup-node","sha":"48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e","version":"v6.4.0"},{"repo":"actions/upload-artifact","sha":"043fb46d1a93c77aae656e7c1c64a875d1fc6a0a","version":"v7.0.1"},{"repo":"github/gh-aw-actions/setup","sha":"8a9a52673cb8f97ebb43b344618af2d6f2c9ac7f","version":"v0.74.3"}],"containers":[{"image":"ghcr.io/github/gh-aw-firewall/agent:0.25.46"},{"image":"ghcr.io/github/gh-aw-firewall/api-proxy:0.25.46"},{"image":"ghcr.io/github/gh-aw-firewall/squid:0.25.46"},{"image":"ghcr.io/github/gh-aw-mcpg:v0.3.9","digest":"sha256:64828b42a4482f58fab16509d7f8f495a6d97c972a98a68aff20543531ac0388","pinned_image":"ghcr.io/github/gh-aw-mcpg:v0.3.9@sha256:64828b42a4482f58fab16509d7f8f495a6d97c972a98a68aff20543531ac0388"},{"image":"ghcr.io/github/github-mcp-server:v1.0.4"},{"image":"node:lts-alpine","digest":"sha256:d1b3b4da11eefd5941e7f0b9cf17783fc99d9c6fc34884a665f40a06dbdfc94f","pinned_image":"node:lts-alpine@sha256:d1b3b4da11eefd5941e7f0b9cf17783fc99d9c6fc34884a665f40a06dbdfc94f"}]}
 #    ___                   _   _      
 #   / _ \                 | | (_)     
@@ -214,20 +214,20 @@ jobs:
         run: |
           bash "${RUNNER_TEMP}/gh-aw/actions/create_prompt_first.sh"
           {
-          cat << 'GH_AW_PROMPT_671eed3e6838175d_EOF'
+          cat << 'GH_AW_PROMPT_f89ae4998479b1d3_EOF'
           <system>
-          GH_AW_PROMPT_671eed3e6838175d_EOF
+          GH_AW_PROMPT_f89ae4998479b1d3_EOF
           cat "${RUNNER_TEMP}/gh-aw/prompts/xpia.md"
           cat "${RUNNER_TEMP}/gh-aw/prompts/temp_folder_prompt.md"
           cat "${RUNNER_TEMP}/gh-aw/prompts/markdown.md"
           cat "${RUNNER_TEMP}/gh-aw/prompts/safe_outputs_prompt.md"
-          cat << 'GH_AW_PROMPT_671eed3e6838175d_EOF'
+          cat << 'GH_AW_PROMPT_f89ae4998479b1d3_EOF'
           <safe-output-tools>
           Tools: add_comment, add_labels, remove_labels, missing_tool, missing_data, noop
           </safe-output-tools>
-          GH_AW_PROMPT_671eed3e6838175d_EOF
+          GH_AW_PROMPT_f89ae4998479b1d3_EOF
           cat "${RUNNER_TEMP}/gh-aw/prompts/mcp_cli_tools_prompt.md"
-          cat << 'GH_AW_PROMPT_671eed3e6838175d_EOF'
+          cat << 'GH_AW_PROMPT_f89ae4998479b1d3_EOF'
           <github-context>
           The following GitHub context information is available for this workflow:
           {{#if github.actor}}
@@ -256,9 +256,9 @@ jobs:
           {{/if}}
           </github-context>
           
-          GH_AW_PROMPT_671eed3e6838175d_EOF
+          GH_AW_PROMPT_f89ae4998479b1d3_EOF
           cat "${RUNNER_TEMP}/gh-aw/prompts/github_mcp_tools_with_safeoutputs_prompt.md"
-          cat << 'GH_AW_PROMPT_671eed3e6838175d_EOF'
+          cat << 'GH_AW_PROMPT_f89ae4998479b1d3_EOF'
           </system>
           # Core principles
           
@@ -577,6 +577,12 @@ jobs:
           2. **A tracking issue gained the `sdd:ready` label.** Validate the triage
              boundary: the task graph is a set of linked sub-issues, not a pull request,
              so the `sdd:ready` label event is the non-pull-request triage boundary.
+             `sdd:ready` is also applied by `sdd-triage` phase C to every unblocked task
+             sub-issue, so the labelled item must be confirmed a tracking issue before
+             the gate set is applied: an issue with a parent (a Unit or a task) is not a
+             tracking issue and this run must `noop`. The wrapper filters this event by
+             the absence of a parent issue, so the agent reaches this step only on a
+             tracking issue; this is the agent-level defense in depth for that filter.
           
           This agent has no `needs-human`-removal resume trigger. A Blocker it escalates
           on a pull request is resumed by a fresh `pull_request: synchronize`: the human
@@ -593,6 +599,15 @@ jobs:
           immediately and emit `noop`. A `needs-human`-labelled item is off-limits during
           candidate selection (see the imported interaction contract); the hand-off
           comment has already been posted and must not be posted again.
+          
+          When the trigger is situation 2 (`sdd:ready` on an issue), confirm the
+          labelled issue is a tracking issue before applying the triage gate set. A
+          tracking issue has no parent; a Unit and a task each have a parent in the
+          feature tree. Read the issue's `parent` (`parent_issue_url` in the REST issue
+          object) and, when it resolves to another issue, stop and emit `noop` — the
+          labelled item is a sub-issue, not a tracking issue, and the wrapper's routing
+          filter has been bypassed somehow. This is the agent-level defense in depth
+          for the wrapper's parent-absence filter.
           
           ## What this agent produces
           
@@ -756,7 +771,7 @@ jobs:
             the gate set. The wrapper subscribes to no `unlabeled` event, so clearing
             `needs-human` on its own re-triggers nothing.
           
-          GH_AW_PROMPT_671eed3e6838175d_EOF
+          GH_AW_PROMPT_f89ae4998479b1d3_EOF
           } > "$GH_AW_PROMPT"
       - name: Interpolate variables and render templates
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
@@ -961,9 +976,9 @@ jobs:
           mkdir -p "${RUNNER_TEMP}/gh-aw/safeoutputs"
           mkdir -p /tmp/gh-aw/safeoutputs
           mkdir -p /tmp/gh-aw/mcp-logs/safeoutputs
-          cat > "${RUNNER_TEMP}/gh-aw/safeoutputs/config.json" << 'GH_AW_SAFE_OUTPUTS_CONFIG_1096df98cc57f95c_EOF'
+          cat > "${RUNNER_TEMP}/gh-aw/safeoutputs/config.json" << 'GH_AW_SAFE_OUTPUTS_CONFIG_8e1ae9cea1d9ad99_EOF'
           {"add_comment":{"hide_older_comments":true,"max":1},"add_labels":{"allowed":["needs-human","sdd:review"],"max":1},"create_report_incomplete_issue":{},"missing_data":{},"missing_tool":{},"noop":{"max":1,"report-as-issue":"true"},"remove_labels":{"allowed":["sdd:in-progress"],"max":1},"report_incomplete":{}}
-          GH_AW_SAFE_OUTPUTS_CONFIG_1096df98cc57f95c_EOF
+          GH_AW_SAFE_OUTPUTS_CONFIG_8e1ae9cea1d9ad99_EOF
       - name: Generate Safe Outputs Tools
         env:
           GH_AW_TOOLS_META_JSON: |
@@ -1197,7 +1212,7 @@ jobs:
           
           mkdir -p /home/runner/.copilot
           GH_AW_NODE=$(which node 2>/dev/null || command -v node 2>/dev/null || echo node)
-          cat << GH_AW_MCP_CONFIG_c5e6c365befa5668_EOF | "$GH_AW_NODE" "${RUNNER_TEMP}/gh-aw/actions/start_mcp_gateway.cjs"
+          cat << GH_AW_MCP_CONFIG_0c07aa132c29835c_EOF | "$GH_AW_NODE" "${RUNNER_TEMP}/gh-aw/actions/start_mcp_gateway.cjs"
           {
             "mcpServers": {
               "github": {
@@ -1238,7 +1253,7 @@ jobs:
               "payloadDir": "${MCP_GATEWAY_PAYLOAD_DIR}"
             }
           }
-          GH_AW_MCP_CONFIG_c5e6c365befa5668_EOF
+          GH_AW_MCP_CONFIG_0c07aa132c29835c_EOF
       - name: Mount MCP servers as CLIs
         id: mount-mcp-clis
         continue-on-error: true
