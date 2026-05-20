@@ -94,8 +94,9 @@ This spec stands up the **issue-native SDD suite**: five agentic workflows
 (`sdd-spec`, `sdd-triage`, `sdd-execute`, `sdd-validate`, `sdd-review`), a
 repository foundation, a human-interaction contract, and shared MCP tooling
 (Distillery for retrieval, Serena for code intelligence). `sdd-triage` runs
-three phases under one workflow: architecture design, parent-task creation,
-and sub-task decomposition. State lives in GitHub primitives only: the spec
+three phases under one workflow: architecture design, plan-comment
+proposal, and — on `/approve` — materialization of the Unit and task
+sub-issue tree. State lives in GitHub primitives only: the spec
 and the architecture record are committed files authored via PR, tasks are
 linked sub-issues, lifecycle is expressed as labels, and every human decision
 point is an issue or PR comment. There is no external task board and no
@@ -184,14 +185,14 @@ A small command vocabulary, gated to comment authors with write access (the
 |---|---|---|
 | `/spec` | tracking issue | trigger `sdd-spec` (also auto-applied by the `feature`/`bug` template label) |
 | `/triage` | tracking issue, after spec PR merged | trigger `sdd-triage` phase A (architecture) |
-| `/approve` | tracking issue | confirm the parent-task list; `sdd-triage` proceeds to sub-tasks |
+| `/approve` | tracking issue | confirm the proposed plan; `sdd-triage` creates the Unit sub-issues and implementation task sub-issues |
 | `/revise <note>` | spec PR, architecture PR, triage comment, or impl PR | re-run the owning agent with the note as added instruction |
 | `/execute` | a task sub-issue | trigger `sdd-execute` for that task ahead of the cron |
 
 Merging the spec PR advances to the architecture phase; merging the
-architecture PR advances to the parent-task phase. `/approve` is the one
-non-PR decision point: it confirms the parent-task list before sub-task
-decomposition.
+architecture PR advances to the plan-comment phase. `/approve` is the one
+non-PR decision point: it materializes the plan as the Unit and task
+sub-issue tree (ADR 0010).
 
 ### The `needs-human` contract
 
@@ -433,9 +434,11 @@ get a spec PR.
 
 **Purpose:** Triage a merged spec into a persisted architecture record and
 then a task graph of linked sub-issues. One workflow, three phases:
-architecture, parent tasks, sub-tasks. `sdd-triage` is also the seam for
-cross-repo task routing and for future automatic routing. Demoable: merge a
-spec, get an architecture PR; merge that, get task sub-issues.
+architecture design, plan-comment proposal, and tree materialization on
+`/approve` (ADR 0010). `sdd-triage` is also the seam for cross-repo task
+routing and for future automatic routing. Demoable: merge a spec, get an
+architecture PR; merge that, get the plan comment; comment `/approve`, get
+the Unit and task sub-issue tree.
 **Depends on:** Units 3, 4
 **Affected areas:** `workflows/sdd-triage.md` (new),
 `wrappers/sdd-triage.yml` (new)
@@ -466,20 +469,28 @@ spec, get an architecture PR; merge that, get task sub-issues.
   `decisions/NNNN-<slug>.md` ADR. A genuine architecture fork (more than one
   defensible approach with material tradeoffs) triggers `needs-human` with the
   options stated, rather than the agent deciding unilaterally.
-- **R5.4**: **Phase B, parent tasks.** On merge of the architecture PR: the
-  agent shall create one parent task sub-issue per demoable unit, linked to
-  the tracking issue via `link-sub-issue`, post a phase-B summary comment with
-  the dependency order, and stop. It shall not decompose into sub-tasks until
-  `/approve`.
-- **R5.5**: **Phase C, sub-tasks.** On `/approve`: the agent shall decompose
-  each parent task into implementation sub-tasks (further linked sub-issues),
-  each carrying a structured body block: the spec path and R-IDs covered, the
-  files in scope (resolved against the real tree via Serena), the `repo:`
-  field (R5.6), proof artifacts, and verification commands derived from the
-  target repo's `CLAUDE.md` or `README.md` (no hardcoded toolchain). It shall
-  assign each task a complexity and the matching `model:*` label. Dependencies
-  shall be recorded as `blocked by` lines forming a DAG; a detected cycle
-  triggers `needs-human`.
+- **R5.4**: **Phase B, plan comment.** On merge of the architecture PR: the
+  agent shall post **one** comment on the tracking issue containing the
+  proposed plan — the demoable units in dependency order, each with its
+  purpose, requirement-ID coverage, dependency edges, and a full preview of
+  the sub-tasks `/approve` would create (title, files in scope, proof
+  artifacts, `depends on:` edges, and `model:*` tier per sub-task). The plan
+  comment shall carry the `<!-- sdd-triage:plan -->` sentinel so subsequent
+  `/revise` runs can locate it. The agent shall create **no** sub-issues in
+  phase B. ADR 0010 is the gate-semantics record.
+- **R5.5**: **Phase C, materialize the tree.** On `/approve`: the agent shall
+  create the **Unit** sub-issues (parented to the tracking issue) and the
+  implementation **task** sub-issues (parented to their Units) in one phase,
+  materializing exactly the plan the latest plan comment shows. Each task
+  sub-issue carries a structured body block: the spec path and R-IDs
+  covered, the files in scope (resolved against the real tree via Serena),
+  the `repo:` field (R5.6), proof artifacts, and verification commands
+  derived from the target repo's `CLAUDE.md` or `README.md` (no hardcoded
+  toolchain). It shall assign each task a complexity and the matching
+  `model:*` label. Dependencies shall be recorded as `blocked by` lines
+  forming a DAG. The cycle check and the spec-requirement-coverage check
+  shall run **before** any `create-issue` is emitted; a failure triggers
+  `needs-human` and zero sub-issues are created.
 - **R5.6**: **Cross-repo task routing seam.** Every task sub-issue's structured
   body shall carry a `repo:` field, defaulting to the tracking issue's repo.
   The task DAG may span repos; a cross-repo dependency is recorded as
@@ -497,11 +508,13 @@ spec, get an architecture PR; merge that, get task sub-issues.
   R5.1 and the `link-sub-issue` safe-output.
 - Test: commenting `/triage` on a tracking issue whose spec PR is merged
   produces an `arch(<slug>)` PR adding `docs/specs/NN-spec-*/architecture.md`.
-- Test: merging that architecture PR creates one parent sub-issue per demoable
-  unit and a phase-B summary comment, and creates no sub-tasks.
-- Test: commenting `/approve` then produces sub-task issues each carrying a
-  `repo:` field, a `model:*` label, and a structured body block with R-IDs and
-  proof artifacts.
+- Test: merging that architecture PR posts **one** plan comment on the
+  tracking issue (carrying the `<!-- sdd-triage:plan -->` sentinel) and
+  creates **zero** sub-issues (ADR 0010).
+- Test: commenting `/approve` then creates Unit sub-issues parented to the
+  tracking issue **and** task sub-issues parented to their Units, each task
+  carrying a `repo:` field, a `model:*` label, and a structured body block
+  with R-IDs and proof artifacts matching the plan-comment preview.
 
 ### Unit 6: `sdd-execute` agent
 
@@ -816,10 +829,14 @@ the commands above for Units 2 to 10.
 - The spec and the per-feature architecture record are committed files
   (PR-reviewable, version-controlled, mkdocs-rendered) while tasks are
   sub-issues. Reviewable artifacts need a diff; tasks need a queue.
-- `sdd-triage` is one workflow with three phases gated by GitHub events: phase
-  A on the `sdd:triage` label, phase B on the architecture PR merge, phase C
-  on `/approve`. Architecture is a real phase: it always runs and always
-  persists `docs/specs/NN-spec-<slug>/architecture.md`; a genuine cross-cutting
+- `sdd-triage` is one workflow with three phases gated by GitHub events:
+  phase A on the `sdd:triage` label, phase B on the architecture PR merge,
+  phase C on `/approve`. Phase B posts the proposed plan as a single comment
+  on the tracking issue and creates no sub-issues; phase C materializes that
+  plan by creating the Unit and task sub-issues together. `/approve` is the
+  one gate at which structure is committed to the tree (ADR 0010).
+  Architecture is a real phase: it always runs and always persists
+  `docs/specs/NN-spec-<slug>/architecture.md`; a genuine cross-cutting
   decision is additionally promoted to a numbered ADR.
 - Validation runs at four boundaries. Three are PRs (spec, architecture,
   implementation) and validate on `pull_request`. The triage boundary is a

@@ -19,8 +19,10 @@ no new tool to install and no separate task board.
 | `sdd-validate` | a phase-boundary artifact | advisory findings posted as a comment |
 | `sdd-review` | an implementation PR | code-review comments on correctness, security, and spec compliance |
 
-`sdd-triage` runs three phases under one workflow: architecture design,
-parent-task creation, and sub-task decomposition.
+`sdd-triage` runs three phases under one workflow: architecture design, a
+plan-comment proposal on the tracking issue, and — on `/approve` — the
+creation of the Unit and task sub-issue tree (ADR 0010). Structure is only
+created after `/approve`: until then the plan is a proposal, not a tree.
 
 ## End-to-end flow
 
@@ -52,12 +54,12 @@ flowchart TD
         h_triage([Human: comment /triage]):::human
         a_arch[sdd-triage phase A: maps the code<br/>opens an architecture sub-issue and PR]:::agent
         h_arch([Human: review and merge the architecture PR<br/>the architecture sub-issue closes on merge]):::human
-        a_units[sdd-triage phase B: opens one Unit sub-issue<br/>per demoable unit, posts the task list]:::agent
+        a_units[sdd-triage phase B: posts the proposed plan<br/>as one comment on the tracking issue]:::agent
         h_approve([Human: comment /approve]):::human
     end
 
     subgraph s_ready [Tracking issue state: sdd:ready]
-        a_tasks[sdd-triage phase C: decomposes Units into task<br/>sub-issues, labels unblocked tasks sdd:ready]:::agent
+        a_tasks[sdd-triage phase C: creates Unit sub-issues and<br/>task sub-issues; labels unblocked tasks sdd:ready]:::agent
     end
 
     subgraph s_progress [Tracking issue state: sdd:in-progress]
@@ -98,12 +100,17 @@ flowchart TD
 | 2. Review the spec PR | you | `sdd-spec` drafts a spec and opens it as a PR. Read it, comment, and merge when it is right. Merging advances the pipeline. | `sdd:spec` |
 | 3. Start triage | you | Comment `/triage` on the tracking issue. `sdd-triage` phase A maps the code and opens an architecture PR. | `sdd:triage` |
 | 4. Review the architecture PR | you | Read the architecture record, comment, and merge it. Merging triggers phase B. | `sdd:triage` |
-| 5. Approve the task list | you | `sdd-triage` phase B posts the parent-task list. Comment `/approve` to confirm it. | `sdd:triage` |
-| 6. Tasks are decomposed | `sdd-triage` | Phase C creates sub-task issues, each with its scope, proof artifacts, and a `model:*` tier label. | `sdd:ready` |
+| 5. Approve the plan | you | `sdd-triage` posts the proposed plan as a comment on the tracking issue. Comment `/approve` to materialize it, or `/revise <note>` to amend. | `sdd:triage` |
+| 6. Tree is created | `sdd-triage` | Phase C creates Unit sub-issues and sub-task issues together, each with its scope, proof artifacts, and a `model:*` tier label. | `sdd:ready` |
 | 7. Tasks are implemented | `sdd-execute` | On a daily schedule, or on `/execute`, `sdd-execute` picks up a ready task and opens an implementation PR. | `sdd:in-progress` |
 | 8. Validation runs | `sdd-validate` | At each phase boundary, `sdd-validate` posts advisory findings as a comment. A clean implementation pass moves the issue to `sdd:review`. | `sdd:review` |
 | 9. Code review runs | `sdd-review` | `sdd-review` posts review comments on the implementation PR. You read them and decide. | `sdd:review` |
 | 10. Merge and close | you | Merge the implementation PRs. When every task sub-issue is closed, the issue moves to `sdd:done` and `needs-human` is applied for your final review and close. | `sdd:done` |
+
+Structure is only created after `/approve`. Until then the plan lives as a
+single comment on the tracking issue, so a `/revise <note>` is cheap:
+`sdd-triage` re-posts the plan with the note applied and there is no tree
+to garbage-collect. ADR 0010 records the gate semantics.
 
 ## What a human does
 

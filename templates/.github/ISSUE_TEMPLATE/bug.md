@@ -43,11 +43,12 @@ with write access to the repository.
 |---|---|---|
 | `/spec` | this tracking issue | re-run `sdd-spec` to draft or revise the spec |
 | `/triage` | this tracking issue, after the spec PR is merged | start `sdd-triage` phase A (architecture) |
-| `/approve` | this tracking issue | confirm the parent-task list so `sdd-triage` decomposes sub-tasks |
-| `/revise <note>` | a spec, architecture, or implementation PR, or a triage comment | re-run the owning agent with the note as an added instruction |
+| `/approve` | this tracking issue | confirm the proposed plan so `sdd-triage` creates the Unit and task sub-issues |
+| `/revise <note>` | a spec, architecture, or implementation PR, or this tracking issue | re-run the owning agent with the note as an added instruction |
 | `/execute` | a task sub-issue | run `sdd-execute` for that task ahead of the schedule |
 
 Merging the spec PR advances to the architecture phase; merging the
-architecture PR advances to the parent-task phase. When an agent needs a human
-decision it applies the `needs-human` label and posts one comment; clear the
-label once you have answered and the agent resumes.
+architecture PR advances to a plan-comment phase, where `sdd-triage` posts
+the proposed plan as one comment on this tracking issue. When an agent needs
+a human decision it applies the `needs-human` label and posts one comment;
+clear the label once you have answered and the agent resumes.
