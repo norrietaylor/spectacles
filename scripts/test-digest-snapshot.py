@@ -115,9 +115,32 @@ def collect_observed() -> dict[str, str | None]:
     """
     observed: dict[str, str | None] = {}
     sources: dict[str, Path] = {}
-    for lock_path in sorted(REPO_ROOT.glob(LOCK_GLOB)):
+    lock_paths = sorted(REPO_ROOT.glob(LOCK_GLOB))
+    if not lock_paths:
+        # A false-green on zero matches would mask a glob drift (e.g. a
+        # workflow rename, a moved directory) without any visible signal.
+        raise SystemExit(
+            f"no lock files found matching {LOCK_GLOB} — check the glob and repo layout"
+        )
+    for lock_path in lock_paths:
         manifest = extract_manifest(lock_path)
-        for entry in manifest.get("containers", []):
+        if not isinstance(manifest, dict):
+            raise SystemExit(
+                f"{lock_path.relative_to(REPO_ROOT)}: "
+                f"gh-aw-manifest must decode to an object, got {type(manifest).__name__}"
+            )
+        containers = manifest.get("containers") or []
+        if not isinstance(containers, list):
+            raise SystemExit(
+                f"{lock_path.relative_to(REPO_ROOT)}: "
+                f"'containers' must be a list, got {type(containers).__name__}"
+            )
+        for entry in containers:
+            if not isinstance(entry, dict):
+                raise SystemExit(
+                    f"{lock_path.relative_to(REPO_ROOT)}: "
+                    f"container entry must be an object: {entry!r}"
+                )
             image = entry.get("image")
             if not image:
                 raise SystemExit(
@@ -145,8 +168,17 @@ def load_snapshot() -> dict[str, str | None]:
         return {}
     with SNAPSHOT_FILE.open("r", encoding="utf-8") as fh:
         data = yaml.safe_load(fh) or {}
+    if not isinstance(data, dict):
+        raise SystemExit(
+            f"snapshot: root must be a mapping, got {type(data).__name__}"
+        )
+    containers = data.get("containers") or []
+    if not isinstance(containers, list):
+        raise SystemExit(
+            f"snapshot: 'containers' must be a list, got {type(containers).__name__}"
+        )
     out: dict[str, str | None] = {}
-    for entry in data.get("containers", []) or []:
+    for entry in containers:
         if not isinstance(entry, dict) or "image" not in entry:
             raise SystemExit(
                 f"snapshot: malformed container entry: {entry!r}"
