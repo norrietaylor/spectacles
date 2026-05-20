@@ -1,0 +1,38 @@
+# Documented exceptions to the safe-output allowlist contract enforced
+# by scripts/test-safe-output-allowlists.py. Every entry carries a
+# one-line `reason:` so a future reader knows why the asymmetry exists.
+#
+# The contract is symmetric by default: every label or safe-output
+# declared in a workflow's frontmatter must appear in its prose, and
+# vice versa. The entries below capture the small set of intentional
+# departures from that symmetry on `main` at the time the test was
+# introduced. Each is documentation drift that is safe to leave alone
+# until a follow-up PR rewrites the prose; none affects runtime behavior
+# because gh-aw enforces the frontmatter allowlist regardless of prose.
+#
+# Schema:
+#   <workflow stem>:
+#     <kind>-allowed-but-unused: [{ name: <token>, reason: <text> }]
+#     <kind>-used-but-not-allowed: [{ name: <token>, reason: <text> }]
+# where <kind> is one of: add-labels, remove-labels, safe-outputs.
+
+sdd-review:
+  safe-outputs-used-but-not-allowed:
+    - name: merge-pull-request
+      reason: >-
+        Prose names this safe-output only to assert its deliberate
+        absence (R8.5: agent never merges); not a write instruction.
+    - name: submit-pull-request-review
+      reason: >-
+        Same as merge-pull-request — prose asserts absence, not a
+        write instruction.
+
+sdd-triage:
+  safe-outputs-allowed-but-unused:
+    - name: add-comment
+      reason: >-
+        Frontmatter declares add-comment so the agent can post
+        hand-off and phase-B summary comments, but the prose uses the
+        plain English "post one comment" phrasing instead of the
+        backticked safe-output name. Documentation drift, not a
+        runtime bug; a follow-up PR will tag the relevant clauses.

@@ -60,3 +60,73 @@ jobs:
             echo "$drift"
             exit 1
           fi
+
+  # Assert each agent's safe-output allowlist matches its prose
+  # instructions. gh-aw enforces the frontmatter allowlist at runtime
+  # and silently rejects a label the workflow did not declare; that
+  # silent rejection is the bug `sdd-pr-sanitize` and the
+  # `sdd-triage-dedupe-tasks` deterministic wrappers exist partly to
+  # paper over. This job catches the mismatch at PR time. The script
+  # reads the .md sources directly (equivalent to the .lock.yml the
+  # issue cites and easier to parse), and documents intentional
+  # asymmetries in scripts/safe-output-allowlist-exceptions.yml.
+  safe-outputs:
+    needs: compile
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install PyYAML
+        run: pip install pyyaml
+      - name: Assert allowlists match prose
+        run: python scripts/test-safe-output-allowlists.py
+
+  # Assert the slash-command vocabulary is consistent across the
+  # wrappers (the routing layer), the source-of-truth command table in
+  # `shared/sdd-interaction.md`, and prose mentions across workflow
+  # sources and the docs page. A new command added in one place and
+  # forgotten in another is the silent inconsistency this guards. See
+  # the script docstring for the W/T/P set definitions; this job is
+  # independent of `compile` because it reads the .md sources directly.
+  command-table:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install PyYAML
+        run: pip install pyyaml
+      - name: Assert command-table consistency
+        run: python scripts/test-command-table.py
+
+  # Assert the `sdd:*` lifecycle labels form a coherent state machine.
+  # The invariant "exactly one `sdd:*` lifecycle label on the tracking
+  # issue at a time" is prose-only today: an `add-labels` of a new
+  # state without a paired `remove-labels` of the predecessor — or two
+  # workflows both writing the same state — would silently break it.
+  # This job statically analyzes the `.github/workflows/sdd-*.md`
+  # sources plus the catalogue at `templates/.github/labels.yml`,
+  # cross-checked against the declared classification in
+  # `scripts/lifecycle-states.yml`, and fails the PR on any violation.
+  # Independent of `compile` for the same reason as the two jobs
+  # above: it reads the .md sources directly.
+  lifecycle:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install PyYAML
+        run: pip install pyyaml
+      - name: Assert lifecycle state-machine invariants
+        run: python scripts/test-lifecycle-state-machine.py
