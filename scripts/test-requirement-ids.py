@@ -102,10 +102,25 @@ ID_CITATION_RE = re.compile(r"\bR\d+\.\d+\b")
 # `sdd-triage.md` uses literal placeholder IDs like `R1.1`) and does
 # not participate in the cross-reference contract. A ```markdown fence
 # would be a quoted prose excerpt, which we still want to scan.
+#
+# The regex tolerates the full CommonMark fenced-code surface: up to 3
+# leading spaces, either backtick or tilde fences (the two must match
+# at open and close), and an info string after the fence that may carry
+# metadata beyond the language token (e.g. ` ```python title="x" `).
+# Without this generality a tilde fence containing a placeholder ID
+# would be scanned as prose and false-positive the resolution check.
 CODE_FENCE_RE = re.compile(
-    r"^```(?P<lang>\w*)\n(?P<body>.*?)^```",
+    r"^ {0,3}(?P<fence>`{3,}|~{3,})[ \t]*(?P<info>[^\n]*)\n"
+    r"(?P<body>.*?)"
+    r"^ {0,3}(?P=fence)[ \t]*$",
     re.MULTILINE | re.DOTALL,
 )
+
+
+def _fence_lang(info: str) -> str:
+    """Extract the language token (first word) from a fence info string."""
+    parts = info.strip().split(None, 1)
+    return parts[0].lower() if parts else ""
 
 
 def strip_non_markdown_fences(text: str) -> str:
@@ -119,7 +134,7 @@ def strip_non_markdown_fences(text: str) -> str:
     """
 
     def repl(m: re.Match[str]) -> str:
-        if m.group("lang") == "markdown":
+        if _fence_lang(m.group("info")) == "markdown":
             return m.group("body")
         return ""
 
@@ -216,7 +231,8 @@ def collect_citations(path: Path) -> list[tuple[str, int]]:
     # Pre-compute fence spans so an in-fence test is O(1) per match
     # against a small list.
     fences: list[tuple[int, int, str]] = [
-        (m.start(), m.end(), m.group("lang")) for m in CODE_FENCE_RE.finditer(raw)
+        (m.start(), m.end(), _fence_lang(m.group("info")))
+        for m in CODE_FENCE_RE.finditer(raw)
     ]
 
     out: list[tuple[str, int]] = []
