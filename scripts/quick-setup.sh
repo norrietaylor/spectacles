@@ -7,7 +7,7 @@
 # a hosted reusable workflow in the spectacles repository, and the consumer
 # installs only the thin wrappers, which call those reusable workflows
 # cross-repo with
-# `uses: norrietaylor/spectacles/.github/workflows/<agent>.lock.yml@<ref>`.
+# `uses: gominimal/spectacles/.github/workflows/<agent>.lock.yml@<ref>`.
 #
 # --suite sdd therefore installs, onto the target repo: the nine thin
 # wrappers (the eight sdd-* agents and distillery-sync), the sdd-pr-sanitize
@@ -229,7 +229,7 @@ install_wrapper() {
   local rendered
   rendered="$(mktemp)"
   sed -E \
-    "s|(uses: norrietaylor/spectacles/\.github/workflows/[A-Za-z0-9_-]+\.lock\.yml)@[^[:space:]]+|\1@${ref}|" \
+    "s|(uses: gominimal/spectacles/\.github/workflows/[A-Za-z0-9_-]+\.lock\.yml)@[^[:space:]]+|\1@${ref}|" \
     "$src" >"$rendered"
   install_file "$rendered" ".github/workflows/$agent.yml" \
     "chore: install $agent wrapper (spectacles quick-setup)"
