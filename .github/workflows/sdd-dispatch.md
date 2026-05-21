@@ -54,9 +54,9 @@ tracking issue until the tree is drained.
 
 This agent is unusual in the spectacles suite: its work is entirely
 deterministic — walk a sub-issue tree, parse `blocked by` lines, compute a
-set, call the GitHub `workflow_dispatch` REST endpoint, apply two labels —
-and there is no natural-language judgement for an LLM to add. The
-dispatcher is therefore implemented in the wrapper at
+set, post `/execute` on each ready task issue via the App installation
+token, apply two labels — and there is no natural-language judgement for an
+LLM to add. The dispatcher is therefore implemented in the wrapper at
 `wrappers/sdd-dispatch.yml` as a chain of `actions/github-script` jobs
 (`route`, `compute`, `dispatch`, `lifecycle`, `noop-comment`), and **this
 `.md` agent is not invoked at runtime**. It exists for two reasons:
@@ -138,11 +138,17 @@ input.
 ## Parallelism
 
 Bounded matrix fan-out. The dispatcher expands the ready set into a
-GitHub Actions matrix and the `sdd-execute-{tier}` variant matching each
-task's `model:*` label runs for each cell. `max-parallel` defaults to
-**5**, overridable per repo via the `SDD_DISPATCH_MAX_PARALLEL` repo
-variable (any positive integer). A ready set larger than the cap queues
-at the matrix level; cells start as earlier ones finish.
+GitHub Actions matrix; each cell posts `/execute` on one task issue via
+the App installation token, and the matching `sdd-execute-{tier}` wrapper
+picks the comment up through its existing `issue_comment` trigger (the
+wrapper's job-level `if:` gate filters to the matching tier on the basis
+of the task's `model:*` label). `max-parallel` defaults to **5**,
+overridable per repo via the `SDD_DISPATCH_MAX_PARALLEL` repo variable
+(any positive integer). A ready set larger than the cap queues at the
+matrix level; cells start as earlier ones finish. The comment side-effect
+mechanism replaces the prior `workflow_dispatch` REST fan-out, which
+required an `actions: write` scope on the App that consumer installs did
+not reliably grant (issue #121, ADR 0014).
 
 ## In-flight detection
 
@@ -151,9 +157,13 @@ open pull request linked to it (the head branch matches
 `sdd/<task-id>-<slug>` for this task, or the body carries a
 `Closes #<task>` reference). The dispatcher removes in-flight tasks from
 the ready set before fanning out. As a defence in depth, the
-`sdd-execute-{tier}` wrappers carry a concurrency group keyed on the task
-issue number, so a double-dispatch of the same task collapses to one
-running cell and the second is treated as an idempotent no-op.
+`sdd-execute-{tier}` wrappers carry a concurrency group keyed on the
+task issue number AND the tier (`sdd-execute-<tier>-<task>`), so a
+double-`/execute` on the same task in the same tier collapses to one
+running cell and the second is treated as an idempotent no-op. The tier
+discriminator is required because the three tier wrappers all subscribe
+to the same event triggers; the per-tier dimension keeps a non-matching
+wake from cancelling the matching one (issue #124).
 
 ## Lifecycle
 
@@ -201,9 +211,10 @@ anything not already in flight.
 
 - The dispatcher edits no file in the repository. Its writes are: label
   changes on the tracking issue and on each dispatched task; one comment
-  on noop or refusal paths; one `workflow_dispatch` REST call per
-  dispatched task. All token-bearing operations use the App-minted
-  installation token per ADR 0004, scoped to the running repository.
+  on noop or refusal paths; one `/execute` comment per dispatched task
+  (the cascade fan-out — see ADR 0014). All token-bearing operations use
+  the App-minted installation token per ADR 0004, scoped to the running
+  repository.
 - The dispatcher never opens or closes a pull request, never closes the
   tracking issue, and never closes a task sub-issue. The `sdd:dispatched`
   on-arm and off-disarm transitions on the tracking issue are the only
@@ -220,17 +231,18 @@ anything not already in flight.
 - `gh aw compile` compiles this workflow with the three imported shared
   fragments and reports zero errors.
 - A tracking issue carrying `sdd:ready` with five independent open task
-  sub-issues, given a `/dispatch` from a write-access author, dispatches
-  five `sdd-execute-*` runs concurrently (bounded by
-  `SDD_DISPATCH_MAX_PARALLEL`), applies `sdd:dispatched`, and moves the
-  tracking issue from `sdd:ready` to `sdd:in-progress`.
+  sub-issues, given a `/dispatch` from a write-access author, posts
+  `/execute` on each of the five task issues; the matching
+  `sdd-execute-{tier}` wrapper runs for each (bounded by
+  `SDD_DISPATCH_MAX_PARALLEL`); the dispatcher applies `sdd:dispatched`
+  and moves the tracking issue from `sdd:ready` to `sdd:in-progress`.
 - Closing a task whose closure removes the last `blocked by` of two
   sibling tasks under a tracking issue carrying `sdd:dispatched` causes
   the dispatcher to re-fire and dispatch the two newly-unblocked
   siblings, with no `/dispatch` comment needed.
 - `/dispatch` on a tracking issue in `sdd:spec` or `sdd:triage` posts one
-  refusal comment naming the required state and emits no
-  `workflow_dispatch` call; `sdd:dispatched` is not applied.
+  refusal comment naming the required state and emits no `/execute`
+  fan-out; `sdd:dispatched` is not applied.
 - Removing `sdd:dispatched` by hand stops the cascade: a subsequent task
   close does not re-fire dispatch. A subsequent `/dispatch` resumes.
 - Every task sub-issue closes → the dispatcher removes `sdd:dispatched`.
