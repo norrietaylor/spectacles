@@ -530,7 +530,7 @@ jobs:
   sdd-execute-opus:
     needs: route
     if: needs.route.outputs.should_run == 'true'
-    uses: norrietaylor/spectacles/.github/workflows/sdd-execute-opus.lock.yml@main
+    uses: gominimal/spectacles/.github/workflows/sdd-execute-opus.lock.yml@main
     with:
       aw_context: ${{ needs.route.outputs.aw_context }}
     # Mapped explicitly, not `secrets: inherit`: inherit does not pass secrets
