@@ -19,10 +19,10 @@ engine: copilot
 inlined-imports: true
 strict: false
 imports:
-  - norrietaylor/spectacles/shared/principles.md@main
-  - norrietaylor/spectacles/shared/repo-conventions.md@main
-  - norrietaylor/spectacles/shared/sdd-interaction.md@main
-  - norrietaylor/spectacles/shared/sdd-gates.md@main
+  - gominimal/spectacles/shared/principles.md@main
+  - gominimal/spectacles/shared/repo-conventions.md@main
+  - gominimal/spectacles/shared/sdd-interaction.md@main
+  - gominimal/spectacles/shared/sdd-gates.md@main
 tools:
   github:
     toolsets: [default]
@@ -115,9 +115,12 @@ for the wrapper's parent-absence filter.
 
 For every run, this agent posts exactly one findings comment on the pull
 request or the tracking issue. It applies `needs-human` when a gate produces a
-Blocker finding. On a clean implementation-boundary pass it moves the linked
-tracking issue from `sdd:in-progress` to `sdd:review`. It opens no pull
-request and creates no issue.
+Blocker finding. On a clean implementation-boundary pass against a full-path
+feature it moves the linked tracking issue from `sdd:in-progress` to
+`sdd:review`. On a fast-path feature (ADR 0012) it does **not** move the
+lifecycle: `sdd-execute` writes `sdd:done` when the implementation pull
+request merges, and this agent is not the declared writer of `sdd:done`. It
+opens no pull request and creates no issue.
 
 ## Procedure
 
@@ -250,11 +253,23 @@ section has already stopped the run with `noop`.
 
 When the boundary is the implementation boundary and the gate set produced no
 Blocker finding, the implementation has passed validation. Move the **feature
-tracking issue** to the next lifecycle state:
+tracking issue** to the next lifecycle state, but only on a full-path feature:
 
 - Remove the `sdd:in-progress` label from the feature tracking issue
   (`remove-labels`).
 - Add the `sdd:review` label to the feature tracking issue (`add-labels`).
+
+Skip this lifecycle move entirely on a fast-path feature. A feature is
+fast-path when the linked tracking issue carries `sdd:fastpath` or
+`sdd:fastpath-review`, or shows fast-path history (no sub-issue tree under
+it). Per ADR 0012 the fast-path lifecycle is
+`sdd:fastpath → sdd:fastpath-review → sdd:fastpath → sdd:in-progress →
+sdd:done`; the human-review gate is the implementation pull request itself,
+which the human merges, and `sdd-execute` is the declared writer of
+`sdd:done` (it moves the feature on the implementation PR merge). This
+agent's clean pass on a fast-path implementation PR therefore posts the
+findings comment and stops short of any lifecycle move, leaving the
+`sdd:in-progress → sdd:done` transition to `sdd-execute`.
 
 The lifecycle label lives on the feature tracking issue, never on a task
 sub-issue. For a pull request trigger the pull request's `Closes #N` reference
@@ -272,12 +287,15 @@ feature **only** when it still carries `sdd:in-progress`; if it already carries
 `sdd:review` (or any later state), change nothing. This still moves exactly one
 issue's labels per run — the feature — never the task sub-issue.
 
-Move the label only at the implementation boundary and only on a clean pass: a
-spec, architecture, or triage pass does not move a lifecycle label, and an
-implementation pass with a Blocker finding hands off via `needs-human` instead.
-Exactly one lifecycle label is present at a time, so the removal and the
-addition are a single move. When the human pushes a fix for an earlier Blocker
-and the `pull_request: synchronize` re-validation passes clean, this same step
+Move the label only at the implementation boundary, only on a full-path
+feature, and only on a clean pass: a spec, architecture, or triage pass does
+not move a lifecycle label; an implementation pass with a Blocker finding hands
+off via `needs-human` instead; and an implementation pass on a fast-path
+feature posts findings only (the `sdd:in-progress → sdd:done` move is
+`sdd-execute`'s responsibility on PR merge). Exactly one lifecycle label is
+present at a time, so the removal and the addition are a single move. When the
+human pushes a fix for an earlier Blocker and the `pull_request: synchronize`
+re-validation passes clean against a full-path feature, this same step
 advances the feature from `sdd:in-progress` to `sdd:review`.
 
 ## Boundaries
@@ -301,8 +319,13 @@ advances the feature from `sdd:in-progress` to `sdd:review`.
 - A pull request adding a `docs/specs/**` file with an untestable acceptance
   criterion yields one comment carrying a Blocker finding and the
   `needs-human` label, and the workflow run still concludes successfully.
-- A clean implementation-boundary pass moves the feature tracking issue from
-  `sdd:in-progress` to `sdd:review`.
+- A clean implementation-boundary pass on a full-path feature moves the feature
+  tracking issue from `sdd:in-progress` to `sdd:review`. On a fast-path
+  feature (linked tracking issue carrying `sdd:fastpath` or
+  `sdd:fastpath-review`, or with fast-path history) the same clean pass posts
+  the findings comment but does not move the lifecycle; `sdd-execute` is the
+  declared writer of `sdd:done` and performs the
+  `sdd:in-progress → sdd:done` move on the implementation PR merge (ADR 0012).
 - A Blocker on a pull request is re-validated when the human clears
   `needs-human` and pushes a fix: the `pull_request: synchronize` event re-runs
   the gate set. The wrapper subscribes to no `unlabeled` event, so clearing

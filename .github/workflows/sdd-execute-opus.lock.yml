@@ -1,4 +1,4 @@
-# gh-aw-metadata: {"schema_version":"v3","frontmatter_hash":"9adaa92ebb3d5f69ca2ef5c79a3f6ad55c9284fc92aa00a122ab4efbae4f0d73","compiler_version":"v0.74.3","agent_id":"copilot","agent_model":"claude-opus-4.6"}
+# gh-aw-metadata: {"schema_version":"v3","frontmatter_hash":"eba313663cf5bfc7c5833d17a23f04707aec421ef41f546398c5f1b99c1c6e31","compiler_version":"v0.74.3","agent_id":"copilot","agent_model":"claude-opus-4.6"}
 # gh-aw-manifest: {"version":1,"secrets":["APP_PRIVATE_KEY","COPILOT_GITHUB_TOKEN","GH_AW_CI_TRIGGER_TOKEN","GH_AW_GITHUB_MCP_SERVER_TOKEN","GH_AW_GITHUB_TOKEN","GITHUB_TOKEN"],"actions":[{"repo":"actions/checkout","sha":"de0fac2e4500dabe0009e67214ff5f5447ce83dd","version":"v6.0.2"},{"repo":"actions/create-github-app-token","sha":"bcd2ba49218906704ab6c1aa796996da409d3eb1","version":"v3.2.0"},{"repo":"actions/download-artifact","sha":"3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c","version":"v8.0.1"},{"repo":"actions/github-script","sha":"3a2844b7e9c422d3c10d287c895573f7108da1b3","version":"v9.0.0"},{"repo":"actions/setup-node","sha":"48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e","version":"v6.4.0"},{"repo":"actions/upload-artifact","sha":"043fb46d1a93c77aae656e7c1c64a875d1fc6a0a","version":"v7.0.1"},{"repo":"github/gh-aw-actions/setup","sha":"8a9a52673cb8f97ebb43b344618af2d6f2c9ac7f","version":"v0.74.3"}],"containers":[{"image":"ghcr.io/github/gh-aw-firewall/agent:0.25.46"},{"image":"ghcr.io/github/gh-aw-firewall/api-proxy:0.25.46"},{"image":"ghcr.io/github/gh-aw-firewall/squid:0.25.46"},{"image":"ghcr.io/github/gh-aw-mcpg:v0.3.9","digest":"sha256:64828b42a4482f58fab16509d7f8f495a6d97c972a98a68aff20543531ac0388","pinned_image":"ghcr.io/github/gh-aw-mcpg:v0.3.9@sha256:64828b42a4482f58fab16509d7f8f495a6d97c972a98a68aff20543531ac0388"},{"image":"ghcr.io/github/github-mcp-server:v1.0.4"},{"image":"ghcr.io/github/serena-mcp-server:latest","digest":"sha256:bf343399e3725c45528f531a230f3a04521d4cdef29f9a5af6282ff0d3c393c5","pinned_image":"ghcr.io/github/serena-mcp-server:latest@sha256:bf343399e3725c45528f531a230f3a04521d4cdef29f9a5af6282ff0d3c393c5"},{"image":"node:lts-alpine","digest":"sha256:d1b3b4da11eefd5941e7f0b9cf17783fc99d9c6fc34884a665f40a06dbdfc94f","pinned_image":"node:lts-alpine@sha256:d1b3b4da11eefd5941e7f0b9cf17783fc99d9c6fc34884a665f40a06dbdfc94f"}]}
 #    ___                   _   _      
 #   / _ \                 | | (_)     
@@ -25,12 +25,12 @@
 #
 # Resolved workflow manifest:
 #   Imports:
-#     - norrietaylor/spectacles/shared/principles.md@main
-#     - norrietaylor/spectacles/shared/repo-conventions.md@main
-#     - norrietaylor/spectacles/shared/runtime-setup.md@main
-#     - norrietaylor/spectacles/shared/sdd-interaction.md@main
-#     - norrietaylor/spectacles/shared/sdd-mcp-serena.md@main
-#     - norrietaylor/spectacles/shared/sdd-proof-artifacts.md@main
+#     - gominimal/spectacles/shared/principles.md@main
+#     - gominimal/spectacles/shared/repo-conventions.md@main
+#     - gominimal/spectacles/shared/runtime-setup.md@main
+#     - gominimal/spectacles/shared/sdd-interaction.md@main
+#     - gominimal/spectacles/shared/sdd-mcp-serena.md@main
+#     - gominimal/spectacles/shared/sdd-proof-artifacts.md@main
 #
 # inlined-imports: true
 #
@@ -232,24 +232,24 @@ jobs:
         run: |
           bash "${RUNNER_TEMP}/gh-aw/actions/create_prompt_first.sh"
           {
-          cat << 'GH_AW_PROMPT_44854bed69b7f9c8_EOF'
+          cat << 'GH_AW_PROMPT_b9f48df3910461bd_EOF'
           <system>
-          GH_AW_PROMPT_44854bed69b7f9c8_EOF
+          GH_AW_PROMPT_b9f48df3910461bd_EOF
           cat "${RUNNER_TEMP}/gh-aw/prompts/xpia.md"
           cat "${RUNNER_TEMP}/gh-aw/prompts/temp_folder_prompt.md"
           cat "${RUNNER_TEMP}/gh-aw/prompts/markdown.md"
           cat "${RUNNER_TEMP}/gh-aw/prompts/safe_outputs_prompt.md"
-          cat << 'GH_AW_PROMPT_44854bed69b7f9c8_EOF'
+          cat << 'GH_AW_PROMPT_b9f48df3910461bd_EOF'
           <safe-output-tools>
           Tools: add_comment, update_issue, create_pull_request, add_labels(max:2), remove_labels(max:2), push_to_pull_request_branch, missing_tool, missing_data, noop
-          GH_AW_PROMPT_44854bed69b7f9c8_EOF
+          GH_AW_PROMPT_b9f48df3910461bd_EOF
           cat "${RUNNER_TEMP}/gh-aw/prompts/safe_outputs_create_pull_request.md"
           cat "${RUNNER_TEMP}/gh-aw/prompts/safe_outputs_push_to_pr_branch.md"
-          cat << 'GH_AW_PROMPT_44854bed69b7f9c8_EOF'
+          cat << 'GH_AW_PROMPT_b9f48df3910461bd_EOF'
           </safe-output-tools>
-          GH_AW_PROMPT_44854bed69b7f9c8_EOF
+          GH_AW_PROMPT_b9f48df3910461bd_EOF
           cat "${RUNNER_TEMP}/gh-aw/prompts/mcp_cli_tools_prompt.md"
-          cat << 'GH_AW_PROMPT_44854bed69b7f9c8_EOF'
+          cat << 'GH_AW_PROMPT_b9f48df3910461bd_EOF'
           <github-context>
           The following GitHub context information is available for this workflow:
           {{#if github.actor}}
@@ -278,9 +278,9 @@ jobs:
           {{/if}}
           </github-context>
           
-          GH_AW_PROMPT_44854bed69b7f9c8_EOF
+          GH_AW_PROMPT_b9f48df3910461bd_EOF
           cat "${RUNNER_TEMP}/gh-aw/prompts/github_mcp_tools_with_safeoutputs_prompt.md"
-          cat << 'GH_AW_PROMPT_44854bed69b7f9c8_EOF'
+          cat << 'GH_AW_PROMPT_b9f48df3910461bd_EOF'
           </system>
           # Core principles
           
@@ -407,23 +407,28 @@ jobs:
           is the GitHub-native task board.
           
           ```text
-          sdd:spec -> sdd:triage -> sdd:ready -> sdd:in-progress -> sdd:review -> sdd:done
+          Full path: sdd:spec -> sdd:triage -> sdd:ready -> sdd:in-progress -> sdd:review -> sdd:done
+          Fast path: sdd:spec -> sdd:fastpath -> sdd:fastpath-review -> sdd:fastpath -> sdd:in-progress -> sdd:done
           ```
           
           | Label | Meaning | Set by | Advances on |
           |---|---|---|---|
-          | `sdd:spec` | the feature is being specified | `feature`/`bug` template, or `/spec` | spec PR merged |
+          | `sdd:spec` | the feature is being specified | `feature`/`bug` template, or `/spec` | spec PR merged, or `/fastpath` confirms fast-path |
+          | `sdd:fastpath` | fast-path is armed; awaiting stub spec merge or `/approve` | `sdd-spec` on `/fastpath` (full path), or stub spec PR merge | stub spec PR opened (`sdd:fastpath-review`), or `/approve` on a merged-stub state |
+          | `sdd:fastpath-review` | fast-path stub spec PR is open and awaiting human merge | `sdd-spec` on the stub spec PR | stub spec PR merged (returns to `sdd:fastpath`) |
           | `sdd:triage` | architecture and triage are running | `sdd-spec` on spec-PR merge | architecture PR merged (plan-comment posted), then `/approve` |
           | `sdd:ready` | tasks are decomposed and queued | `sdd-triage` on phase C completion | `/dispatch` arms the cascade |
-          | `sdd:in-progress` | the cascade is armed and tasks are being implemented | `sdd-dispatch` on the first `/dispatch` | every task sub-issue closes |
+          | `sdd:in-progress` | the cascade is armed and tasks are being implemented (full path), or the single fast-path implementation is running | `sdd-dispatch` on the first `/dispatch` (full path), or `sdd-execute` on `/approve` (fast path) | every task sub-issue closes (full path), or the implementation PR merges (fast path) |
           | `sdd:review` | the implementation awaits human review | `sdd-validate` on a clean implementation pass | all task sub-issues closed |
-          | `sdd:done` | every task is complete | `sdd-execute` when all tasks are closed | a human does the final close |
+          | `sdd:done` | every task is complete | `sdd-execute` when all tasks are closed (full path), or `sdd-execute` on the fast-path implementation PR merge | a human does the final close |
           
           Exactly one lifecycle label is present at a time. `sdd:triage` covers all
           three `sdd-triage` phases (architecture, plan comment, tree
-          materialization). The `kind:*`, `priority:*`, and
-          `model:{haiku,sonnet,opus}` labels are orthogonal metadata and are not part
-          of this state machine.
+          materialization). `sdd:fastpath` and `sdd:fastpath-review` cover the
+          fast-path flow from ADR 0012; a fast-path tracking issue never carries
+          `sdd:triage`, `sdd:ready`, or `sdd:review`. The `kind:*`, `priority:*`,
+          and `model:{haiku,sonnet,opus}` labels are orthogonal metadata and are
+          not part of this state machine.
           
           `sdd:dispatched` is an **orthogonal cascade marker**, not a lifecycle
           label. `sdd-dispatch` adds it to the tracking issue on the first
@@ -442,19 +447,30 @@ jobs:
           
           | Command | Where | Effect |
           |---|---|---|
-          | `/spec` | tracking issue | trigger `sdd-spec` (also auto-applied by the `feature`/`bug` template label) |
+          | `/spec` | tracking issue | trigger `sdd-spec` (also auto-applied by the `feature`/`bug` template label); on a fast-path tracking issue it is the misclassification-escalation reset that returns the lifecycle to `sdd:spec` |
+          | `/fastpath` | tracking issue, after `sdd-spec`'s proposal comment or up front before any agent run | confirm fast-path classification; `sdd-spec` produces a stub spec PR and an execution plan comment in one run (ADR 0012) |
           | `/triage` | tracking issue, after the spec PR is merged | trigger `sdd-triage` phase A (architecture) |
-          | `/approve` | tracking issue | confirm the proposed plan; `sdd-triage` creates the Unit sub-issues and implementation task sub-issues |
-          | `/dispatch` | tracking issue, in `sdd:ready` or `sdd:in-progress` | arm cascade execution of every task in the feature's task tree |
+          | `/approve` | tracking issue | on a full-path tracking issue (`sdd:triage` with a plan-comment posted), materialize the Unit and task sub-issue tree per ADR 0010; on a fast-path tracking issue (`sdd:fastpath` with the stub spec merged), dispatch one `sdd-execute-{tier}` against the execution plan comment per ADR 0012 |
+          | `/dispatch` | tracking issue, in `sdd:ready` or `sdd:in-progress` (full path) | arm cascade execution of every task in the feature's task tree; on a fast-path tracking issue (`sdd:fastpath`, `sdd:fastpath-review`, or a fast-path `sdd:in-progress`), `/dispatch` is a noop with a one-comment explanation pointing to `/approve` (ADR 0012) |
           | `/revise <note>` | spec PR, architecture PR, tracking issue, or implementation PR | re-run the owning agent with the note as an added instruction |
           | `/execute` | a task sub-issue | trigger `sdd-execute` for that task immediately, outside the cascade |
           
           Merging the spec PR advances to the architecture phase; merging the
           architecture PR advances to a plan-comment phase. `/approve` is the one
           non-PR decision point at which structure is committed to the tree (ADR
-          0010). `/dispatch` is the second non-PR decision point: it arms the
-          event-driven cascade that runs the tasks. Execution is fully event-driven:
-          `/approve` → `/dispatch` → cascade-on-close (ADR 0011).
+          0010). `/dispatch` is the second non-PR decision point on the full
+          path: it arms the event-driven cascade that runs the tasks. Execution
+          is fully event-driven: `/approve` → `/dispatch` → cascade-on-close (ADR
+          0011).
+          
+          The fast-path flow (ADR 0012) compresses the same gates for
+          single-session work. `sdd-spec` proposes fast-path or honours an
+          explicit `/fastpath`; on confirmation it produces a stub spec PR and
+          posts the execution plan as one comment on the tracking issue. The
+          human merges the stub spec PR (the spec sub-issue closes via the
+          existing `Closes` keyword) and comments `/approve` to dispatch one
+          `sdd-execute-{tier}` against the plan comment. `/dispatch` is unused
+          on this flow and is a noop with a comment pointing at `/approve`.
           
           ## The `needs-human` contract
           
@@ -876,9 +892,12 @@ jobs:
           0001). The human answers in a comment and either tightens the
           fast-path scope (clearing `needs-human` re-triggers this agent to
           resume), or comments `/spec` (which the `sdd-spec` agent treats as
-          the misclassification-escalation reset: it removes `sdd:fastpath`,
-          adds `sdd:spec`, and runs the full pipeline with the stub spec as
-          the starting point).
+          the misclassification-escalation reset: it removes whichever
+          lifecycle label the tracking issue currently carries —
+          `sdd:in-progress` once this agent has moved the issue there, or
+          `sdd:fastpath`/`sdd:fastpath-review` if the escalation arrives
+          before that move — and adds `sdd:spec`, then runs the full pipeline
+          with the stub spec as the starting point).
           
           The threshold is "materially bigger than fast-path assumed," not
           "strictly perfect heuristic match." A one-line spillover is not an
@@ -1070,7 +1089,7 @@ jobs:
             moves to `sdd:done` and gains `needs-human`, and the tracking issue is not
             closed by the agent.
           
-          GH_AW_PROMPT_44854bed69b7f9c8_EOF
+          GH_AW_PROMPT_b9f48df3910461bd_EOF
           } > "$GH_AW_PROMPT"
       - name: Interpolate variables and render templates
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
@@ -1275,9 +1294,9 @@ jobs:
           mkdir -p "${RUNNER_TEMP}/gh-aw/safeoutputs"
           mkdir -p /tmp/gh-aw/safeoutputs
           mkdir -p /tmp/gh-aw/mcp-logs/safeoutputs
-          cat > "${RUNNER_TEMP}/gh-aw/safeoutputs/config.json" << 'GH_AW_SAFE_OUTPUTS_CONFIG_7b349dc8744e6c7f_EOF'
+          cat > "${RUNNER_TEMP}/gh-aw/safeoutputs/config.json" << 'GH_AW_SAFE_OUTPUTS_CONFIG_0336f519f148ec9e_EOF'
           {"add_comment":{"max":1},"add_labels":{"allowed":["sdd:in-progress","sdd:done","needs-human"],"max":2},"create_pull_request":{"draft":false,"max":1,"max_patch_files":100,"max_patch_size":1024,"protect_top_level_dot_folders":true,"protected_files":["package.json","bun.lockb","bunfig.toml","deno.json","deno.jsonc","deno.lock","global.json","NuGet.Config","Directory.Packages.props","mix.exs","mix.lock","go.mod","go.sum","stack.yaml","stack.yaml.lock","pom.xml","build.gradle","build.gradle.kts","settings.gradle","settings.gradle.kts","gradle.properties","package-lock.json","yarn.lock","pnpm-lock.yaml","npm-shrinkwrap.json","requirements.txt","Pipfile","Pipfile.lock","pyproject.toml","setup.py","setup.cfg","Gemfile","Gemfile.lock","uv.lock","CODEOWNERS","DESIGN.md","README.md","CONTRIBUTING.md","CHANGELOG.md","SECURITY.md","CODE_OF_CONDUCT.md","AGENTS.md","CLAUDE.md","GEMINI.md"]},"create_report_incomplete_issue":{},"missing_data":{},"missing_tool":{},"noop":{"max":1,"report-as-issue":"true"},"push_to_pull_request_branch":{"if_no_changes":"warn","max":1,"max_patch_size":1024,"protect_top_level_dot_folders":true,"protected_files":["package.json","bun.lockb","bunfig.toml","deno.json","deno.jsonc","deno.lock","global.json","NuGet.Config","Directory.Packages.props","mix.exs","mix.lock","go.mod","go.sum","stack.yaml","stack.yaml.lock","pom.xml","build.gradle","build.gradle.kts","settings.gradle","settings.gradle.kts","gradle.properties","package-lock.json","yarn.lock","pnpm-lock.yaml","npm-shrinkwrap.json","requirements.txt","Pipfile","Pipfile.lock","pyproject.toml","setup.py","setup.cfg","Gemfile","Gemfile.lock","uv.lock","CODEOWNERS","DESIGN.md","README.md","CONTRIBUTING.md","CHANGELOG.md","SECURITY.md","CODE_OF_CONDUCT.md","AGENTS.md","CLAUDE.md","GEMINI.md"]},"remove_labels":{"allowed":["sdd:ready","sdd:review","sdd:fastpath","sdd:in-progress"],"max":2},"report_incomplete":{},"update_issue":{"allow_body":true,"allow_status":true,"max":1,"target":"*"}}
-          GH_AW_SAFE_OUTPUTS_CONFIG_7b349dc8744e6c7f_EOF
+          GH_AW_SAFE_OUTPUTS_CONFIG_0336f519f148ec9e_EOF
       - name: Generate Safe Outputs Tools
         env:
           GH_AW_TOOLS_META_JSON: |
@@ -1629,7 +1648,7 @@ jobs:
           
           mkdir -p /home/runner/.copilot
           GH_AW_NODE=$(which node 2>/dev/null || command -v node 2>/dev/null || echo node)
-          cat << GH_AW_MCP_CONFIG_0ed7f57ab515c5c8_EOF | "$GH_AW_NODE" "${RUNNER_TEMP}/gh-aw/actions/start_mcp_gateway.cjs"
+          cat << GH_AW_MCP_CONFIG_71f7df3ba0a7f8f6_EOF | "$GH_AW_NODE" "${RUNNER_TEMP}/gh-aw/actions/start_mcp_gateway.cjs"
           {
             "mcpServers": {
               "github": {
@@ -1707,7 +1726,7 @@ jobs:
               "payloadDir": "${MCP_GATEWAY_PAYLOAD_DIR}"
             }
           }
-          GH_AW_MCP_CONFIG_0ed7f57ab515c5c8_EOF
+          GH_AW_MCP_CONFIG_71f7df3ba0a7f8f6_EOF
       - name: Mount MCP servers as CLIs
         id: mount-mcp-clis
         continue-on-error: true

@@ -1,4 +1,4 @@
-# gh-aw-metadata: {"schema_version":"v3","frontmatter_hash":"2f862ec430ac3e202459c529a65381b674188505abc40d7191e05b7c706884cf","compiler_version":"v0.74.3","agent_id":"copilot"}
+# gh-aw-metadata: {"schema_version":"v3","frontmatter_hash":"044fbc64100822c05c815d22c8f5d98b65a8a43e9b4b23dcdc7b7b69225e32a6","compiler_version":"v0.74.3","agent_id":"copilot"}
 # gh-aw-manifest: {"version":1,"secrets":["APP_PRIVATE_KEY","COPILOT_GITHUB_TOKEN","GH_AW_GITHUB_MCP_SERVER_TOKEN","GH_AW_GITHUB_TOKEN","GITHUB_TOKEN"],"actions":[{"repo":"actions/checkout","sha":"de0fac2e4500dabe0009e67214ff5f5447ce83dd","version":"v6.0.2"},{"repo":"actions/create-github-app-token","sha":"bcd2ba49218906704ab6c1aa796996da409d3eb1","version":"v3.2.0"},{"repo":"actions/download-artifact","sha":"3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c","version":"v8.0.1"},{"repo":"actions/github-script","sha":"3a2844b7e9c422d3c10d287c895573f7108da1b3","version":"v9.0.0"},{"repo":"actions/setup-node","sha":"48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e","version":"v6.4.0"},{"repo":"actions/upload-artifact","sha":"043fb46d1a93c77aae656e7c1c64a875d1fc6a0a","version":"v7.0.1"},{"repo":"github/gh-aw-actions/setup","sha":"8a9a52673cb8f97ebb43b344618af2d6f2c9ac7f","version":"v0.74.3"}],"containers":[{"image":"ghcr.io/github/gh-aw-firewall/agent:0.25.46"},{"image":"ghcr.io/github/gh-aw-firewall/api-proxy:0.25.46"},{"image":"ghcr.io/github/gh-aw-firewall/squid:0.25.46"},{"image":"ghcr.io/github/gh-aw-mcpg:v0.3.9","digest":"sha256:64828b42a4482f58fab16509d7f8f495a6d97c972a98a68aff20543531ac0388","pinned_image":"ghcr.io/github/gh-aw-mcpg:v0.3.9@sha256:64828b42a4482f58fab16509d7f8f495a6d97c972a98a68aff20543531ac0388"},{"image":"ghcr.io/github/github-mcp-server:v1.0.4"},{"image":"node:lts-alpine","digest":"sha256:d1b3b4da11eefd5941e7f0b9cf17783fc99d9c6fc34884a665f40a06dbdfc94f","pinned_image":"node:lts-alpine@sha256:d1b3b4da11eefd5941e7f0b9cf17783fc99d9c6fc34884a665f40a06dbdfc94f"}]}
 #    ___                   _   _      
 #   / _ \                 | | (_)     
@@ -25,10 +25,10 @@
 #
 # Resolved workflow manifest:
 #   Imports:
-#     - norrietaylor/spectacles/shared/principles.md@main
-#     - norrietaylor/spectacles/shared/repo-conventions.md@main
-#     - norrietaylor/spectacles/shared/sdd-gates.md@main
-#     - norrietaylor/spectacles/shared/sdd-interaction.md@main
+#     - gominimal/spectacles/shared/principles.md@main
+#     - gominimal/spectacles/shared/repo-conventions.md@main
+#     - gominimal/spectacles/shared/sdd-gates.md@main
+#     - gominimal/spectacles/shared/sdd-interaction.md@main
 #
 # inlined-imports: true
 #
@@ -214,20 +214,20 @@ jobs:
         run: |
           bash "${RUNNER_TEMP}/gh-aw/actions/create_prompt_first.sh"
           {
-          cat << 'GH_AW_PROMPT_b99c98b19114ba22_EOF'
+          cat << 'GH_AW_PROMPT_9cc222aff2a1ced7_EOF'
           <system>
-          GH_AW_PROMPT_b99c98b19114ba22_EOF
+          GH_AW_PROMPT_9cc222aff2a1ced7_EOF
           cat "${RUNNER_TEMP}/gh-aw/prompts/xpia.md"
           cat "${RUNNER_TEMP}/gh-aw/prompts/temp_folder_prompt.md"
           cat "${RUNNER_TEMP}/gh-aw/prompts/markdown.md"
           cat "${RUNNER_TEMP}/gh-aw/prompts/safe_outputs_prompt.md"
-          cat << 'GH_AW_PROMPT_b99c98b19114ba22_EOF'
+          cat << 'GH_AW_PROMPT_9cc222aff2a1ced7_EOF'
           <safe-output-tools>
           Tools: add_comment, add_labels, remove_labels, missing_tool, missing_data, noop
           </safe-output-tools>
-          GH_AW_PROMPT_b99c98b19114ba22_EOF
+          GH_AW_PROMPT_9cc222aff2a1ced7_EOF
           cat "${RUNNER_TEMP}/gh-aw/prompts/mcp_cli_tools_prompt.md"
-          cat << 'GH_AW_PROMPT_b99c98b19114ba22_EOF'
+          cat << 'GH_AW_PROMPT_9cc222aff2a1ced7_EOF'
           <github-context>
           The following GitHub context information is available for this workflow:
           {{#if github.actor}}
@@ -256,9 +256,9 @@ jobs:
           {{/if}}
           </github-context>
           
-          GH_AW_PROMPT_b99c98b19114ba22_EOF
+          GH_AW_PROMPT_9cc222aff2a1ced7_EOF
           cat "${RUNNER_TEMP}/gh-aw/prompts/github_mcp_tools_with_safeoutputs_prompt.md"
-          cat << 'GH_AW_PROMPT_b99c98b19114ba22_EOF'
+          cat << 'GH_AW_PROMPT_9cc222aff2a1ced7_EOF'
           </system>
           # Core principles
           
@@ -365,23 +365,28 @@ jobs:
           is the GitHub-native task board.
           
           ```text
-          sdd:spec -> sdd:triage -> sdd:ready -> sdd:in-progress -> sdd:review -> sdd:done
+          Full path: sdd:spec -> sdd:triage -> sdd:ready -> sdd:in-progress -> sdd:review -> sdd:done
+          Fast path: sdd:spec -> sdd:fastpath -> sdd:fastpath-review -> sdd:fastpath -> sdd:in-progress -> sdd:done
           ```
           
           | Label | Meaning | Set by | Advances on |
           |---|---|---|---|
-          | `sdd:spec` | the feature is being specified | `feature`/`bug` template, or `/spec` | spec PR merged |
+          | `sdd:spec` | the feature is being specified | `feature`/`bug` template, or `/spec` | spec PR merged, or `/fastpath` confirms fast-path |
+          | `sdd:fastpath` | fast-path is armed; awaiting stub spec merge or `/approve` | `sdd-spec` on `/fastpath` (full path), or stub spec PR merge | stub spec PR opened (`sdd:fastpath-review`), or `/approve` on a merged-stub state |
+          | `sdd:fastpath-review` | fast-path stub spec PR is open and awaiting human merge | `sdd-spec` on the stub spec PR | stub spec PR merged (returns to `sdd:fastpath`) |
           | `sdd:triage` | architecture and triage are running | `sdd-spec` on spec-PR merge | architecture PR merged (plan-comment posted), then `/approve` |
           | `sdd:ready` | tasks are decomposed and queued | `sdd-triage` on phase C completion | `/dispatch` arms the cascade |
-          | `sdd:in-progress` | the cascade is armed and tasks are being implemented | `sdd-dispatch` on the first `/dispatch` | every task sub-issue closes |
+          | `sdd:in-progress` | the cascade is armed and tasks are being implemented (full path), or the single fast-path implementation is running | `sdd-dispatch` on the first `/dispatch` (full path), or `sdd-execute` on `/approve` (fast path) | every task sub-issue closes (full path), or the implementation PR merges (fast path) |
           | `sdd:review` | the implementation awaits human review | `sdd-validate` on a clean implementation pass | all task sub-issues closed |
-          | `sdd:done` | every task is complete | `sdd-execute` when all tasks are closed | a human does the final close |
+          | `sdd:done` | every task is complete | `sdd-execute` when all tasks are closed (full path), or `sdd-execute` on the fast-path implementation PR merge | a human does the final close |
           
           Exactly one lifecycle label is present at a time. `sdd:triage` covers all
           three `sdd-triage` phases (architecture, plan comment, tree
-          materialization). The `kind:*`, `priority:*`, and
-          `model:{haiku,sonnet,opus}` labels are orthogonal metadata and are not part
-          of this state machine.
+          materialization). `sdd:fastpath` and `sdd:fastpath-review` cover the
+          fast-path flow from ADR 0012; a fast-path tracking issue never carries
+          `sdd:triage`, `sdd:ready`, or `sdd:review`. The `kind:*`, `priority:*`,
+          and `model:{haiku,sonnet,opus}` labels are orthogonal metadata and are
+          not part of this state machine.
           
           `sdd:dispatched` is an **orthogonal cascade marker**, not a lifecycle
           label. `sdd-dispatch` adds it to the tracking issue on the first
@@ -400,19 +405,30 @@ jobs:
           
           | Command | Where | Effect |
           |---|---|---|
-          | `/spec` | tracking issue | trigger `sdd-spec` (also auto-applied by the `feature`/`bug` template label) |
+          | `/spec` | tracking issue | trigger `sdd-spec` (also auto-applied by the `feature`/`bug` template label); on a fast-path tracking issue it is the misclassification-escalation reset that returns the lifecycle to `sdd:spec` |
+          | `/fastpath` | tracking issue, after `sdd-spec`'s proposal comment or up front before any agent run | confirm fast-path classification; `sdd-spec` produces a stub spec PR and an execution plan comment in one run (ADR 0012) |
           | `/triage` | tracking issue, after the spec PR is merged | trigger `sdd-triage` phase A (architecture) |
-          | `/approve` | tracking issue | confirm the proposed plan; `sdd-triage` creates the Unit sub-issues and implementation task sub-issues |
-          | `/dispatch` | tracking issue, in `sdd:ready` or `sdd:in-progress` | arm cascade execution of every task in the feature's task tree |
+          | `/approve` | tracking issue | on a full-path tracking issue (`sdd:triage` with a plan-comment posted), materialize the Unit and task sub-issue tree per ADR 0010; on a fast-path tracking issue (`sdd:fastpath` with the stub spec merged), dispatch one `sdd-execute-{tier}` against the execution plan comment per ADR 0012 |
+          | `/dispatch` | tracking issue, in `sdd:ready` or `sdd:in-progress` (full path) | arm cascade execution of every task in the feature's task tree; on a fast-path tracking issue (`sdd:fastpath`, `sdd:fastpath-review`, or a fast-path `sdd:in-progress`), `/dispatch` is a noop with a one-comment explanation pointing to `/approve` (ADR 0012) |
           | `/revise <note>` | spec PR, architecture PR, tracking issue, or implementation PR | re-run the owning agent with the note as an added instruction |
           | `/execute` | a task sub-issue | trigger `sdd-execute` for that task immediately, outside the cascade |
           
           Merging the spec PR advances to the architecture phase; merging the
           architecture PR advances to a plan-comment phase. `/approve` is the one
           non-PR decision point at which structure is committed to the tree (ADR
-          0010). `/dispatch` is the second non-PR decision point: it arms the
-          event-driven cascade that runs the tasks. Execution is fully event-driven:
-          `/approve` → `/dispatch` → cascade-on-close (ADR 0011).
+          0010). `/dispatch` is the second non-PR decision point on the full
+          path: it arms the event-driven cascade that runs the tasks. Execution
+          is fully event-driven: `/approve` → `/dispatch` → cascade-on-close (ADR
+          0011).
+          
+          The fast-path flow (ADR 0012) compresses the same gates for
+          single-session work. `sdd-spec` proposes fast-path or honours an
+          explicit `/fastpath`; on confirmation it produces a stub spec PR and
+          posts the execution plan as one comment on the tracking issue. The
+          human merges the stub spec PR (the spec sub-issue closes via the
+          existing `Closes` keyword) and comments `/approve` to dispatch one
+          `sdd-execute-{tier}` against the plan comment. `/dispatch` is unused
+          on this flow and is a noop with a comment pointing at `/approve`.
           
           ## The `needs-human` contract
           
@@ -647,9 +663,12 @@ jobs:
           
           For every run, this agent posts exactly one findings comment on the pull
           request or the tracking issue. It applies `needs-human` when a gate produces a
-          Blocker finding. On a clean implementation-boundary pass it moves the linked
-          tracking issue from `sdd:in-progress` to `sdd:review`. It opens no pull
-          request and creates no issue.
+          Blocker finding. On a clean implementation-boundary pass against a full-path
+          feature it moves the linked tracking issue from `sdd:in-progress` to
+          `sdd:review`. On a fast-path feature (ADR 0012) it does **not** move the
+          lifecycle: `sdd-execute` writes `sdd:done` when the implementation pull
+          request merges, and this agent is not the declared writer of `sdd:done`. It
+          opens no pull request and creates no issue.
           
           ## Procedure
           
@@ -782,11 +801,23 @@ jobs:
           
           When the boundary is the implementation boundary and the gate set produced no
           Blocker finding, the implementation has passed validation. Move the **feature
-          tracking issue** to the next lifecycle state:
+          tracking issue** to the next lifecycle state, but only on a full-path feature:
           
           - Remove the `sdd:in-progress` label from the feature tracking issue
             (`remove-labels`).
           - Add the `sdd:review` label to the feature tracking issue (`add-labels`).
+          
+          Skip this lifecycle move entirely on a fast-path feature. A feature is
+          fast-path when the linked tracking issue carries `sdd:fastpath` or
+          `sdd:fastpath-review`, or shows fast-path history (no sub-issue tree under
+          it). Per ADR 0012 the fast-path lifecycle is
+          `sdd:fastpath → sdd:fastpath-review → sdd:fastpath → sdd:in-progress →
+          sdd:done`; the human-review gate is the implementation pull request itself,
+          which the human merges, and `sdd-execute` is the declared writer of
+          `sdd:done` (it moves the feature on the implementation PR merge). This
+          agent's clean pass on a fast-path implementation PR therefore posts the
+          findings comment and stops short of any lifecycle move, leaving the
+          `sdd:in-progress → sdd:done` transition to `sdd-execute`.
           
           The lifecycle label lives on the feature tracking issue, never on a task
           sub-issue. For a pull request trigger the pull request's `Closes #N` reference
@@ -804,12 +835,15 @@ jobs:
           `sdd:review` (or any later state), change nothing. This still moves exactly one
           issue's labels per run — the feature — never the task sub-issue.
           
-          Move the label only at the implementation boundary and only on a clean pass: a
-          spec, architecture, or triage pass does not move a lifecycle label, and an
-          implementation pass with a Blocker finding hands off via `needs-human` instead.
-          Exactly one lifecycle label is present at a time, so the removal and the
-          addition are a single move. When the human pushes a fix for an earlier Blocker
-          and the `pull_request: synchronize` re-validation passes clean, this same step
+          Move the label only at the implementation boundary, only on a full-path
+          feature, and only on a clean pass: a spec, architecture, or triage pass does
+          not move a lifecycle label; an implementation pass with a Blocker finding hands
+          off via `needs-human` instead; and an implementation pass on a fast-path
+          feature posts findings only (the `sdd:in-progress → sdd:done` move is
+          `sdd-execute`'s responsibility on PR merge). Exactly one lifecycle label is
+          present at a time, so the removal and the addition are a single move. When the
+          human pushes a fix for an earlier Blocker and the `pull_request: synchronize`
+          re-validation passes clean against a full-path feature, this same step
           advances the feature from `sdd:in-progress` to `sdd:review`.
           
           ## Boundaries
@@ -833,14 +867,19 @@ jobs:
           - A pull request adding a `docs/specs/**` file with an untestable acceptance
             criterion yields one comment carrying a Blocker finding and the
             `needs-human` label, and the workflow run still concludes successfully.
-          - A clean implementation-boundary pass moves the feature tracking issue from
-            `sdd:in-progress` to `sdd:review`.
+          - A clean implementation-boundary pass on a full-path feature moves the feature
+            tracking issue from `sdd:in-progress` to `sdd:review`. On a fast-path
+            feature (linked tracking issue carrying `sdd:fastpath` or
+            `sdd:fastpath-review`, or with fast-path history) the same clean pass posts
+            the findings comment but does not move the lifecycle; `sdd-execute` is the
+            declared writer of `sdd:done` and performs the
+            `sdd:in-progress → sdd:done` move on the implementation PR merge (ADR 0012).
           - A Blocker on a pull request is re-validated when the human clears
             `needs-human` and pushes a fix: the `pull_request: synchronize` event re-runs
             the gate set. The wrapper subscribes to no `unlabeled` event, so clearing
             `needs-human` on its own re-triggers nothing.
           
-          GH_AW_PROMPT_b99c98b19114ba22_EOF
+          GH_AW_PROMPT_9cc222aff2a1ced7_EOF
           } > "$GH_AW_PROMPT"
       - name: Interpolate variables and render templates
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
@@ -1045,9 +1084,9 @@ jobs:
           mkdir -p "${RUNNER_TEMP}/gh-aw/safeoutputs"
           mkdir -p /tmp/gh-aw/safeoutputs
           mkdir -p /tmp/gh-aw/mcp-logs/safeoutputs
-          cat > "${RUNNER_TEMP}/gh-aw/safeoutputs/config.json" << 'GH_AW_SAFE_OUTPUTS_CONFIG_75011bc2db6a33d2_EOF'
+          cat > "${RUNNER_TEMP}/gh-aw/safeoutputs/config.json" << 'GH_AW_SAFE_OUTPUTS_CONFIG_e9ff1ff22f39a13c_EOF'
           {"add_comment":{"hide_older_comments":true,"max":1},"add_labels":{"allowed":["needs-human","sdd:review"],"max":1},"create_report_incomplete_issue":{},"missing_data":{},"missing_tool":{},"noop":{"max":1,"report-as-issue":"true"},"remove_labels":{"allowed":["sdd:in-progress"],"max":1},"report_incomplete":{}}
-          GH_AW_SAFE_OUTPUTS_CONFIG_75011bc2db6a33d2_EOF
+          GH_AW_SAFE_OUTPUTS_CONFIG_e9ff1ff22f39a13c_EOF
       - name: Generate Safe Outputs Tools
         env:
           GH_AW_TOOLS_META_JSON: |
@@ -1281,7 +1320,7 @@ jobs:
           
           mkdir -p /home/runner/.copilot
           GH_AW_NODE=$(which node 2>/dev/null || command -v node 2>/dev/null || echo node)
-          cat << GH_AW_MCP_CONFIG_f04f0587c19ec360_EOF | "$GH_AW_NODE" "${RUNNER_TEMP}/gh-aw/actions/start_mcp_gateway.cjs"
+          cat << GH_AW_MCP_CONFIG_d07136f625a3d217_EOF | "$GH_AW_NODE" "${RUNNER_TEMP}/gh-aw/actions/start_mcp_gateway.cjs"
           {
             "mcpServers": {
               "github": {
@@ -1322,7 +1361,7 @@ jobs:
               "payloadDir": "${MCP_GATEWAY_PAYLOAD_DIR}"
             }
           }
-          GH_AW_MCP_CONFIG_f04f0587c19ec360_EOF
+          GH_AW_MCP_CONFIG_d07136f625a3d217_EOF
       - name: Mount MCP servers as CLIs
         id: mount-mcp-clis
         continue-on-error: true
