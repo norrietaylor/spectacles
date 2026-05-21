@@ -73,9 +73,9 @@ When the last blocker closes, that sub-task is structurally eligible but still
 carries no `sdd:ready` label, so `sdd-execute`'s eligibility check rejects it.
 Issue #63 calls this the post-merge gap. Closing it requires a new
 event-driven hook (a deterministic workflow that listens on `issues.closed`
-and promotes any sibling whose last blocker just closed), which is a
-different change and is tracked separately in issue #78. This ADR keeps the
-scope to creation time.
+and promotes any sibling whose last blocker just closed). That change is
+ADR 0013 and is delivered by `wrappers/sdd-triage-promote-ready.yml`; this
+ADR keeps the scope to creation time.
 
 ## Verification
 
@@ -95,5 +95,6 @@ scope to creation time.
 - Phase C step 8 emits one fewer message class. The feature-level lifecycle
   move is unchanged.
 - The post-merge promotion of a blocked task to `sdd:ready` (when its last
-  blocker closes) remains unimplemented and is the only remaining path by
-  which a created-blocked task becomes eligible. It is tracked in issue #78.
+  blocker closes) is the only remaining path by which a created-blocked task
+  becomes eligible. It is delivered by ADR 0013
+  (`wrappers/sdd-triage-promote-ready.yml`), tracked in issue #78.

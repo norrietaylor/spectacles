@@ -10,11 +10,12 @@
 # `uses: norrietaylor/spectacles/.github/workflows/<agent>.lock.yml@<ref>`.
 #
 # --suite sdd therefore installs, onto the target repo: the nine thin
-# wrappers (the eight sdd-* agents and distillery-sync), the sdd-pr-sanitize
-# and sdd-triage-dedupe-tasks utility workflows, the sdd:* and model:*
-# labels, and the issue templates. No .lock.yml, no agent .md source, and no
-# .github/aw/imports tree is copied — the locks are self-contained (compiled
-# with inlined-imports) and hosted, not vendored.
+# wrappers (the eight sdd-* agents and distillery-sync), the
+# sdd-pr-sanitize, sdd-triage-dedupe-tasks, and sdd-triage-promote-ready
+# utility workflows, the sdd:* and model:* labels, and the issue
+# templates. No .lock.yml, no agent .md source, and no .github/aw/imports
+# tree is copied — the locks are self-contained (compiled with
+# inlined-imports) and hosted, not vendored.
 #
 # Nothing in this script is org-specific. The GitHub App identity, the
 # Distillery HTTP endpoint and OAuth credentials, and the Serena language-server
@@ -33,10 +34,10 @@ Options:
   --target-repo  Repository to install into (required).
   --suite sdd    Install the full SDD agent suite: the nine thin agent
                  wrappers (the eight sdd-* agents and distillery-sync), the
-                 sdd-pr-sanitize and sdd-triage-dedupe-tasks utility
-                 workflows, the sdd:* and model:* labels, and the issue
-                 templates. Without this flag only the base labels are
-                 synced.
+                 sdd-pr-sanitize, sdd-triage-dedupe-tasks, and
+                 sdd-triage-promote-ready utility workflows, the sdd:*
+                 and model:* labels, and the issue templates. Without
+                 this flag only the base labels are synced.
   --ref <ref>    The spectacles ref the installed wrappers pin their hosted
                  reusable workflows to. Default: main. Set this to a release
                  tag to pin a consumer to an immutable suite version.
@@ -139,7 +140,9 @@ fi
 # merge cannot auto-close the feature tracking issue (ADR 0006), and
 # sdd-triage-dedupe-tasks closes a phase-C task sub-issue when an
 # earlier-numbered sibling under the same Unit already carries the same
-# title (ADR 0008).
+# title (ADR 0008). sdd-triage-promote-ready applies `sdd:ready` to a
+# task when its last `blocked by` blocker closes (ADR 0013), closing
+# the gap ADR 0009 names as out-of-scope.
 wrappers=(
   "sdd-spec"
   "sdd-triage"
@@ -152,6 +155,7 @@ wrappers=(
   "distillery-sync"
   "sdd-pr-sanitize"
   "sdd-triage-dedupe-tasks"
+  "sdd-triage-promote-ready"
 )
 
 # Sync the labels. labels.yml is a flat list of '- name:' records, so it is
