@@ -95,9 +95,21 @@ jobs:
               const body = (payload.comment.body || '').trim();
               const firstWord = body.split(/\s+/)[0];
               const isPr = !!payload.issue.pull_request;
+              // /dispatch is a tracking-issue command. A tracking issue has
+              // no parent (ADR 0005), a Unit's parent is the tracking issue,
+              // a task's parent is its Unit. If the comment lands on a
+              // sub-issue (Unit or task), the downstream `lifecycle` job
+              // would advance THAT sub-issue's lifecycle label and apply
+              // `sdd:dispatched` to it — both wrong. Reject before the
+              // permission check.
+              const isSubIssue = !!payload.issue.parent_issue_url;
               if (firstWord === '/dispatch') {
                 if (isPr) {
                   core.info('/dispatch on a pull request; ignoring.');
+                } else if (isSubIssue) {
+                  core.info('/dispatch on a sub-issue #'
+                    + payload.issue.number
+                    + '; only a tracking issue is valid; ignoring.');
                 } else {
                   const actor = payload.comment.user.login;
                   let permission = 'none';
