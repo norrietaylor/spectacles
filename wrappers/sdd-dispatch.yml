@@ -490,13 +490,18 @@ jobs:
               if (inFlightFromPrs.has(task.number)) {
                 continue;
               }
-              const tier = taskLabels.find((l) => l.startsWith('model:'));
-              if (!tier) {
+              const tiers = taskLabels.filter(
+                (l) => l.startsWith('model:'));
+              if (tiers.length !== 1) {
                 // A task without a model:* tier cannot be routed to a
-                // sdd-execute-{tier} variant. Skip it; this is a triage
-                // bug, not this agent's concern.
-                core.info('Task #' + task.number
-                  + ' has no model:* label; skipping.');
+                // sdd-execute-{tier} variant; a task with more than one
+                // tier label would wake more than one tier's wrapper
+                // (each wrapper's job-level if: gate matches when its
+                // tier appears in the label set). Both are triage bugs,
+                // not this agent's concern; skip the task.
+                core.info('Task #' + task.number + ' has '
+                  + (tiers.length === 0 ? 'no' : 'multiple')
+                  + ' model:* label(s); skipping.');
                 continue;
               }
               const body = task.body || '';
@@ -547,7 +552,15 @@ jobs:
   # App that consumer installs did not reliably grant (issue #121 /
   # ADR 0014).
   dispatch:
-    needs: [route, compute]
+    # lifecycle is in needs so the tracking issue gains `sdd:dispatched`
+    # BEFORE any /execute comment is posted. Without that ordering, a fast
+    # task could close before lifecycle ran; the `issues.closed` cascade
+    # re-fire would see no `sdd:dispatched` on the tracking issue and bail,
+    # stranding any siblings the closure newly unblocked. The fastpath_noop
+    # path is unaffected: compute and lifecycle both skip on that route, so
+    # dispatch inherits the skip through the `needs` chain (GitHub Actions'
+    # default: a skipped need skips the downstream job).
+    needs: [route, compute, lifecycle]
     if: |
       needs.route.outputs.should_run == 'true'
       && needs.compute.outputs.precondition == 'ok'
