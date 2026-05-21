@@ -451,7 +451,7 @@ jobs:
           | `/fastpath` | tracking issue, after `sdd-spec`'s proposal comment or up front before any agent run | confirm fast-path classification; `sdd-spec` produces a stub spec PR and an execution plan comment in one run (ADR 0012) |
           | `/triage` | tracking issue, after the spec PR is merged | trigger `sdd-triage` phase A (architecture) |
           | `/approve` | tracking issue | on a full-path tracking issue (`sdd:triage` with a plan-comment posted), materialize the Unit and task sub-issue tree per ADR 0010; on a fast-path tracking issue (`sdd:fastpath` with the stub spec merged), dispatch one `sdd-execute-{tier}` against the execution plan comment per ADR 0012 |
-          | `/dispatch` | tracking issue, in `sdd:ready` or `sdd:in-progress` (full path) | arm cascade execution of every task in the feature's task tree; on a fast-path tracking issue (`sdd:fastpath`, `sdd:fastpath-review`, or a fast-path `sdd:in-progress`), `/dispatch` is a noop with a one-comment explanation pointing to `/approve` (ADR 0012) |
+          | `/dispatch` | tracking issue, in `sdd:ready` or `sdd:in-progress` (full path) | arm cascade execution of every task in the feature's task tree; on a fast-path tracking issue carrying `sdd:fastpath` or `sdd:fastpath-review`, `/dispatch` is a noop with a one-comment explanation pointing at `/approve`; on a fast-path `sdd:in-progress` tracking issue, `/dispatch` is a noop with a one-comment explanation that execution is already running and `/approve` should not be used again (ADR 0012) |
           | `/revise <note>` | spec PR, architecture PR, tracking issue, or implementation PR | re-run the owning agent with the note as an added instruction |
           | `/execute` | a task sub-issue | trigger `sdd-execute` for that task immediately, outside the cascade |
           
@@ -470,7 +470,10 @@ jobs:
           human merges the stub spec PR (the spec sub-issue closes via the
           existing `Closes` keyword) and comments `/approve` to dispatch one
           `sdd-execute-{tier}` against the plan comment. `/dispatch` is unused
-          on this flow and is a noop with a comment pointing at `/approve`.
+          on this flow: before `/approve` (lifecycle at `sdd:fastpath` or
+          `sdd:fastpath-review`), the noop comment points at `/approve`; after
+          `/approve` (lifecycle at `sdd:in-progress`), the noop comment states
+          that execution is already running.
           
           ## The `needs-human` contract
           
