@@ -19,9 +19,9 @@ engine: copilot
 inlined-imports: true
 strict: false
 imports:
-  - norrietaylor/spectacles/shared/sdd-interaction.md@main
-  - norrietaylor/spectacles/shared/sdd-mcp-serena.md@main
-  - norrietaylor/spectacles/shared/repo-conventions.md@main
+  - gominimal/spectacles/shared/sdd-interaction.md@main
+  - gominimal/spectacles/shared/sdd-mcp-serena.md@main
+  - gominimal/spectacles/shared/repo-conventions.md@main
 tools:
   github:
     toolsets: [default]
