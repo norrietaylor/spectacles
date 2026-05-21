@@ -172,16 +172,6 @@ jobs:
           GH_AW_AGENT_FILES: ".crush.json AGENTS.md CLAUDE.md GEMINI.md PI.md opencode.jsonc"
         # poutine:ignore untrusted_checkout_exec
         run: bash "${RUNNER_TEMP}/gh-aw/actions/save_base_github_folders.sh"
-      - name: Mint cross-repo read token for lock-check # gh-aw-patch: lockcheck-cross-repo-token
-        id: lockcheck-token
-        if: ${{ github.repository != 'gominimal/spectacles' }}
-        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
-        with:
-          client-id: ${{ vars.APP_ID }}
-          private-key: ${{ secrets.APP_PRIVATE_KEY }}
-          owner: gominimal
-          repositories: spectacles
-          github-api-url: ${{ github.api_url }}
       - name: Check workflow lock file
         id: check-lock-file
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
@@ -189,7 +179,6 @@ jobs:
           GH_AW_WORKFLOW_FILE: "distillery-sync.lock.yml"
           GH_AW_CONTEXT_WORKFLOW_REF: "${{ github.workflow_ref }}"
         with:
-          github-token: ${{ steps.lockcheck-token.outputs.token || github.token }}
           script: |
             const { setupGlobals } = require('${{ runner.temp }}/gh-aw/actions/setup_globals.cjs');
             setupGlobals(core, github, context, exec, io, getOctokit);
