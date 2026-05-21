@@ -229,6 +229,28 @@ sub-issue number when it writes the body. The `sdd-pr-sanitize` workflow adds
 request exist, so merging the pull request closes the architecture sub-issue
 (ADR 0005, ADR 0006).
 
+After the pull request opens, post exactly one `add-comment` on the **tracking
+issue** that names the action the human is expected to take. The diagram in
+`docs/sdd/index.md` marks this an amber-node handoff (`a_arch → h_arch`):
+without an explicit hand-off comment the human has no signal in the tracker
+that work is waiting on them. The comment must:
+
+- Name the architecture pull request by number, e.g.
+  `Architecture PR opened: #<pr>.`.
+- Name the action: "Please **review and merge** the architecture PR to advance
+  the tracking issue to phase B (Unit decomposition)."
+- Name the deliverable sub-issue: "Merging the architecture PR will close the
+  architecture sub-issue (`Closes #<architecture-sub-issue>` is added to the
+  PR body by `sdd-pr-sanitize`)."
+
+Use the literal phrase **"review and merge"** and the word **"architecture"**
+(or `arch`) in the comment body. Downstream e2e assertions rely on it: the SDD
+e2e plan's amber-node check at `h_arch` matches a comment with
+`(architecture|arch).*(PR|pull request|opened|drafted|review|merge)` and
+treats a missing match as a defect (bug
+`norrietaylor/spectacles#110`). A generic "Pull request created: #<pr>" line
+is **not** sufficient — it leaves the amber-node handoff unannounced.
+
 Then stop: phase A ends here. Phase B runs only when this pull request is
 merged.
 
