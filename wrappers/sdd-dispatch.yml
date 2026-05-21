@@ -6,10 +6,12 @@ name: sdd-dispatch
 # .github/workflows/sdd-dispatch.lock.yml (compiled from sdd-dispatch.md, which
 # declares on: workflow_call). This wrapper carries the real event triggers,
 # gates the /dispatch comment command to authors with repository write access,
-# walks the feature's task tree to compute the ready set, fans out
-# workflow_dispatch calls to the sdd-execute-{tier} variants via a bounded
-# matrix, and manages the tracking issue's lifecycle and sdd:dispatched
-# labels. A consumer repository installs this wrapper unchanged.
+# walks the feature's task tree to compute the ready set, fans the cascade out
+# by posting /execute on each ready task issue via the App installation token
+# (ADR 0014 — the matching sdd-execute-{tier} wrapper picks the comment up
+# through its existing issue_comment trigger), and manages the tracking
+# issue's lifecycle and sdd:dispatched labels. A consumer repository installs
+# this wrapper unchanged.
 #
 # Selection is graph-driven, not label-driven. The ready set is computed by
 # walking the sub-issue tree (Feature -> Unit -> task per ADR 0005), parsing
@@ -43,7 +45,15 @@ jobs:
   # access, and on the cascade path find the tracking issue this task sub-issue
   # belongs to and confirm it carries sdd:dispatched. A non-match leaves
   # should_run = false so the dispatch jobs are skipped.
+  #
+  # The job-level if: gate skips the route job entirely on issue_comment events
+  # whose body does not start with /dispatch (fixes issue #119 — a /spec or
+  # /execute comment posted on a tracker no longer spawns a route-job runner
+  # on this wrapper).
   route:
+    if: |
+      github.event_name != 'issue_comment'
+      || startsWith(github.event.comment.body, '/dispatch')
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -496,9 +506,15 @@ jobs:
                 }
               }
               if (!anyOpen) {
+                // Each ready item is a single task issue number. The fan-out
+                // step posts /execute on the task issue; the matching
+                // sdd-execute-{tier} wrapper picks the comment up via its
+                // wrapper-level command + tier gate (see ADR 0014). The
+                // model:* label is still required upstream (the `if (!tier)`
+                // guard a few lines above) so the matching tier has a
+                // wrapper to route to.
                 ready.push({
                   task: task.number,
-                  tier: tier.replace('model:', ''),
                 });
               }
             }
@@ -509,11 +525,15 @@ jobs:
             // bounded by SDD_DISPATCH_MAX_PARALLEL.
             core.setOutput('matrix', JSON.stringify({ include: ready }));
 
-  # Fan out workflow_dispatch calls to the sdd-execute-{tier} variants. The
+  # Fan the cascade out by posting /execute on each ready task issue. The
   # matrix is the ready set computed above; max-parallel caps concurrent
-  # cells at SDD_DISPATCH_MAX_PARALLEL (default 5). Each cell calls one
-  # sdd-execute-{tier} run for one task; the called variant treats it the
-  # same way it treats a /execute comment.
+  # cells at SDD_DISPATCH_MAX_PARALLEL (default 5). Each cell posts one
+  # comment via the App installation token; the matching
+  # sdd-execute-{tier} wrapper picks the comment up through its existing
+  # issue_comment trigger and routes to the agent. This replaces the prior
+  # workflow_dispatch fan-out, which required an actions:write scope on the
+  # App that consumer installs did not reliably grant (issue #121 /
+  # ADR 0014).
   dispatch:
     needs: [route, compute]
     if: |
@@ -529,9 +549,11 @@ jobs:
       max-parallel: ${{ fromJSON(vars.SDD_DISPATCH_MAX_PARALLEL || '5') }}
       matrix: ${{ fromJSON(needs.compute.outputs.matrix) }}
     steps:
-      # Mint the App installation token. The wrapper does the dispatch via
-      # the REST workflow_dispatch endpoint; the default GITHUB_TOKEN cannot
-      # trigger another workflow run, but an App installation token can.
+      # Mint the App installation token. The default GITHUB_TOKEN cannot
+      # trigger another workflow run, but an App installation token can:
+      # the matching sdd-execute-{tier} wrapper sees the /execute comment
+      # posted below as an issue_comment.created event and routes the
+      # cascade to its agent.
       - name: Mint App token
         id: app
         uses: actions/create-github-app-token@v3
@@ -540,39 +562,35 @@ jobs:
           private-key: ${{ secrets.APP_PRIVATE_KEY }}
           owner: ${{ github.repository_owner }}
           repositories: ${{ github.event.repository.name }}
-      - name: Dispatch sdd-execute-${{ matrix.tier }} for task #${{ matrix.task }}
+      - name: Post /execute on task #${{ matrix.task }}
         uses: actions/github-script@v9
         env:
           APP_TOKEN: ${{ steps.app.outputs.token }}
-          TIER: ${{ matrix.tier }}
           TASK: ${{ matrix.task }}
         with:
           github-token: ${{ env.APP_TOKEN }}
           script: |
-            const tier = process.env.TIER;
             const task = parseInt(process.env.TASK, 10);
-            const workflow = 'sdd-execute-' + tier + '.yml';
-            // The sdd-execute-{tier} wrappers consume aw_context as a JSON
-            // string. Build the same shape a /execute issue_comment route
-            // produces so the called wrapper's tier gate and the agent's
-            // step 2 selection both see the situation they expect.
-            const awContext = JSON.stringify({
-              trigger: 'command',
-              item_type: 'issue',
-              item_number: task,
-            });
+            // Post an /execute comment on the task issue. The matching
+            // sdd-execute-{tier} wrapper picks the comment up through its
+            // wrapper-level command + tier gate; the route step's
+            // App-author accept logic (gated on the configured APP_ID)
+            // admits the cascade-posted comment past the human-permission
+            // check (see ADR 0014). Idempotency: a second /execute on the
+            // same task collapses at the wrapper's per-task-per-tier
+            // concurrency group, so a re-fired cascade does not
+            // double-spawn an in-flight task.
             try {
-              await github.rest.actions.createWorkflowDispatch({
+              await github.rest.issues.createComment({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
-                workflow_id: workflow,
-                ref: context.ref || 'refs/heads/main',
-                inputs: { aw_context: awContext },
+                issue_number: task,
+                body: '/execute',
               });
-              core.info('Dispatched ' + workflow + ' for task #' + task);
+              core.info('Posted /execute on task #' + task);
             } catch (err) {
-              core.setFailed('Failed to dispatch ' + workflow + ' for task #'
-                + task + ': ' + err.message);
+              core.setFailed('Failed to post /execute on task #' + task
+                + ': ' + err.message);
             }
       - name: Apply sdd:ready hint to dispatched task #${{ matrix.task }}
         uses: actions/github-script@v9

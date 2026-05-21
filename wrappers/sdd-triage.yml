@@ -35,7 +35,17 @@ jobs:
   # Resolve which situation triggered the wrapper and build the aw_context the
   # reusable workflow consumes. A non-match leaves should_run = false so the
   # agent job is skipped.
+  #
+  # The job-level if: gate skips the route job entirely on issue_comment
+  # events whose body does not start with one of the commands this wrapper
+  # owns (fixes issue #119 — a /dispatch or /execute comment on a tracker
+  # no longer spawns a route-job runner on this wrapper).
   route:
+    if: |
+      github.event_name != 'issue_comment'
+      || startsWith(github.event.comment.body, '/triage')
+      || startsWith(github.event.comment.body, '/approve')
+      || startsWith(github.event.comment.body, '/revise')
     runs-on: ubuntu-latest
     permissions:
       contents: read

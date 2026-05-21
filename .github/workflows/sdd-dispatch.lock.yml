@@ -1,4 +1,4 @@
-# gh-aw-metadata: {"schema_version":"v3","frontmatter_hash":"12210d7c95305275fc8ceee49d8fc029992d7bda881bb462f0732aed5c5cfa61","compiler_version":"v0.74.3","agent_id":"copilot"}
+# gh-aw-metadata: {"schema_version":"v3","frontmatter_hash":"572b576f03a0b8ce8ae98e45d098a10b81cbbd7b74a163b071ab59edf398d2b1","compiler_version":"v0.74.3","agent_id":"copilot"}
 # gh-aw-manifest: {"version":1,"secrets":["APP_PRIVATE_KEY","COPILOT_GITHUB_TOKEN","GH_AW_GITHUB_MCP_SERVER_TOKEN","GH_AW_GITHUB_TOKEN","GITHUB_TOKEN"],"actions":[{"repo":"actions/checkout","sha":"de0fac2e4500dabe0009e67214ff5f5447ce83dd","version":"v6.0.2"},{"repo":"actions/create-github-app-token","sha":"bcd2ba49218906704ab6c1aa796996da409d3eb1","version":"v3.2.0"},{"repo":"actions/download-artifact","sha":"3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c","version":"v8.0.1"},{"repo":"actions/github-script","sha":"3a2844b7e9c422d3c10d287c895573f7108da1b3","version":"v9.0.0"},{"repo":"actions/setup-node","sha":"48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e","version":"v6.4.0"},{"repo":"actions/upload-artifact","sha":"043fb46d1a93c77aae656e7c1c64a875d1fc6a0a","version":"v7.0.1"},{"repo":"github/gh-aw-actions/setup","sha":"8a9a52673cb8f97ebb43b344618af2d6f2c9ac7f","version":"v0.74.3"}],"containers":[{"image":"ghcr.io/github/gh-aw-firewall/agent:0.25.46"},{"image":"ghcr.io/github/gh-aw-firewall/api-proxy:0.25.46"},{"image":"ghcr.io/github/gh-aw-firewall/squid:0.25.46"},{"image":"ghcr.io/github/gh-aw-mcpg:v0.3.9","digest":"sha256:64828b42a4482f58fab16509d7f8f495a6d97c972a98a68aff20543531ac0388","pinned_image":"ghcr.io/github/gh-aw-mcpg:v0.3.9@sha256:64828b42a4482f58fab16509d7f8f495a6d97c972a98a68aff20543531ac0388"},{"image":"ghcr.io/github/github-mcp-server:v1.0.4"},{"image":"node:lts-alpine","digest":"sha256:d1b3b4da11eefd5941e7f0b9cf17783fc99d9c6fc34884a665f40a06dbdfc94f","pinned_image":"node:lts-alpine@sha256:d1b3b4da11eefd5941e7f0b9cf17783fc99d9c6fc34884a665f40a06dbdfc94f"}]}
 #    ___                   _   _      
 #   / _ \                 | | (_)     
@@ -213,20 +213,20 @@ jobs:
         run: |
           bash "${RUNNER_TEMP}/gh-aw/actions/create_prompt_first.sh"
           {
-          cat << 'GH_AW_PROMPT_592989f8ebd37c53_EOF'
+          cat << 'GH_AW_PROMPT_f3b1fd8473145dcd_EOF'
           <system>
-          GH_AW_PROMPT_592989f8ebd37c53_EOF
+          GH_AW_PROMPT_f3b1fd8473145dcd_EOF
           cat "${RUNNER_TEMP}/gh-aw/prompts/xpia.md"
           cat "${RUNNER_TEMP}/gh-aw/prompts/temp_folder_prompt.md"
           cat "${RUNNER_TEMP}/gh-aw/prompts/markdown.md"
           cat "${RUNNER_TEMP}/gh-aw/prompts/safe_outputs_prompt.md"
-          cat << 'GH_AW_PROMPT_592989f8ebd37c53_EOF'
+          cat << 'GH_AW_PROMPT_f3b1fd8473145dcd_EOF'
           <safe-output-tools>
           Tools: add_comment, missing_tool, missing_data, noop
           </safe-output-tools>
-          GH_AW_PROMPT_592989f8ebd37c53_EOF
+          GH_AW_PROMPT_f3b1fd8473145dcd_EOF
           cat "${RUNNER_TEMP}/gh-aw/prompts/mcp_cli_tools_prompt.md"
-          cat << 'GH_AW_PROMPT_592989f8ebd37c53_EOF'
+          cat << 'GH_AW_PROMPT_f3b1fd8473145dcd_EOF'
           <github-context>
           The following GitHub context information is available for this workflow:
           {{#if github.actor}}
@@ -255,9 +255,9 @@ jobs:
           {{/if}}
           </github-context>
           
-          GH_AW_PROMPT_592989f8ebd37c53_EOF
+          GH_AW_PROMPT_f3b1fd8473145dcd_EOF
           cat "${RUNNER_TEMP}/gh-aw/prompts/github_mcp_tools_with_safeoutputs_prompt.md"
-          cat << 'GH_AW_PROMPT_592989f8ebd37c53_EOF'
+          cat << 'GH_AW_PROMPT_f3b1fd8473145dcd_EOF'
           </system>
           # Core principles
           
@@ -479,9 +479,9 @@ jobs:
           
           This agent is unusual in the spectacles suite: its work is entirely
           deterministic — walk a sub-issue tree, parse `blocked by` lines, compute a
-          set, call the GitHub `workflow_dispatch` REST endpoint, apply two labels —
-          and there is no natural-language judgement for an LLM to add. The
-          dispatcher is therefore implemented in the wrapper at
+          set, post `/execute` on each ready task issue via the App installation
+          token, apply two labels — and there is no natural-language judgement for an
+          LLM to add. The dispatcher is therefore implemented in the wrapper at
           `wrappers/sdd-dispatch.yml` as a chain of `actions/github-script` jobs
           (`route`, `compute`, `dispatch`, `lifecycle`, `noop-comment`), and **this
           `.md` agent is not invoked at runtime**. It exists for two reasons:
@@ -563,11 +563,17 @@ jobs:
           ## Parallelism
           
           Bounded matrix fan-out. The dispatcher expands the ready set into a
-          GitHub Actions matrix and the `sdd-execute-{tier}` variant matching each
-          task's `model:*` label runs for each cell. `max-parallel` defaults to
-          **5**, overridable per repo via the `SDD_DISPATCH_MAX_PARALLEL` repo
-          variable (any positive integer). A ready set larger than the cap queues
-          at the matrix level; cells start as earlier ones finish.
+          GitHub Actions matrix; each cell posts `/execute` on one task issue via
+          the App installation token, and the matching `sdd-execute-{tier}` wrapper
+          picks the comment up through its existing `issue_comment` trigger (the
+          wrapper's job-level `if:` gate filters to the matching tier on the basis
+          of the task's `model:*` label). `max-parallel` defaults to **5**,
+          overridable per repo via the `SDD_DISPATCH_MAX_PARALLEL` repo variable
+          (any positive integer). A ready set larger than the cap queues at the
+          matrix level; cells start as earlier ones finish. The comment side-effect
+          mechanism replaces the prior `workflow_dispatch` REST fan-out, which
+          required an `actions: write` scope on the App that consumer installs did
+          not reliably grant (issue #121, ADR 0014).
           
           ## In-flight detection
           
@@ -576,9 +582,13 @@ jobs:
           `sdd/<task-id>-<slug>` for this task, or the body carries a
           `Closes #<task>` reference). The dispatcher removes in-flight tasks from
           the ready set before fanning out. As a defence in depth, the
-          `sdd-execute-{tier}` wrappers carry a concurrency group keyed on the task
-          issue number, so a double-dispatch of the same task collapses to one
-          running cell and the second is treated as an idempotent no-op.
+          `sdd-execute-{tier}` wrappers carry a concurrency group keyed on the
+          task issue number AND the tier (`sdd-execute-<tier>-<task>`), so a
+          double-`/execute` on the same task in the same tier collapses to one
+          running cell and the second is treated as an idempotent no-op. The tier
+          discriminator is required because the three tier wrappers all subscribe
+          to the same event triggers; the per-tier dimension keeps a non-matching
+          wake from cancelling the matching one (issue #124).
           
           ## Lifecycle
           
@@ -626,9 +636,10 @@ jobs:
           
           - The dispatcher edits no file in the repository. Its writes are: label
             changes on the tracking issue and on each dispatched task; one comment
-            on noop or refusal paths; one `workflow_dispatch` REST call per
-            dispatched task. All token-bearing operations use the App-minted
-            installation token per ADR 0004, scoped to the running repository.
+            on noop or refusal paths; one `/execute` comment per dispatched task
+            (the cascade fan-out — see ADR 0014). All token-bearing operations use
+            the App-minted installation token per ADR 0004, scoped to the running
+            repository.
           - The dispatcher never opens or closes a pull request, never closes the
             tracking issue, and never closes a task sub-issue. The `sdd:dispatched`
             on-arm and off-disarm transitions on the tracking issue are the only
@@ -645,17 +656,18 @@ jobs:
           - `gh aw compile` compiles this workflow with the three imported shared
             fragments and reports zero errors.
           - A tracking issue carrying `sdd:ready` with five independent open task
-            sub-issues, given a `/dispatch` from a write-access author, dispatches
-            five `sdd-execute-*` runs concurrently (bounded by
-            `SDD_DISPATCH_MAX_PARALLEL`), applies `sdd:dispatched`, and moves the
-            tracking issue from `sdd:ready` to `sdd:in-progress`.
+            sub-issues, given a `/dispatch` from a write-access author, posts
+            `/execute` on each of the five task issues; the matching
+            `sdd-execute-{tier}` wrapper runs for each (bounded by
+            `SDD_DISPATCH_MAX_PARALLEL`); the dispatcher applies `sdd:dispatched`
+            and moves the tracking issue from `sdd:ready` to `sdd:in-progress`.
           - Closing a task whose closure removes the last `blocked by` of two
             sibling tasks under a tracking issue carrying `sdd:dispatched` causes
             the dispatcher to re-fire and dispatch the two newly-unblocked
             siblings, with no `/dispatch` comment needed.
           - `/dispatch` on a tracking issue in `sdd:spec` or `sdd:triage` posts one
-            refusal comment naming the required state and emits no
-            `workflow_dispatch` call; `sdd:dispatched` is not applied.
+            refusal comment naming the required state and emits no `/execute`
+            fan-out; `sdd:dispatched` is not applied.
           - Removing `sdd:dispatched` by hand stops the cascade: a subsequent task
             close does not re-fire dispatch. A subsequent `/dispatch` resumes.
           - Every task sub-issue closes → the dispatcher removes `sdd:dispatched`.
@@ -665,7 +677,7 @@ jobs:
             not already in flight; the concurrency group on `sdd-execute-*`
             prevents double-execution of an in-flight task.
           
-          GH_AW_PROMPT_592989f8ebd37c53_EOF
+          GH_AW_PROMPT_f3b1fd8473145dcd_EOF
           } > "$GH_AW_PROMPT"
       - name: Interpolate variables and render templates
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
@@ -870,9 +882,9 @@ jobs:
           mkdir -p "${RUNNER_TEMP}/gh-aw/safeoutputs"
           mkdir -p /tmp/gh-aw/safeoutputs
           mkdir -p /tmp/gh-aw/mcp-logs/safeoutputs
-          cat > "${RUNNER_TEMP}/gh-aw/safeoutputs/config.json" << 'GH_AW_SAFE_OUTPUTS_CONFIG_e1af3c899e8d431b_EOF'
+          cat > "${RUNNER_TEMP}/gh-aw/safeoutputs/config.json" << 'GH_AW_SAFE_OUTPUTS_CONFIG_5abf48ba5e764c9a_EOF'
           {"add_comment":{"max":1},"create_report_incomplete_issue":{},"missing_data":{},"missing_tool":{},"noop":{"max":1,"report-as-issue":"true"},"report_incomplete":{}}
-          GH_AW_SAFE_OUTPUTS_CONFIG_e1af3c899e8d431b_EOF
+          GH_AW_SAFE_OUTPUTS_CONFIG_5abf48ba5e764c9a_EOF
       - name: Generate Safe Outputs Tools
         env:
           GH_AW_TOOLS_META_JSON: |
@@ -1066,7 +1078,7 @@ jobs:
           
           mkdir -p /home/runner/.copilot
           GH_AW_NODE=$(which node 2>/dev/null || command -v node 2>/dev/null || echo node)
-          cat << GH_AW_MCP_CONFIG_82ee1dba7be59672_EOF | "$GH_AW_NODE" "${RUNNER_TEMP}/gh-aw/actions/start_mcp_gateway.cjs"
+          cat << GH_AW_MCP_CONFIG_d35cd56a3828205e_EOF | "$GH_AW_NODE" "${RUNNER_TEMP}/gh-aw/actions/start_mcp_gateway.cjs"
           {
             "mcpServers": {
               "github": {
@@ -1107,7 +1119,7 @@ jobs:
               "payloadDir": "${MCP_GATEWAY_PAYLOAD_DIR}"
             }
           }
-          GH_AW_MCP_CONFIG_82ee1dba7be59672_EOF
+          GH_AW_MCP_CONFIG_d35cd56a3828205e_EOF
       - name: Mount MCP servers as CLIs
         id: mount-mcp-clis
         continue-on-error: true
