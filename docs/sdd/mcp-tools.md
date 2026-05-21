@@ -81,68 +81,10 @@ Serena needs no secret: it runs locally against the checked-out working tree.
 Its language-server set is provisioned at install time from the repository's
 detected stack.
 
-## Smoke test
-
-`mcp-smoke` resolves both MCP servers and returns one result from each. It
-runs in two modes.
-
-### Manual install verification
-
-Dispatch it from the Actions tab or with the GitHub CLI after installing the
-suite to confirm the MCP configuration is correct:
-
-```bash
-gh workflow run mcp-smoke.lock.yml --repo <owner>/<repo>
-```
-
-A successful run logs, in its run output:
-
-- A non-empty `distillery_search` result, scoped to this repository's project.
-- A Serena result: a non-empty symbol or structure query, or, when no language
-  server is available for the stack, an explicit graceful-degradation note.
-
-If the Distillery step fails to resolve, confirm `DISTILLERY_MCP_URL` and
-`DISTILLERY_OAUTH_TOKEN` are set and the endpoint is reachable. If the Serena
-step reports no symbols, that is expected when the stack has no language
-server; it is graceful degradation, not an error.
-
-### Required PR check
-
-`mcp-smoke` also runs automatically on `pull_request` events that touch the
-MCP surface. The trigger paths are:
-
-- `.github/workflows/mcp-smoke.md` and `.lock.yml` — the smoke workflow itself.
-- `.github/workflows/*.md` — any other agent workflow whose MCP declarations
-  could regress.
-- `shared/sdd-mcp-*.md` — the shared Distillery and Serena fragments.
-
-Designate this check as required in branch-protection settings (via the
-GitHub UI or `gh api repos/{owner}/{repo}/branches/main/protection/...`) so a
-PR that breaks an MCP server URL, an auth credential, or a Serena declaration
-cannot land. The runtime is one short MCP-resolution call per PR — under one
-minute — with no LLM inference.
-
-#### Fork carve-out
-
-Pull requests opened from a fork do not receive `secrets.DISTILLERY_OAUTH_TOKEN`,
-so the Distillery resolution would fail for a reason unrelated to the change.
-The compiled workflow gates the `pre_activation` job on
-`github.event_name != 'pull_request' || github.event.pull_request.head.repo.id == github.repository_id`,
-which skips the smoke on fork PRs at the YAML level. The agent prose also
-emits a `noop` with the message "mcp-smoke skipped on fork PR — a reviewer
-dispatches the check manually before merge" as a secondary signal. Before
-approving merge on a fork PR, a maintainer dispatches the manual run.
-
 ## Verification
 
-- `gh aw compile` compiles `distillery-sync` and `mcp-smoke` with the MCP
-  server declarations present and reports zero errors.
-- A `workflow_dispatch` run of `mcp-smoke` logs a non-empty result from each
-  server (Serena's result may be the graceful-degradation note).
-- A same-repo `pull_request` that touches an MCP-relevant path triggers
-  `mcp-smoke` and the same smoke runs to completion in under one minute. A
-  fork PR sees the check skipped at `pre_activation` with the documented
-  fork-skip message.
+- `gh aw compile` compiles `distillery-sync` with the MCP server declarations
+  present and reports zero errors.
 - The `leak-scan` check passes: `shared/sdd-mcp-distillery.md` and
   `shared/sdd-mcp-serena.md` carry no hostname, organization slug, bot name, or
   absolute path.
