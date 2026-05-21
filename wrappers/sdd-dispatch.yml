@@ -490,17 +490,33 @@ jobs:
               if (inFlightFromPrs.has(task.number)) {
                 continue;
               }
-              const tiers = taskLabels.filter(
+              const modelLabels = taskLabels.filter(
                 (l) => l.startsWith('model:'));
-              if (tiers.length !== 1) {
+              const supportedTiers = new Set([
+                'model:haiku',
+                'model:sonnet',
+                'model:opus',
+              ]);
+              if (modelLabels.length !== 1
+                  || !supportedTiers.has(modelLabels[0])) {
                 // A task without a model:* tier cannot be routed to a
                 // sdd-execute-{tier} variant; a task with more than one
                 // tier label would wake more than one tier's wrapper
                 // (each wrapper's job-level if: gate matches when its
-                // tier appears in the label set). Both are triage bugs,
-                // not this agent's concern; skip the task.
-                core.info('Task #' + task.number + ' has '
-                  + (tiers.length === 0 ? 'no' : 'multiple')
+                // tier appears in the label set); a task with a single
+                // tier label outside {haiku, sonnet, opus} (e.g. a typo)
+                // would post /execute but no wrapper claims it, stranding
+                // the task while the tracker stays armed. All three are
+                // triage bugs, not this agent's concern; skip the task.
+                let reason;
+                if (modelLabels.length === 0) {
+                  reason = 'no';
+                } else if (modelLabels.length > 1) {
+                  reason = 'multiple';
+                } else {
+                  reason = 'an unsupported';
+                }
+                core.info('Task #' + task.number + ' has ' + reason
                   + ' model:* label(s); skipping.');
                 continue;
               }
