@@ -359,6 +359,26 @@ number when it writes the body. The `sdd-pr-sanitize` workflow adds
 exist, so merging the pull request closes the spec sub-issue (ADR 0005,
 ADR 0006).
 
+After the pull request opens, post exactly one `add-comment` on the **tracking
+issue** that names the action the human is expected to take. The diagram in
+`docs/sdd/index.md` marks this an amber-node handoff (`a_spec → h_spec`):
+without an explicit hand-off comment the human has no signal in the tracker
+that work is waiting on them. The comment must:
+
+- Name the spec pull request by number, e.g. `Spec PR opened: #<pr>.`.
+- Name the action: "Please **review and merge** the spec PR to advance the
+  tracking issue from the spec phase into triage."
+- Name the deliverable sub-issue: "Merging the spec PR will close the spec
+  sub-issue (`Closes #<spec-sub-issue>` is added to the PR body by
+  `sdd-pr-sanitize`)."
+
+Use the literal phrase **"review and merge"** in the comment body. Downstream
+e2e assertions rely on it: the SDD e2e plan's amber-node check at `h_spec`
+matches a comment with `(review|merge).*(spec|pull request|PR)` and treats a
+missing match as a defect (bug `norrietaylor/spectacles#109`). A generic
+"Pull request created: #<pr>" line is **not** sufficient — it leaves the
+amber-node handoff unannounced.
+
 For a `/revise` trigger, do not emit `create-pull-request`: that safe-output
 always opens a fresh branch and a second pull request, and the `/revise`
 contract is to update the *existing* spec pull request. Instead, update that
