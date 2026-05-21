@@ -313,9 +313,12 @@ The human's recourse is the existing `needs-human` contract (ADR
 0001). The human answers in a comment and either tightens the
 fast-path scope (clearing `needs-human` re-triggers this agent to
 resume), or comments `/spec` (which the `sdd-spec` agent treats as
-the misclassification-escalation reset: it removes `sdd:fastpath`,
-adds `sdd:spec`, and runs the full pipeline with the stub spec as
-the starting point).
+the misclassification-escalation reset: it removes whichever
+lifecycle label the tracking issue currently carries —
+`sdd:in-progress` once this agent has moved the issue there, or
+`sdd:fastpath`/`sdd:fastpath-review` if the escalation arrives
+before that move — and adds `sdd:spec`, then runs the full pipeline
+with the stub spec as the starting point).
 
 The threshold is "materially bigger than fast-path assumed," not
 "strictly perfect heuristic match." A one-line spillover is not an

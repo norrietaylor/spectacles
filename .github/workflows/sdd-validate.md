@@ -41,7 +41,7 @@ safe-outputs:
     max: 1
     hide-older-comments: true
   add-labels:
-    allowed: [needs-human, sdd:review]
+    allowed: [needs-human, sdd:review, sdd:done]
     max: 1
   remove-labels:
     allowed: [sdd:in-progress]
@@ -116,7 +116,8 @@ for the wrapper's parent-absence filter.
 For every run, this agent posts exactly one findings comment on the pull
 request or the tracking issue. It applies `needs-human` when a gate produces a
 Blocker finding. On a clean implementation-boundary pass it moves the linked
-tracking issue from `sdd:in-progress` to `sdd:review`. It opens no pull
+tracking issue from `sdd:in-progress` to `sdd:review` on a full-path feature,
+or directly to `sdd:done` on a fast-path feature (ADR 0012). It opens no pull
 request and creates no issue.
 
 ## Procedure
@@ -254,7 +255,15 @@ tracking issue** to the next lifecycle state:
 
 - Remove the `sdd:in-progress` label from the feature tracking issue
   (`remove-labels`).
-- Add the `sdd:review` label to the feature tracking issue (`add-labels`).
+- Add the next lifecycle label to the feature tracking issue (`add-labels`):
+  `sdd:review` on a full-path feature, or `sdd:done` on a fast-path feature.
+  A feature is fast-path when the linked tracking issue carries
+  `sdd:fastpath` or `sdd:fastpath-review`, or shows fast-path history (no
+  sub-issue tree under it). Per ADR 0012 the fast-path lifecycle never
+  passes through `sdd:review`; the human-review gate for fast-path is the
+  implementation PR itself, which the human merges, and `sdd-execute` moves
+  the feature to `sdd:done` on that merge — so when this agent's clean
+  pass beats `sdd-execute` to the move, `sdd:done` is the correct target.
 
 The lifecycle label lives on the feature tracking issue, never on a task
 sub-issue. For a pull request trigger the pull request's `Closes #N` reference
@@ -269,8 +278,8 @@ been advanced to `sdd:review` by an earlier task's clean pass — `sdd-execute`
 moved the feature to `sdd:in-progress` when the first of its tasks was picked
 up, and the first task to validate clean carries it to `sdd:review`. Move the
 feature **only** when it still carries `sdd:in-progress`; if it already carries
-`sdd:review` (or any later state), change nothing. This still moves exactly one
-issue's labels per run — the feature — never the task sub-issue.
+`sdd:review`, `sdd:done`, or any later state, change nothing. This still moves
+exactly one issue's labels per run — the feature — never the task sub-issue.
 
 Move the label only at the implementation boundary and only on a clean pass: a
 spec, architecture, or triage pass does not move a lifecycle label, and an
@@ -278,7 +287,8 @@ implementation pass with a Blocker finding hands off via `needs-human` instead.
 Exactly one lifecycle label is present at a time, so the removal and the
 addition are a single move. When the human pushes a fix for an earlier Blocker
 and the `pull_request: synchronize` re-validation passes clean, this same step
-advances the feature from `sdd:in-progress` to `sdd:review`.
+advances the feature from `sdd:in-progress` to its next lifecycle state
+(`sdd:review` on full-path, `sdd:done` on fast-path).
 
 ## Boundaries
 
@@ -301,8 +311,11 @@ advances the feature from `sdd:in-progress` to `sdd:review`.
 - A pull request adding a `docs/specs/**` file with an untestable acceptance
   criterion yields one comment carrying a Blocker finding and the
   `needs-human` label, and the workflow run still concludes successfully.
-- A clean implementation-boundary pass moves the feature tracking issue from
-  `sdd:in-progress` to `sdd:review`.
+- A clean implementation-boundary pass on a full-path feature moves the feature
+  tracking issue from `sdd:in-progress` to `sdd:review`. On a fast-path
+  feature (linked tracking issue carrying `sdd:fastpath` or
+  `sdd:fastpath-review`, or with fast-path history), the same clean pass moves
+  the feature directly to `sdd:done` per ADR 0012.
 - A Blocker on a pull request is re-validated when the human clears
   `needs-human` and pushes a fix: the `pull_request: synchronize` event re-runs
   the gate set. The wrapper subscribes to no `unlabeled` event, so clearing
