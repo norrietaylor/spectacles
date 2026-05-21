@@ -21,12 +21,12 @@ engine:
 inlined-imports: true
 strict: false
 imports:
-  - gominimal/spectacles/shared/principles.md@main
-  - gominimal/spectacles/shared/runtime-setup.md@main
-  - gominimal/spectacles/shared/repo-conventions.md@main
-  - gominimal/spectacles/shared/sdd-interaction.md@main
-  - gominimal/spectacles/shared/sdd-proof-artifacts.md@main
-  - gominimal/spectacles/shared/sdd-mcp-serena.md@main
+  - norrietaylor/spectacles/shared/principles.md@main
+  - norrietaylor/spectacles/shared/runtime-setup.md@main
+  - norrietaylor/spectacles/shared/repo-conventions.md@main
+  - norrietaylor/spectacles/shared/sdd-interaction.md@main
+  - norrietaylor/spectacles/shared/sdd-proof-artifacts.md@main
+  - norrietaylor/spectacles/shared/sdd-mcp-serena.md@main
 tools:
   github:
     toolsets: [default]

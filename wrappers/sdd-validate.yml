@@ -123,7 +123,7 @@ jobs:
   sdd-validate:
     needs: route
     if: needs.route.outputs.should_run == 'true'
-    uses: gominimal/spectacles/.github/workflows/sdd-validate.lock.yml@main
+    uses: norrietaylor/spectacles/.github/workflows/sdd-validate.lock.yml@main
     with:
       aw_context: ${{ needs.route.outputs.aw_context }}
     # Mapped explicitly, not `secrets: inherit`: inherit does not pass secrets
