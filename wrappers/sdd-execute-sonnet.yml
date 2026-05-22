@@ -45,6 +45,12 @@ on:
   # A review comment on a pull request this agent opened.
   pull_request_review_comment:
     types: [created]
+  # A formal review on a pull request this agent opened. A CHANGES_REQUESTED
+  # review from CodeRabbit or a write-access human on an `sdd/` branch is
+  # treated as an implicit /revise (issue #128). A COMMENTED or APPROVED
+  # review does not trigger a revise.
+  pull_request_review:
+    types: [submitted]
   # The needs-human label being cleared on a task sub-issue, which re-triggers
   # the agent to resume a hand-off it applied at step 5 or step 6.
   issues:
@@ -115,10 +121,16 @@ jobs:
     # /repos/{owner}/{repo}/pulls/{N} call returns 403 "Resource not accessible
     # by integration" and the tier gate defaults to false, skipping every
     # variant. See #68.
+    #
+    # issues: write and pull-requests: write are needed by the CHANGES_REQUESTED
+    # auto-revise branch (issue #128): it posts a hidden iteration-marker
+    # comment on the PR and, on hitting SDD_MAX_REVIEW_ITERATIONS, applies the
+    # needs-human label. Comments and labels written by the GITHUB_TOKEN do not
+    # re-trigger workflows, so this does not feed back into the route.
     permissions:
       contents: read
-      issues: read
-      pull-requests: read
+      issues: write
+      pull-requests: write
     outputs:
       should_run: ${{ steps.decide.outputs.should_run }}
       aw_context: ${{ steps.decide.outputs.aw_context }}
@@ -131,6 +143,9 @@ jobs:
           # posted by sdd-dispatch's cascade fan-out (ADR 0014). A human's
           # /execute still goes through the repo-permission check below.
           APP_ID: ${{ vars.APP_ID }}
+          # Cap on auto-revise cycles per PR for CHANGES_REQUESTED reviews
+          # (issue #128); defaults to 3 when the repo variable is unset.
+          SDD_MAX_REVIEW_ITERATIONS: ${{ vars.SDD_MAX_REVIEW_ITERATIONS }}
         with:
           script: |
             const event = context.eventName;
@@ -259,6 +274,179 @@ jobs:
                 item_number: payload.pull_request.number,
                 comment_id: payload.comment.id,
               };
+            }
+
+            // A formal review with state CHANGES_REQUESTED on an sdd/ PR is
+            // treated as an implicit /revise (issue #128). The directive is
+            // the review body plus the unresolved review-comment threads, so
+            // one revise run addresses the whole verdict; the individual
+            // pull_request_review_comment events that co-arrive collapse into
+            // this run at the per-PR-per-tier concurrency group (the existing
+            // dedupe mechanism). A COMMENTED or APPROVED review does not match
+            // and never triggers a revise. The manual /revise path above is
+            // untouched. The agent confirms ownership (sdd/ head ref + body
+            // marker) at step 7 exactly as it does for a review comment.
+            if (event === 'pull_request_review'
+                && payload.action === 'submitted') {
+              const review = payload.review || {};
+              const state = (review.state || '').toLowerCase();
+              const pr = payload.pull_request || {};
+              const headRef = (pr.head && pr.head.ref) || '';
+              if (state === 'changes_requested'
+                  && headRef.startsWith('sdd/')) {
+                // Author scope: accept CodeRabbit's bot review or a review by
+                // an author with repository write access, mirroring the
+                // /revise permission check above. A login of `coderabbitai`
+                // (with or without a `[bot]` suffix) is the CodeRabbit bot.
+                const reviewer = (review.user && review.user.login) || '';
+                const reviewerLc = reviewer.toLowerCase();
+                const isCodeRabbit = reviewerLc === 'coderabbitai'
+                  || reviewerLc === 'coderabbitai[bot]';
+                let reviewerCanWrite = isCodeRabbit;
+                if (!isCodeRabbit && reviewer) {
+                  let permission = 'none';
+                  try {
+                    const resp = await github.rest.repos
+                      .getCollaboratorPermissionLevel({
+                        owner: context.repo.owner,
+                        repo: context.repo.repo,
+                        username: reviewer,
+                      });
+                    permission = resp.data.role_name || resp.data.permission;
+                  } catch (err) {
+                    core.info('Could not resolve repo permission for '
+                      + reviewer + ': ' + err.message);
+                  }
+                  reviewerCanWrite = permission === 'write'
+                    || permission === 'maintain'
+                    || permission === 'admin';
+                }
+                if (!reviewerCanWrite) {
+                  core.info('CHANGES_REQUESTED review by a non-allowed'
+                    + ' reviewer (' + reviewer + '); ignoring.');
+                } else {
+                  const prNumber = pr.number;
+                  // Loop bound (issue #128). Cap auto-revise cycles per PR,
+                  // tracked by a hidden marker comment so no extra label is
+                  // needed. Count prior markers; on cap apply needs-human and
+                  // stop. SDD_MAX_REVIEW_ITERATIONS defaults to 3.
+                  const MARKER = '<!-- sdd-execute:auto-revise -->';
+                  const maxIters = parseInt(
+                    process.env.SDD_MAX_REVIEW_ITERATIONS || '3', 10);
+                  let priorIters = 0;
+                  let page = 1;
+                  try {
+                    for (;;) {
+                      const { data } = await github.rest.issues.listComments({
+                        owner: context.repo.owner,
+                        repo: context.repo.repo,
+                        issue_number: prNumber,
+                        per_page: 100,
+                        page,
+                      });
+                      for (const c of data) {
+                        if ((c.body || '').includes(MARKER)) {
+                          priorIters += 1;
+                        }
+                      }
+                      if (data.length < 100) {
+                        break;
+                      }
+                      page += 1;
+                    }
+                  } catch (err) {
+                    core.info('Could not list comments on PR #' + prNumber
+                      + ' for iteration count: ' + err.message);
+                  }
+                  if (priorIters >= maxIters) {
+                    core.info('Auto-revise cap (' + maxIters + ') reached on'
+                      + ' PR #' + prNumber + '; applying needs-human.');
+                    try {
+                      await github.rest.issues.addLabels({
+                        owner: context.repo.owner,
+                        repo: context.repo.repo,
+                        issue_number: prNumber,
+                        labels: ['needs-human'],
+                      });
+                    } catch (err) {
+                      core.info('Could not apply needs-human to PR #'
+                        + prNumber + ': ' + err.message);
+                    }
+                  } else {
+                    // Assemble the directive: the review body plus the
+                    // unresolved review-comment threads. Resolved threads are
+                    // skipped to avoid re-fixing addressed items. Thread
+                    // resolution state is only exposed by GraphQL.
+                    const parts = [];
+                    if ((review.body || '').trim()) {
+                      parts.push(review.body.trim());
+                    }
+                    try {
+                      const result = await github.graphql(`
+                        query($owner:String!,$repo:String!,$pr:Int!) {
+                          repository(owner:$owner,name:$repo) {
+                            pullRequest(number:$pr) {
+                              reviewThreads(first:100) {
+                                nodes {
+                                  isResolved
+                                  comments(first:1) { nodes { body path } }
+                                }
+                              }
+                            }
+                          }
+                        }`, {
+                        owner: context.repo.owner,
+                        repo: context.repo.repo,
+                        pr: prNumber,
+                      });
+                      const threads = (result.repository
+                        && result.repository.pullRequest
+                        && result.repository.pullRequest.reviewThreads
+                        && result.repository.pullRequest.reviewThreads.nodes)
+                        || [];
+                      for (const t of threads) {
+                        if (t.isResolved) {
+                          continue;
+                        }
+                        const first = t.comments
+                          && t.comments.nodes
+                          && t.comments.nodes[0];
+                        if (first && (first.body || '').trim()) {
+                          const where = first.path ? (first.path + ': ') : '';
+                          parts.push('- ' + where + first.body.trim());
+                        }
+                      }
+                    } catch (err) {
+                      core.info('Could not read review threads on PR #'
+                        + prNumber + ': ' + err.message);
+                    }
+                    const directive = parts.join('\n').trim()
+                      || 'Address the requested changes.';
+                    // Post the hidden iteration marker so the next review
+                    // counts this cycle toward the cap.
+                    try {
+                      await github.rest.issues.createComment({
+                        owner: context.repo.owner,
+                        repo: context.repo.repo,
+                        issue_number: prNumber,
+                        body: MARKER + '\nAuto-revise '
+                          + (priorIters + 1) + ' of ' + maxIters
+                          + ' from a CHANGES_REQUESTED review.',
+                      });
+                    } catch (err) {
+                      core.info('Could not post auto-revise marker on PR #'
+                        + prNumber + ': ' + err.message);
+                    }
+                    run = true;
+                    ctx = {
+                      trigger: 'revise',
+                      item_type: 'pull_request',
+                      item_number: prNumber,
+                      directive,
+                    };
+                  }
+                }
+              }
             }
 
             // The needs-human label was cleared on a task sub-issue (resume a
@@ -586,3 +774,74 @@ jobs:
       discussions: write
       issues: write
       pull-requests: write
+
+  # Enable GitHub auto-merge on the PR sdd-execute just opened (issue #127).
+  # The reusable lock exposes the new PR number via its create_pull_request
+  # safe-output as the workflow_call output created_pr_number; this job reads
+  # it and turns on squash + delete-branch auto-merge so a green cascade PR
+  # merges with no human in the loop. Gated OFF by default: it runs only when
+  # the repo variable SDD_AUTO_MERGE is set to a truthy value, so repos
+  # without branch protection are unaffected (behavior unchanged when unset).
+  auto-merge:
+    needs: [route, sdd-execute-sonnet]
+    if: |
+      needs.route.outputs.should_run == 'true'
+      && needs.sdd-execute-sonnet.outputs.created_pr_number != ''
+      && (vars.SDD_AUTO_MERGE == '1'
+        || vars.SDD_AUTO_MERGE == 'true')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      # Mint the App token: reading branch protection needs administration:
+      # read (the gh-aw locks request it too), which the default GITHUB_TOKEN
+      # lacks, and enabling auto-merge needs pull-requests + contents write.
+      - name: Mint App token
+        id: app
+        uses: actions/create-github-app-token@v3
+        with:
+          app-id: ${{ vars.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
+          permission-administration: read
+          permission-contents: write
+          permission-pull-requests: write
+      # Only enable auto-merge when the repo allows it AND the base branch
+      # protection defines at least one required status check. If neither
+      # holds, `gh pr merge --auto` errors or the PR merges immediately, so
+      # detect and skip (issue #127). When both hold, enable squash +
+      # delete-branch auto-merge to match the manual-merge convention.
+      - name: Enable auto-merge when protection requires a check
+        env:
+          GH_TOKEN: ${{ steps.app.outputs.token }}
+          PR_NUMBER: ${{ needs.sdd-execute-sonnet.outputs.created_pr_number }}
+          OWNER: ${{ github.repository_owner }}
+          REPO: ${{ github.event.repository.name }}
+        run: |
+          set -euo pipefail
+          allow=$(gh api "repos/${OWNER}/${REPO}" --jq '.allow_auto_merge')
+          if [ "$allow" != "true" ]; then
+            echo "Repo does not allow auto-merge; skipping."
+            exit 0
+          fi
+          base=$(gh api "repos/${OWNER}/${REPO}/pulls/${PR_NUMBER}" \
+            --jq '.base.ref')
+          # Count required status checks on the base branch. The protection
+          # endpoint 404s when no protection is configured; treat that as
+          # "no required checks" and skip. `// length` covers both the
+          # `checks` (new) and `contexts` (legacy) shapes; an absent
+          # required_status_checks yields 0.
+          required=$(gh api \
+            "repos/${OWNER}/${REPO}/branches/${base}/protection" \
+            --jq '(.required_status_checks.checks
+              // .required_status_checks.contexts // []) | length' \
+            2>/dev/null || echo 0)
+          if [ "${required:-0}" -lt 1 ]; then
+            echo "Base branch ${base} has no required status checks;" \
+              "skipping auto-merge (would merge immediately)."
+            exit 0
+          fi
+          gh pr merge "${PR_NUMBER}" --auto --squash --delete-branch \
+            --repo "${OWNER}/${REPO}"
+          echo "Auto-merge (squash, delete-branch) enabled on PR #${PR_NUMBER}."
