@@ -235,8 +235,17 @@ issue** that names the action the human is expected to take. The diagram in
 without an explicit hand-off comment the human has no signal in the tracker
 that work is waiting on them. The comment must:
 
-- Name the architecture pull request by number, e.g.
-  `Architecture PR opened: #<pr>.`.
+- Name the architecture pull request by its **title**, e.g.
+  `Architecture PR opened: arch(<slug>): <issue title>.`. Do **not** write a
+  `#` placeholder for the pull request number. The number is unknown while this
+  agent runs: `create-pull-request` is a deferred safe-output that creates the
+  pull request after the agent turn ends, and the only same-run handle —
+  a `temporary_id` — is accepted as a comment *target* (`item_number`), not
+  substituted inside comment *body* text. A token such as `#aw_archpr` written
+  into the body is therefore posted verbatim and leaks (bug
+  `norrietaylor/spectacles#137`). gh-aw posts the clickable real-number link
+  separately on the tracking issue (`Pull request created: [#<n>](<url>)`), so
+  the human can click through from that line; this comment names the action.
 - Name the action: "Please **review and merge** the architecture PR to advance
   the tracking issue to phase B (Unit decomposition)."
 - Name the deliverable sub-issue: "Merging the architecture PR will close the
@@ -352,14 +361,33 @@ failure (the cycle, or the unmapped requirement IDs), apply `needs-human`,
 and emit `noop`. The failure mode is "plan rejected, no tree created"
 rather than "partial tree, needs cleanup" (ADR 0010).
 
-For each Unit in the plan, emit one `create-issue` safe-output whose
-`parent` field is set to the tracking issue number. The `parent` field
-nests the new issue under the tracking issue in the same step. Every Unit
-`create-issue` must carry `parent`; an unparented Unit breaks the feature
-tree and `sdd-execute`'s completion check, which finds Units through the
-tracking issue's sub-issue list. Each Unit issue's title names the unit
-(for example `Unit 1: Repository foundation`) and its body summarizes the
-unit's purpose, the requirement IDs it covers, and the units it depends on.
+Unit creation is **create-or-reuse by Unit title**, never blind-create.
+Before emitting any Unit `create-issue`, read the tracking issue's existing
+`sub_issues` and index the open ones by title. For each Unit in the plan,
+match its title (for example `Unit 1: Tokenizer`) against that index:
+
+- If a sub-issue with that exact Unit title **already exists** under the
+  tracking issue, **reuse it** — do **not** emit a `create-issue` for the
+  Unit. Use the existing Unit's number as the `parent` for that Unit's
+  sub-tasks below.
+- Only when **no** existing sub-issue carries the Unit's title, emit exactly
+  one `create-issue` for it.
+
+This guard makes phase C idempotent on the Unit layer: a re-entry (a
+retried `/approve`, or a second materialization pass) must yield exactly one
+sub-issue per Unit, not a spurious empty duplicate (bug
+`norrietaylor/spectacles#138`). Units have no `sdd-triage-dedupe-tasks`
+backstop the way sub-tasks do (ADR 0008), so this title match is the only
+thing preventing a duplicate empty Unit.
+
+Each Unit `create-issue` sets its `parent` field to the tracking issue
+number. The `parent` field nests the new issue under the tracking issue in
+the same step. Every Unit `create-issue` must carry `parent`; an unparented
+Unit breaks the feature tree and `sdd-execute`'s completion check, which
+finds Units through the tracking issue's sub-issue list. Each Unit issue's
+title names the unit (for example `Unit 1: Repository foundation`) and its
+body summarizes the unit's purpose, the requirement IDs it covers, and the
+units it depends on.
 
 For each sub-task in the plan, emit one `create-issue` safe-output whose
 `parent` field is set to its **Unit** issue number — not the tracking issue
@@ -543,6 +571,10 @@ the tracking issue stays at `sdd:ready`.
   label, and a structured body block with requirement IDs and proof
   artifacts matching the plan-comment preview. The tracking issue moves
   from `sdd:triage` to `sdd:ready`.
+- Phase C yields exactly one sub-issue per Unit: a Unit whose title already
+  exists under the tracking issue is reused, not re-created, so a retried or
+  re-entered `/approve` leaves no spurious empty duplicate Unit (bug
+  `norrietaylor/spectacles#138`).
 - A cycle or unmapped-requirement detected at phase C produces a
   `needs-human` hand-off comment and **zero** `create-issue` safe-outputs;
   no orphan Unit or task tree is left behind (ADR 0010).

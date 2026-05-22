@@ -38,15 +38,41 @@ jobs:
   #
   # The job-level if: gate skips the route job entirely on issue_comment
   # events whose body does not start with one of the commands this wrapper
-  # owns (fixes issue #119 — a /dispatch or /execute comment on a tracker
-  # no longer spawns a route-job runner on this wrapper).
+  # owns, and on issues label events whose label this wrapper does not route
+  # (fixes issue #119 — a /dispatch or /execute comment, or the
+  # sdd:in-progress/sdd:dispatched label mutations a /dispatch performs on a
+  # tracker, no longer spawn a route-job runner on this wrapper). The route
+  # step routes an `issues` event only on `labeled` `sdd:spec`/`sdd:fastpath`
+  # or `unlabeled` `needs-human`; every other label add/remove is skipped
+  # here without a runner.
   route:
     if: |
-      github.event_name != 'issue_comment'
-      || startsWith(github.event.comment.body, '/spec')
-      || startsWith(github.event.comment.body, '/revise')
-      || startsWith(github.event.comment.body, '/fastpath')
-      || startsWith(github.event.comment.body, '/approve')
+      (github.event_name != 'issue_comment' && github.event_name != 'issues')
+      || (
+        github.event_name == 'issue_comment'
+        && (
+          startsWith(github.event.comment.body, '/spec')
+          || startsWith(github.event.comment.body, '/revise')
+          || startsWith(github.event.comment.body, '/fastpath')
+          || startsWith(github.event.comment.body, '/approve')
+        )
+      )
+      || (
+        github.event_name == 'issues'
+        && (
+          (
+            github.event.action == 'labeled'
+            && (
+              github.event.label.name == 'sdd:spec'
+              || github.event.label.name == 'sdd:fastpath'
+            )
+          )
+          || (
+            github.event.action == 'unlabeled'
+            && github.event.label.name == 'needs-human'
+          )
+        )
+      )
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -579,3 +605,108 @@ jobs:
       discussions: write
       issues: write
       pull-requests: write
+
+  # Agent-failure hand-off (fixes #122, #123).
+  #
+  # When the sdd-spec reusable workflow fails before producing safe-outputs
+  # (e.g. the "Execute GitHub Copilot CLI" step crashes, or any other infra
+  # failure the gh-aw conclusion job does not classify), the agent has posted
+  # nothing: no comment, no needs-human. The failure is invisible to the
+  # reporter and the work stalls with no auto-retry (#122, #123). This job
+  # makes that failure visible and recoverable by minting the App token (same
+  # pattern as fastpath-approve above) and posting a hand-off comment plus
+  # the `needs-human` label on the tracking issue. Clearing `needs-human`
+  # re-fires the agent (situation 6 in sdd-spec.md), so the human-driven
+  # resume stands in for the missing auto-retry.
+  #
+  # Gated on failure() and should_run so it never runs when the agent was
+  # skipped (route decided not to run) or succeeded. The aw_context JSON the
+  # route job built carries the routed item; needs-human is applied only to
+  # an issue item (the tracking issue), which is the lifecycle anchor the
+  # agent re-fires on. A pull-request item (a /revise on a spec PR, or a
+  # merged spec PR) gets a visibility comment so the failure is still
+  # surfaced, but not needs-human: that label re-fires the agent only from
+  # the tracking issue, which is not reliably derivable from a PR here.
+  failure-handoff:
+    needs: [route, sdd-spec]
+    if: failure() && needs.route.outputs.should_run == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: read
+    steps:
+      - name: Mint App token
+        id: app
+        uses: actions/create-github-app-token@v3
+        with:
+          app-id: ${{ vars.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
+      - name: Post failure hand-off to tracking issue
+        uses: actions/github-script@v9
+        env:
+          APP_TOKEN: ${{ steps.app.outputs.token }}
+          AW_CONTEXT: ${{ needs.route.outputs.aw_context }}
+        with:
+          github-token: ${{ env.APP_TOKEN }}
+          script: |
+            let ctx = {};
+            try {
+              ctx = JSON.parse(process.env.AW_CONTEXT || '{}');
+            } catch (err) {
+              core.setFailed('Could not parse aw_context: ' + err.message);
+              return;
+            }
+            const itemType = ctx.item_type;
+            const itemNumber = ctx.item_number;
+            if (!itemNumber) {
+              core.info('No item_number in aw_context; nothing to hand off.');
+              return;
+            }
+            const runUrl = process.env.GITHUB_SERVER_URL + '/'
+              + context.repo.owner + '/' + context.repo.repo
+              + '/actions/runs/' + context.runId;
+            // A pull-request item is a /revise on a spec PR or a merged spec
+            // PR. Apply needs-human only to an issue (the tracking issue):
+            // its removal re-fires the agent (situation 6). On a PR, post a
+            // visibility comment only so the failure is no longer silent.
+            const isIssue = itemType === 'issue';
+            const body = isIssue
+              ? 'The `sdd-spec` agent run failed before it could post a '
+                + 'spec, a comment, or any lifecycle update — the failure '
+                + 'was not classified by the conclusion job (e.g. the '
+                + 'agent step itself crashed). Applying `needs-human` so '
+                + 'this is visible and recoverable. A human should '
+                + 'investigate the failed run and, once ready, clear the '
+                + '`needs-human` label to re-run the spec agent on this '
+                + 'tracking issue. Failed run: ' + runUrl
+              : 'The `sdd-spec` agent run failed before it could post a '
+                + 'comment or any lifecycle update. A human should '
+                + 'investigate the failed run and re-run the agent. '
+                + 'Failed run: ' + runUrl;
+            try {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: itemNumber,
+                body,
+              });
+            } catch (err) {
+              core.setFailed('Could not post failure comment on #'
+                + itemNumber + ': ' + err.message);
+              return;
+            }
+            if (isIssue) {
+              try {
+                await github.rest.issues.addLabels({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: itemNumber,
+                  labels: ['needs-human'],
+                });
+              } catch (err) {
+                core.setFailed('Could not apply needs-human to #'
+                  + itemNumber + ': ' + err.message);
+              }
+            }

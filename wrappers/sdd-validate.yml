@@ -40,7 +40,21 @@ jobs:
   # Resolve which situation triggered the wrapper and build the aw_context the
   # reusable workflow consumes. A non-match leaves should_run = false so the
   # agent job is skipped.
+  #
+  # The job-level if: gate skips the route job entirely on issues label events
+  # whose label this wrapper does not route (fixes issue #119 — the
+  # sdd:in-progress/sdd:dispatched label mutations a /dispatch performs on a
+  # tracker no longer spawn a route-job runner on this wrapper). The route
+  # step routes an `issues` event only on `labeled` `sdd:ready`; every other
+  # label add is skipped here without a runner. pull_request events pass
+  # through unchanged.
   route:
+    if: |
+      github.event_name != 'issues'
+      || (
+        github.event.action == 'labeled'
+        && github.event.label.name == 'sdd:ready'
+      )
     runs-on: ubuntu-latest
     permissions:
       contents: read
