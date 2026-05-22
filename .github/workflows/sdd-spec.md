@@ -54,8 +54,8 @@ safe-outputs:
     allowed: [sdd:spec, sdd:triage, sdd:fastpath, sdd:fastpath-review, needs-human]
     max: 2
   remove-labels:
-    allowed: [sdd:spec, sdd:fastpath, sdd:fastpath-review]
-    max: 2
+    allowed: [sdd:spec, sdd:fastpath, sdd:fastpath-review, plan:provided]
+    max: 3
   create-issue:
     max: 1
   noop:
@@ -248,6 +248,13 @@ the tracking issue and stop:
   "Comment `/fastpath` to confirm the fast-path classification, or
   `/spec` to keep the full flow. Default is the full flow if neither
   arrives."
+- When the tracking issue carries the `plan:provided` marker (the
+  `spec.md` template's plan-document case, see step 3b), adjust the
+  closing line to: "Comment `/fastpath` to dispatch the plan directly,
+  or `/spec` to write a translated full spec first. Default is the full
+  flow if neither arrives." A `plan:provided` issue that fits all six
+  heuristics is a clean fast-path case — the plan is already the
+  execution plan.
 - Do **not** write the `sdd:fastpath` label here. The wrapper applies
   it on `/fastpath` from a write-access author; the agent's proposal
   does not arm the path on its own. The lifecycle stays at `sdd:spec`.
@@ -271,6 +278,38 @@ Both writes go in the same call, then continue down the full-path
 branch from step 4. The existing stub spec file (if any) is left in
 place under `docs/specs/`; the full-path spec authoring builds on it
 rather than against an empty tree.
+
+### 3b. Detect translation mode (`plan:provided`)
+
+The `spec.md` issue template ("Specification (from Claude plan)")
+applies the `plan:provided` marker, and a human can apply it by hand.
+The marker declares that the tracking issue body is a **Claude plan
+document** — context, design, implementation steps, and a verification
+section — rather than a slim feature description. When `plan:provided`
+is present, `sdd-spec` runs in **translation mode**: it translates the
+plan into a structured spec instead of authoring one from a thin body.
+
+`plan:provided` is an orthogonal marker, not a lifecycle label: it
+coexists with whatever `sdd:*` state the tracking issue carries and
+does not change which trigger or branch this agent took. Detect it once,
+here, after classification (step 3a), and carry the result into the
+authoring step:
+
+- On the **full path** (step 5), author the spec by translating the
+  plan (step 5a).
+- On the **fast path** (step 7a), lift the plan into the stub spec and
+  the execution plan comment (step 7a's plan-lift mode).
+
+Do **not** clear `plan:provided` here. On the full path the marker must
+survive into the architecture phase so `sdd-triage` Phase A can read it
+and translate the plan's architecture section (issue #102, S3); clearing
+it in this agent's full-path flow would blind `sdd-triage`. `sdd-triage`
+Phase A clears the marker when the architecture PR opens. The single
+exception is the fast-path stub-spec exit (step 7a), where triage never
+runs and `sdd-spec` clears the marker itself.
+
+When `plan:provided` is absent, this step is a no-op: the agent authors
+from the issue body exactly as it does today (step 5).
 
 ### 4. Assess confidence and scope
 
@@ -315,6 +354,44 @@ The spec must:
   `R{unit}.{seq}` format (the first unit's requirements start at `R1.1`).
 - Carry the inline `(informed by ...)` citations from step 3 wherever a prior
   spec, decision, or issue shaped a decision.
+
+### 5a. Translate the plan into the spec (`plan:provided`)
+
+This step refines step 5 when the tracking issue carries `plan:provided`
+(detected in step 3b). The spec file, its location, and its section
+structure are unchanged from step 5 — only the **source** changes: the
+spec is translated from the plan document in the tracking-issue body,
+not authored from a slim feature description.
+
+- **Demoable units and R-IDs.** Map the plan's implementation steps to
+  requirement IDs in the `R{unit}.{seq}` format: one R-ID per plan step
+  within each demoable unit. A sub-bullet becomes its own R-ID only when
+  it is independently testable. A plan step that is **not** testable does
+  **not** get an R-ID — treat it as a vague feature body and hand off via
+  `needs-human` (step 4). Downstream R-ID validation is presence-based
+  (`sdd-validate` gate 1, `sdd-review` step 2), so the exact count is not
+  load-bearing; the rule keeps the mapping principled, not enforced.
+- **No-leakage gate under translation.** A translated spec mirrors plan
+  steps, which are implementation directives, so some implementation
+  detail will surface. The spec-boundary "no implementation leakage" gate
+  is a Warning, and under `plan:provided` it is relaxed **only** for a
+  leaked statement that directly mirrors a plan step and carries an
+  inline `(translated from plan: step N)` citation next to it. A leaked
+  statement **without** that citation stays a Warning, exactly as today —
+  the spec must translate the plan, not invent implementation. See the
+  imported validation-gates fragment for the gate text.
+- **Proof artifacts from the plan's verification.** Lift the plan's
+  Verification entries into the per-unit proof artifacts of step 6. The
+  empty-PR rule (a Blocker) is **unchanged**: a plan verification that is
+  a health check ("run tests", "build passes") is rejected, and the
+  translator must synthesize a behavioral artifact from an actual plan
+  step instead. If no plan step yields a behavioral artifact, apply
+  `needs-human` (the step-4 escalation).
+- **Architecture is not translated here.** `sdd-spec` produces only the
+  spec file. The plan's architecture/design section is translated into
+  `architecture.md` by `sdd-triage` Phase A in the next phase (issue
+  #102, S1). Do not author an `architecture.md` and do not clear
+  `plan:provided` — the marker must survive for `sdd-triage` to read it.
 
 ### 6. Emit proof artifacts per demoable unit
 
@@ -408,6 +485,15 @@ This branch runs for situation 3 (a `/fastpath` from a write-access
 author, or the tracking issue gained the `sdd:fastpath` label). It
 replaces steps 5, 6, and 7 above for the fast-path flow.
 
+When the tracking issue carries `plan:provided` (detected in step 3b),
+this branch runs in **plan-lift mode**: the stub spec's R-IDs and proof
+artifacts are lifted directly from the plan's implementation steps and
+Verification entries (per the R-ID rule and the proof-artifact rule in
+step 5a), and the execution plan comment is the plan, reformatted.
+A `plan:provided` issue that reached this branch already fits all six
+fast-path heuristics, so the plan is the execution plan. The
+sub-steps below note where plan-lift mode differs.
+
 0. **Ensure the lifecycle is at `sdd:fastpath`.** On entry, if the
    tracking issue still carries `sdd:spec` (the `/fastpath` arrived
    before any label move), remove the `sdd:spec` label
@@ -435,6 +521,13 @@ replaces steps 5, 6, and 7 above for the fast-path flow.
      0012)."
    - **No architecture record is produced.** Do not author an
      `architecture.md` file and do not link to one.
+   - **Plan-lift mode (`plan:provided`).** Lift the stub spec's R-IDs
+     from the plan's implementation steps and its proof artifacts from
+     the plan's Verification entries, per the R-ID rule and the
+     proof-artifact rule in step 5a. The empty-PR rule on proof
+     artifacts is unchanged: reject a health-check verification and
+     synthesize a behavioral artifact, or hand off via `needs-human` if
+     no plan step yields one.
 
 2. **Create the spec sub-issue.** Same rules as step 7 above: emit one
    `create-issue` titled `spec: <issue title>`, body
@@ -470,11 +563,23 @@ replaces steps 5, 6, and 7 above for the fast-path flow.
      `model:opus`). Pick the tier from the same complexity heuristics
      `sdd-triage` uses for full-path tasks.
 
+   **Plan-lift mode (`plan:provided`).** The execution plan comment is
+   the plan, reformatted into the block above: the `requirements:` are
+   the lifted R-IDs, the `proof artifacts:` are the lifted (and
+   empty-PR-filtered) artifacts, and the title summarizes the plan's
+   own implementation summary.
+
 5. **Move the lifecycle from `sdd:fastpath` to `sdd:fastpath-review`.**
    Remove the `sdd:fastpath` label (`remove-labels`).
    Apply the `sdd:fastpath-review` label (`add-labels`).
    The label move signals "the stub spec PR is open and awaiting
    human merge."
+   **Plan-lift mode (`plan:provided`).** Also remove the `plan:provided`
+   marker (`remove-labels`) in this same move. On the fast path
+   `sdd-triage` never runs (ADR 0012 §3), so no later agent reads the
+   marker; `sdd-spec` is the last reader and clears it when the stub
+   spec PR opens (issue #102, S3). On the full path, by contrast,
+   `sdd-spec` leaves the marker in place for `sdd-triage` Phase A.
 
 For a `/revise` on a fast-path tracking issue (situation 5) between the
 plan-comment and `/approve`, do **not** re-author the stub spec and do
@@ -576,3 +681,14 @@ present at a time, so the removal and the addition are a single move.
 - A `/spec` comment on a tracking issue currently at `sdd:fastpath` or
   `sdd:fastpath-review` resets the lifecycle to `sdd:spec` and runs the
   full-path flow with the existing stub spec as the starting point.
+- A `plan:provided` tracking issue with a well-formed plan opens, within
+  one run, a full-path spec PR whose R-IDs are derived one-per-plan-step
+  and whose proof artifacts are lifted from the plan's Verification (and
+  rejected when health-check-shaped). `plan:provided` is **not** removed
+  on this full-path completion — it survives for `sdd-triage` Phase A.
+- A `plan:provided` tracking issue that fits all six fast-path heuristics
+  produces the adjusted proposal text ("`/fastpath` to dispatch the plan
+  directly, or `/spec` to write a translated full spec first"); on
+  `/fastpath` the stub spec PR's R-IDs and proof artifacts are lifted
+  from the plan, the execution plan comment is the plan reformatted, and
+  `plan:provided` is removed when the stub spec PR opens.

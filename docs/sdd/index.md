@@ -192,6 +192,14 @@ starting point of a fuller spec).
 Across the whole pipeline a human takes only four kinds of action:
 
 - **Open an issue** from the `feature` or `bug` template to start a feature.
+  When you already have a Claude plan document, open from the
+  **Specification (from Claude plan)** template (`spec.md`) and paste the plan
+  into the body instead. That template applies a `plan:provided` marker, which
+  puts the pipeline into translation mode: `sdd-spec` translates the plan into a
+  structured spec rather than authoring one from a slim description, and
+  `sdd-triage` translates the plan's architecture section into the architecture
+  record. The marker clears once the architecture PR opens (or, on the fast
+  path, the stub spec PR).
 - **Comment a command** to steer: `/spec`, `/fastpath`, `/triage`,
   `/approve`, `/dispatch`, `/revise`, or `/execute`. See the command
   table in `shared/sdd-interaction.md`.
