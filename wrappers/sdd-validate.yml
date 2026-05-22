@@ -51,7 +51,10 @@ jobs:
   route:
     if: |
       github.event_name != 'issues'
-      || github.event.label.name == 'sdd:ready'
+      || (
+        github.event.action == 'labeled'
+        && github.event.label.name == 'sdd:ready'
+      )
     runs-on: ubuntu-latest
     permissions:
       contents: read

@@ -60,9 +60,17 @@ jobs:
       || (
         github.event_name == 'issues'
         && (
-          github.event.label.name == 'sdd:spec'
-          || github.event.label.name == 'sdd:fastpath'
-          || github.event.label.name == 'needs-human'
+          (
+            github.event.action == 'labeled'
+            && (
+              github.event.label.name == 'sdd:spec'
+              || github.event.label.name == 'sdd:fastpath'
+            )
+          )
+          || (
+            github.event.action == 'unlabeled'
+            && github.event.label.name == 'needs-human'
+          )
         )
       )
     runs-on: ubuntu-latest
