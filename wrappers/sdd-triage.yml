@@ -38,14 +38,31 @@ jobs:
   #
   # The job-level if: gate skips the route job entirely on issue_comment
   # events whose body does not start with one of the commands this wrapper
-  # owns (fixes issue #119 — a /dispatch or /execute comment on a tracker
-  # no longer spawns a route-job runner on this wrapper).
+  # owns, and on issues label events whose label this wrapper does not route
+  # (fixes issue #119 — a /dispatch or /execute comment, or the
+  # sdd:in-progress/sdd:dispatched label mutations a /dispatch performs on a
+  # tracker, no longer spawn a route-job runner on this wrapper). The route
+  # step routes an `issues` event only on `labeled` `sdd:triage` or
+  # `unlabeled` `needs-human`; every other label add/remove is skipped here
+  # without a runner.
   route:
     if: |
-      github.event_name != 'issue_comment'
-      || startsWith(github.event.comment.body, '/triage')
-      || startsWith(github.event.comment.body, '/approve')
-      || startsWith(github.event.comment.body, '/revise')
+      (github.event_name != 'issue_comment' && github.event_name != 'issues')
+      || (
+        github.event_name == 'issue_comment'
+        && (
+          startsWith(github.event.comment.body, '/triage')
+          || startsWith(github.event.comment.body, '/approve')
+          || startsWith(github.event.comment.body, '/revise')
+        )
+      )
+      || (
+        github.event_name == 'issues'
+        && (
+          github.event.label.name == 'sdd:triage'
+          || github.event.label.name == 'needs-human'
+        )
+      )
     runs-on: ubuntu-latest
     permissions:
       contents: read
