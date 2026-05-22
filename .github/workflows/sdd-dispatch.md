@@ -126,7 +126,7 @@ out the remaining ready tasks but leaves the lifecycle label alone
 (`sdd-execute` owns the lifecycle transitions). The cascade path implies
 the precondition (only a tracking issue carrying `sdd:dispatched` reaches
 the dispatcher on that path, and `sdd:dispatched` is only applied
-alongside `sdd:in-progress`), so the precondition check is skipped on a
+alongside `sdd:in-progress` or `sdd:review`), so the precondition check is skipped on a
 cascade fire as a fast path; the wrapper's `compute` job still records
 the lifecycle state for the lifecycle job to read.
 

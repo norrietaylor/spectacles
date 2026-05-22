@@ -347,8 +347,8 @@ jobs:
             // carries sdd:ready, sdd:in-progress, or sdd:review. A cascade
             // fire skips this check (the tracking issue carries
             // sdd:dispatched, which is only applied alongside
-            // sdd:in-progress). A needs-human label means the tracking issue
-            // is held for the human; defer unconditionally.
+            // sdd:in-progress or sdd:review). A needs-human label means the
+            // tracking issue is held for the human; defer unconditionally.
             //
             // sdd:review is accepted because the tracker can advance there
             // while open task sub-issues remain unstarted: sdd-execute moves
