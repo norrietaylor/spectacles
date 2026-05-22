@@ -152,6 +152,13 @@ jobs:
             const payload = context.payload;
             let run = false;
             let ctx = {};
+            // Set true by the CHANGES_REQUESTED auto-revise branch (issue
+            // #128). The cap count, hidden marker, and needs-human side
+            // effects are deferred until AFTER the tier gate below confirms
+            // this variant owns the PR, so the two non-owning tiers never
+            // mutate PR state (they would otherwise inflate the cap count).
+            let reviewAutoRevise = false;
+            let reviewPrNumber = 0;
 
             // This wrapper is the sonnet model tier; the tier gate below
             // skips a task another tier owns.
@@ -326,125 +333,67 @@ jobs:
                     + ' reviewer (' + reviewer + '); ignoring.');
                 } else {
                   const prNumber = pr.number;
-                  // Loop bound (issue #128). Cap auto-revise cycles per PR,
-                  // tracked by a hidden marker comment so no extra label is
-                  // needed. Count prior markers; on cap apply needs-human and
-                  // stop. SDD_MAX_REVIEW_ITERATIONS defaults to 3.
-                  const MARKER = '<!-- sdd-execute:auto-revise -->';
-                  const maxIters = parseInt(
-                    process.env.SDD_MAX_REVIEW_ITERATIONS || '3', 10);
-                  let priorIters = 0;
-                  let page = 1;
-                  try {
-                    for (;;) {
-                      const { data } = await github.rest.issues.listComments({
-                        owner: context.repo.owner,
-                        repo: context.repo.repo,
-                        issue_number: prNumber,
-                        per_page: 100,
-                        page,
-                      });
-                      for (const c of data) {
-                        if ((c.body || '').includes(MARKER)) {
-                          priorIters += 1;
-                        }
-                      }
-                      if (data.length < 100) {
-                        break;
-                      }
-                      page += 1;
-                    }
-                  } catch (err) {
-                    core.info('Could not list comments on PR #' + prNumber
-                      + ' for iteration count: ' + err.message);
+                  // Assemble the directive: the review body plus the
+                  // unresolved review-comment threads. Resolved threads are
+                  // skipped to avoid re-fixing addressed items. Thread
+                  // resolution state is only exposed by GraphQL. This is
+                  // read-only; the cap count and the side-effecting marker /
+                  // needs-human are deferred to the post-tier-gate block so
+                  // only the owning tier mutates PR state.
+                  const parts = [];
+                  if ((review.body || '').trim()) {
+                    parts.push(review.body.trim());
                   }
-                  if (priorIters >= maxIters) {
-                    core.info('Auto-revise cap (' + maxIters + ') reached on'
-                      + ' PR #' + prNumber + '; applying needs-human.');
-                    try {
-                      await github.rest.issues.addLabels({
-                        owner: context.repo.owner,
-                        repo: context.repo.repo,
-                        issue_number: prNumber,
-                        labels: ['needs-human'],
-                      });
-                    } catch (err) {
-                      core.info('Could not apply needs-human to PR #'
-                        + prNumber + ': ' + err.message);
-                    }
-                  } else {
-                    // Assemble the directive: the review body plus the
-                    // unresolved review-comment threads. Resolved threads are
-                    // skipped to avoid re-fixing addressed items. Thread
-                    // resolution state is only exposed by GraphQL.
-                    const parts = [];
-                    if ((review.body || '').trim()) {
-                      parts.push(review.body.trim());
-                    }
-                    try {
-                      const result = await github.graphql(`
-                        query($owner:String!,$repo:String!,$pr:Int!) {
-                          repository(owner:$owner,name:$repo) {
-                            pullRequest(number:$pr) {
-                              reviewThreads(first:100) {
-                                nodes {
-                                  isResolved
-                                  comments(first:1) { nodes { body path } }
-                                }
+                  try {
+                    const result = await github.graphql(`
+                      query($owner:String!,$repo:String!,$pr:Int!) {
+                        repository(owner:$owner,name:$repo) {
+                          pullRequest(number:$pr) {
+                            reviewThreads(first:100) {
+                              nodes {
+                                isResolved
+                                comments(first:1) { nodes { body path } }
                               }
                             }
                           }
-                        }`, {
-                        owner: context.repo.owner,
-                        repo: context.repo.repo,
-                        pr: prNumber,
-                      });
-                      const threads = (result.repository
-                        && result.repository.pullRequest
-                        && result.repository.pullRequest.reviewThreads
-                        && result.repository.pullRequest.reviewThreads.nodes)
-                        || [];
-                      for (const t of threads) {
-                        if (t.isResolved) {
-                          continue;
                         }
-                        const first = t.comments
-                          && t.comments.nodes
-                          && t.comments.nodes[0];
-                        if (first && (first.body || '').trim()) {
-                          const where = first.path ? (first.path + ': ') : '';
-                          parts.push('- ' + where + first.body.trim());
-                        }
+                      }`, {
+                      owner: context.repo.owner,
+                      repo: context.repo.repo,
+                      pr: prNumber,
+                    });
+                    const threads = (result.repository
+                      && result.repository.pullRequest
+                      && result.repository.pullRequest.reviewThreads
+                      && result.repository.pullRequest.reviewThreads.nodes)
+                      || [];
+                    for (const t of threads) {
+                      if (t.isResolved) {
+                        continue;
                       }
-                    } catch (err) {
-                      core.info('Could not read review threads on PR #'
-                        + prNumber + ': ' + err.message);
+                      const first = t.comments
+                        && t.comments.nodes
+                        && t.comments.nodes[0];
+                      if (first && (first.body || '').trim()) {
+                        const where = first.path ? (first.path + ': ') : '';
+                        parts.push('- ' + where + first.body.trim());
+                      }
                     }
-                    const directive = parts.join('\n').trim()
-                      || 'Address the requested changes.';
-                    // Post the hidden iteration marker so the next review
-                    // counts this cycle toward the cap.
-                    try {
-                      await github.rest.issues.createComment({
-                        owner: context.repo.owner,
-                        repo: context.repo.repo,
-                        issue_number: prNumber,
-                        body: MARKER + '\nAuto-revise '
-                          + (priorIters + 1) + ' of ' + maxIters
-                          + ' from a CHANGES_REQUESTED review.',
-                      });
-                    } catch (err) {
-                      core.info('Could not post auto-revise marker on PR #'
-                        + prNumber + ': ' + err.message);
-                    }
-                    run = true;
-                    ctx = {
-                      trigger: 'revise',
-                      item_type: 'pull_request',
-                      item_number: prNumber,
-                      directive,
-                    };
+                  } catch (err) {
+                    core.info('Could not read review threads on PR #'
+                      + prNumber + ': ' + err.message);
                   }
+                  const directive = parts.join('\n').trim()
+                    || 'Address the requested changes.';
+                  run = true;
+                  reviewAutoRevise = true;
+                  reviewPrNumber = prNumber;
+                  ctx = {
+                    trigger: 'revise',
+                    item_type: 'pull_request',
+                    item_number: prNumber,
+                    directive,
+                  };
                 }
               }
             }
@@ -751,6 +700,77 @@ jobs:
               }
             }
 
+            // Auto-revise loop bound (issue #128). Only the owning tier
+            // reaches here with run still true (the tier gate above cleared
+            // run for the two non-owning variants), so the cap count and its
+            // side effects happen exactly once per CHANGES_REQUESTED review.
+            // Cap is tracked by a hidden marker comment so no extra label is
+            // needed. On cap, apply needs-human and stop;
+            // SDD_MAX_REVIEW_ITERATIONS defaults to 3.
+            if (run && reviewAutoRevise && reviewPrNumber) {
+              const MARKER = '<!-- sdd-execute:auto-revise -->';
+              const maxIters = parseInt(
+                process.env.SDD_MAX_REVIEW_ITERATIONS || '3', 10);
+              let priorIters = 0;
+              let page = 1;
+              try {
+                for (;;) {
+                  const { data } = await github.rest.issues.listComments({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    issue_number: reviewPrNumber,
+                    per_page: 100,
+                    page,
+                  });
+                  for (const c of data) {
+                    if ((c.body || '').includes(MARKER)) {
+                      priorIters += 1;
+                    }
+                  }
+                  if (data.length < 100) {
+                    break;
+                  }
+                  page += 1;
+                }
+              } catch (err) {
+                core.info('Could not list comments on PR #' + reviewPrNumber
+                  + ' for iteration count: ' + err.message);
+              }
+              if (priorIters >= maxIters) {
+                core.info('Auto-revise cap (' + maxIters + ') reached on PR #'
+                  + reviewPrNumber + '; applying needs-human.');
+                try {
+                  await github.rest.issues.addLabels({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    issue_number: reviewPrNumber,
+                    labels: ['needs-human'],
+                  });
+                } catch (err) {
+                  core.info('Could not apply needs-human to PR #'
+                    + reviewPrNumber + ': ' + err.message);
+                }
+                run = false;
+                ctx = {};
+              } else {
+                // Post the hidden iteration marker so the next review counts
+                // this cycle toward the cap.
+                try {
+                  await github.rest.issues.createComment({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    issue_number: reviewPrNumber,
+                    body: MARKER + '\nAuto-revise ' + (priorIters + 1)
+                      + ' of ' + maxIters
+                      + ' from a CHANGES_REQUESTED review.',
+                  });
+                } catch (err) {
+                  core.info('Could not post auto-revise marker on PR #'
+                    + reviewPrNumber + ': ' + err.message);
+                }
+              }
+            }
+
             core.setOutput('should_run', run ? 'true' : 'false');
             core.setOutput('aw_context', run ? JSON.stringify(ctx) : '');
 
@@ -827,13 +847,16 @@ jobs:
           fi
           base=$(gh api "repos/${OWNER}/${REPO}/pulls/${PR_NUMBER}" \
             --jq '.base.ref')
+          # URL-encode the base ref so a branch name containing `/` (e.g.
+          # release/2026.05) does not split the protection endpoint path.
+          base_encoded=$(printf '%s' "$base" | jq -sRr @uri)
           # Count required status checks on the base branch. The protection
           # endpoint 404s when no protection is configured; treat that as
           # "no required checks" and skip. `// length` covers both the
           # `checks` (new) and `contexts` (legacy) shapes; an absent
           # required_status_checks yields 0.
           required=$(gh api \
-            "repos/${OWNER}/${REPO}/branches/${base}/protection" \
+            "repos/${OWNER}/${REPO}/branches/${base_encoded}/protection" \
             --jq '(.required_status_checks.checks
               // .required_status_checks.contexts // []) | length' \
             2>/dev/null || echo 0)
