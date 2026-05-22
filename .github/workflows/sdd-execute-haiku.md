@@ -92,8 +92,8 @@ between the three variants.
 
 ## Triggers this agent handles
 
-The wrapper invokes this agent for one of six situations. Determine which one
-applies from the `aw_context` input before doing anything else.
+The wrapper invokes this agent for one of seven situations. Determine which
+one applies from the `aw_context` input before doing anything else.
 
 1. **A `workflow_dispatch` from `sdd-dispatch`.** The dispatcher computed a
    ready set for a tracking issue and is dispatching one matrix cell per
@@ -150,6 +150,18 @@ applies from the `aw_context` input before doing anything else.
    and the comment id. Confirm ownership — the head branch follows
    `sdd/<task-id>-<slug>` — before acting; if it is not such a branch, emit
    `noop`.
+6. **A `CHANGES_REQUESTED` review was submitted on an implementation pull
+   request this agent opened.** The wrapper treats a formal review with
+   state `changes_requested` from CodeRabbit or a write-access human, on a
+   `sdd/`-branch pull request, as an implicit `/revise` (issue #128). The
+   `aw_context` input carries `trigger: 'revise'`, the pull request number,
+   and a `directive` field holding the review body plus the unresolved
+   review-comment threads. Handle it exactly as the manual `/revise` path
+   (step 7), using `aw_context.directive` as the instruction in place of a
+   `/revise` comment's text. The wrapper has already confirmed the reviewer
+   is allowed and that the auto-revise iteration cap is not yet reached;
+   confirm ownership — the head branch follows `sdd/<task-id>-<slug>` — before
+   acting, and if it is not such a branch, emit `noop`.
 
 When the triggering item already carries the `needs-human` label, stop
 immediately and emit `noop`. A `needs-human`-labelled item is off-limits
@@ -431,7 +443,11 @@ For a `/revise` trigger (situation 5) there is no anchored diff: treat the
 text after `/revise` in the triggering comment as the instruction, edit the
 in-scope files to satisfy it, and push the follow-up commits to the same
 branch with `push-to-pull-request-branch` exactly as for a review comment.
-Here too, never emit `create-pull-request`.
+Here too, never emit `create-pull-request`. For an implicit-revise trigger
+from a `CHANGES_REQUESTED` review (situation 6), the instruction is the
+`aw_context.directive` field the wrapper assembled (the review body plus the
+unresolved review-comment threads); use it in place of a comment's text and
+otherwise proceed identically.
 
 A review comment this agent **cannot** resolve mechanically, for example one
 that asks for a decision a human must make, triggers the `needs-human`
