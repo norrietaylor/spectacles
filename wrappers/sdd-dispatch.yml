@@ -210,10 +210,30 @@ jobs:
             // itself closing is not a task closure and is ignored too.
             if (event === 'issues' && payload.action === 'closed') {
               const closedIssue = payload.issue;
+              // The `issues.closed` webhook payload does NOT populate
+              // `parent_issue_url` on the closed issue, even for a native
+              // sub-issue (GitHub omits the child->parent pointer from the
+              // event body). Seeding the walk from `payload.issue` therefore
+              // reads an empty parent_issue_url, breaks on the first hop, and
+              // the cascade never fires (issue #133). Re-fetch the closed
+              // issue via REST, which DOES populate parent_issue_url, before
+              // walking. The upward hops below already re-fetch each parent,
+              // so only this seed needs the explicit fetch.
+              let cursor = closedIssue;
+              try {
+                const { data } = await github.rest.issues.get({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: closedIssue.number,
+                });
+                cursor = data;
+              } catch (err) {
+                core.info('Could not fetch closed issue #'
+                  + closedIssue.number + ': ' + err.message);
+              }
               // The tracking issue has no parent_issue_url; a Unit has the
               // tracking issue as its parent; a task has its Unit as its
               // parent. Walk up to two hops.
-              let cursor = closedIssue;
               let walked = 0;
               while (cursor && walked < 2) {
                 const parentUrl = cursor.parent_issue_url || '';
@@ -323,12 +343,22 @@ jobs:
               && l !== 'sdd:dispatched');
             const hasNeedsHuman = labels.includes('needs-human');
 
-            // Precondition. /dispatch is valid only when the tracking issue
-            // carries sdd:ready or sdd:in-progress. A cascade fire skips
-            // this check (the tracking issue carries sdd:dispatched, which
-            // is only applied alongside sdd:in-progress). A needs-human
-            // label means the tracking issue is held for the human; defer
-            // unconditionally.
+            // Precondition. /dispatch is valid when the tracking issue
+            // carries sdd:ready, sdd:in-progress, or sdd:review. A cascade
+            // fire skips this check (the tracking issue carries
+            // sdd:dispatched, which is only applied alongside
+            // sdd:in-progress or sdd:review). A needs-human label means the
+            // tracking issue is held for the human; defer unconditionally.
+            //
+            // sdd:review is accepted because the tracker can advance there
+            // while open task sub-issues remain unstarted: sdd-execute moves
+            // the feature to sdd:review once the first layer of impl PRs is
+            // open, before later layers are even dispatched. Refusing
+            // /dispatch (and close-triggered re-dispatch) at sdd:review would
+            // wedge the cascade, leaving ready tasks unstarted (issue #134).
+            // Treat sdd:review as armed for the remaining ready tasks: arm
+            // sdd:dispatched and fan out, but leave the lifecycle label
+            // alone (sdd-execute owns the lifecycle transitions).
             let precondition = 'ok';
             let reason = '';
             if (hasNeedsHuman) {
@@ -336,19 +366,19 @@ jobs:
               reason = 'Tracking issue carries needs-human; deferring.';
             } else if (triggerKind === 'command') {
               if (lifecycle === 'sdd:ready'
-                  || lifecycle === 'sdd:in-progress') {
+                  || lifecycle === 'sdd:in-progress'
+                  || lifecycle === 'sdd:review') {
                 precondition = 'ok';
               } else if (lifecycle === 'sdd:spec'
                   || lifecycle === 'sdd:triage') {
                 precondition = 'refuse_early';
                 reason = 'Tracking issue is at `' + lifecycle
                   + '`. /dispatch is valid only on a tracking issue carrying'
-                  + ' `sdd:ready` or `sdd:in-progress`. Merge the spec and'
-                  + ' the architecture PRs, then comment `/approve` on the'
-                  + ' tracking issue to materialize the plan and reach'
-                  + ' `sdd:ready`.';
-              } else if (lifecycle === 'sdd:review'
-                  || lifecycle === 'sdd:done') {
+                  + ' `sdd:ready`, `sdd:in-progress`, or `sdd:review`. Merge'
+                  + ' the spec and the architecture PRs, then comment'
+                  + ' `/approve` on the tracking issue to materialize the'
+                  + ' plan and reach `sdd:ready`.';
+              } else if (lifecycle === 'sdd:done') {
                 precondition = 'refuse_late';
                 reason = 'Tracking issue is at `' + lifecycle
                   + '`; no further dispatch work applies.';
