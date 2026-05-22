@@ -98,22 +98,37 @@ jobs:
   # reusable workflow consumes. A non-match leaves should_run = false so the
   # agent job is skipped.
   #
-  # The job-level if: gate below is the wrapper-level command + tier filter
-  # (fixes issue #119 and the matching-tier slice of issue #114). It runs
-  # BEFORE the route job's runner is allocated, so a /dispatch comment, a
+  # The job-level if: gate below is the wrapper-level command + tier + label
+  # filter (fixes issue #119 and the matching-tier slice of issue #114). It
+  # runs BEFORE the route job's runner is allocated, so a /dispatch comment, a
   # /spec comment, or any other unrelated comment never spends a runner
-  # minute on this wrapper. The route step's own tier resolution stays as a
-  # defence-in-depth check (it covers /revise on a sdd/ PR, where the model
-  # label lives on the linked task, not the PR — too expensive to resolve at
-  # workflow-evaluation time without an API call).
+  # minute on this wrapper. The issues clause does the same for label events:
+  # the route step only routes an `issues` event on `unlabeled` `needs-human`
+  # (the step 5/6 resume), so any other label add/remove — e.g. the
+  # `sdd:ready`/`sdd:in-progress`/`sdd:dispatched` mutations a /dispatch
+  # performs on a tracking issue — is skipped here without a runner. The
+  # route step's own tier resolution stays as a defence-in-depth check (it
+  # covers /revise on a sdd/ PR, where the model label lives on the linked
+  # task, not the PR — too expensive to resolve at workflow-evaluation time
+  # without an API call).
   route:
     if: |
-      github.event_name != 'issue_comment'
+      (github.event_name != 'issue_comment' && github.event_name != 'issues')
       || (
-        startsWith(github.event.comment.body, '/execute')
-        && contains(github.event.issue.labels.*.name, 'model:opus')
+        github.event_name == 'issue_comment'
+        && (
+          (
+            startsWith(github.event.comment.body, '/execute')
+            && contains(github.event.issue.labels.*.name, 'model:opus')
+          )
+          || startsWith(github.event.comment.body, '/revise')
+        )
       )
-      || startsWith(github.event.comment.body, '/revise')
+      || (
+        github.event_name == 'issues'
+        && github.event.action == 'unlabeled'
+        && github.event.label.name == 'needs-human'
+      )
     runs-on: ubuntu-latest
     # pull-requests: read is needed for the tier gate on a /revise issue_comment
     # (situation 6): the route fetches the pull request to read its body and
