@@ -101,19 +101,29 @@ The two triggers the dispatcher handles:
 2. **A task sub-issue closed under a `sdd:dispatched` tracking issue.**
    The route job walks the closed sub-issue's parent chain (task → Unit →
    tracking issue per ADR 0005) and only proceeds when the tracking issue
-   carries `sdd:dispatched`. The same dispatcher run: recompute the ready
-   set against the new tree state (the just-closed task's dependants may
-   now be unblocked) and fan out again. On the cascade path the lifecycle
-   label is not touched; the first `/dispatch` already advanced it, and
-   the completion sweep in `sdd-execute` still owns the `sdd:done`
-   transition.
+   carries `sdd:dispatched`. The walk re-fetches the closed issue via REST
+   before walking: the `issues.closed` webhook payload does not populate
+   the closed issue's `parent_issue_url`, so seeding the walk from the
+   event body alone walks zero hops and the cascade never fires. The same
+   dispatcher run: recompute the ready set against the new tree state (the
+   just-closed task's dependants may now be unblocked) and fan out again.
+   On the cascade path the lifecycle label is not touched; the first
+   `/dispatch` already advanced it, and the completion sweep in
+   `sdd-execute` still owns the `sdd:done` transition.
 
 ## Preconditions
 
-`/dispatch` is valid only when the tracking issue carries `sdd:ready` or
-`sdd:in-progress`. Earlier states (`sdd:spec`, `sdd:triage`) get a
-one-comment refusal explaining the prerequisite; later states
-(`sdd:review`, `sdd:done`) get a noop comment. The cascade path implies
+`/dispatch` is valid when the tracking issue carries `sdd:ready`,
+`sdd:in-progress`, or `sdd:review`. Earlier states (`sdd:spec`,
+`sdd:triage`) get a one-comment refusal explaining the prerequisite; the
+terminal `sdd:done` state gets a noop comment. `sdd:review` is accepted
+because the tracker can advance there while open task sub-issues remain
+unstarted (`sdd-execute` moves the feature to `sdd:review` once the first
+layer of impl PRs opens, before later layers are dispatched); refusing
+`/dispatch` and close-triggered re-dispatch at `sdd:review` would wedge
+the cascade. At `sdd:review` the dispatcher arms `sdd:dispatched` and fans
+out the remaining ready tasks but leaves the lifecycle label alone
+(`sdd-execute` owns the lifecycle transitions). The cascade path implies
 the precondition (only a tracking issue carrying `sdd:dispatched` reaches
 the dispatcher on that path, and `sdd:dispatched` is only applied
 alongside `sdd:in-progress`), so the precondition check is skipped on a
@@ -176,9 +186,11 @@ a lifecycle label — it is the cascade marker that coexists with the
 lifecycle label, the same way `needs-human` does (see the imported
 interaction contract).
 
-On a re-`/dispatch` while `sdd:dispatched` is already present, or on a
-cascade fire, the lifecycle label is left alone. The first `/dispatch`
-already advanced it.
+On a re-`/dispatch` while `sdd:dispatched` is already present, on a
+`/dispatch` issued while the tracker carries `sdd:review`, or on a cascade
+fire, the lifecycle label is left alone. `sdd:dispatched` is still armed so
+the remaining ready tasks fan out, but only a `/dispatch` from `sdd:ready`
+moves the lifecycle label; `sdd-execute` owns every other transition.
 
 When every task sub-issue under the tracking issue is closed (the ready
 set is empty and no open task exists), the dispatcher removes
