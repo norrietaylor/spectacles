@@ -44,6 +44,14 @@ safe-outputs:
   create-pull-request:
     max: 1
     draft: false
+    # A protected file (the gh-aw default set includes pyproject.toml, setup.py,
+    # setup.cfg, manifests and lockfiles) edited by a legitimate impl task —
+    # e.g. a [project.scripts] console-script entry — would otherwise hard-fail
+    # create_pull_request and leave the task unsatisfiable (issue #142). With
+    # fallback-to-issue the branch is still pushed but a review issue is opened
+    # for a human instead of a pull request, matching the ADR 0001 needs-human
+    # hand-off rather than blocking the cascade.
+    protected-files: fallback-to-issue
   push-to-pull-request-branch:
     max: 1
   add-comment:
