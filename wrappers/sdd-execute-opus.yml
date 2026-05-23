@@ -89,8 +89,17 @@ permissions:
 # workflow evaluation here, which is the correct failure mode (the route
 # step's try/catch would silently ignore them and the run would do nothing
 # useful).
+#
+# A label-removal event (issues.unlabeled / pull_request.unlabeled) is routed
+# to its own throwaway group (github.run_id) so it never lands in a task's
+# shared per-task-per-tier group. At step 2 the agent removes its own task's
+# sdd:ready label; that self-induced issues.unlabeled event re-fires this
+# wrapper, and without the carve-out it entered the active run's group where
+# cancel-in-progress killed the running agent mid-work (issue #143). The only
+# label-removal the route step acts on is needs-human (a resume), which runs
+# when no agent is in flight, so a unique group is safe there too.
 concurrency:
-  group: sdd-execute-opus-${{ github.event.issue.number || github.event.pull_request.number || fromJSON(github.event.inputs.aw_context || '{}').item_number || github.run_id }}
+  group: sdd-execute-opus-${{ github.event.action == 'unlabeled' && github.run_id || github.event.issue.number || github.event.pull_request.number || fromJSON(github.event.inputs.aw_context || '{}').item_number || github.run_id }}
   cancel-in-progress: true
 
 jobs:
