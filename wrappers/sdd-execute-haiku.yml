@@ -98,8 +98,18 @@ permissions:
 # cancel-in-progress killed the running agent mid-work (issue #143). The only
 # label-removal the route step acts on is needs-human (a resume), which runs
 # when no agent is in flight, so a unique group is safe there too.
+#
+# An issue_comment whose body is not a recognized command (/execute or
+# /revise) is routed to its own throwaway group for the same reason.
+# gh-aw's create-pull-request fallback-to-issue posts an "Issue created:
+# #<n>" notice on the task issue via the App token (issue #142); that
+# App-authored comment re-fires this wrapper as issue_comment.created,
+# and without the carve-out it landed in the active run's per-task group
+# where cancel-in-progress killed the originating run's safe_outputs tail
+# and its auto-merge job. The route step acts only on /execute and
+# /revise comments, so a non-command comment in a unique group is safe.
 concurrency:
-  group: sdd-execute-haiku-${{ github.event.action == 'unlabeled' && github.run_id || github.event.issue.number || github.event.pull_request.number || fromJSON(github.event.inputs.aw_context || '{}').item_number || github.run_id }}
+  group: sdd-execute-haiku-${{ github.event.action == 'unlabeled' && github.run_id || (github.event_name == 'issue_comment' && !startsWith(github.event.comment.body, '/execute') && !startsWith(github.event.comment.body, '/revise')) && github.run_id || github.event.issue.number || github.event.pull_request.number || fromJSON(github.event.inputs.aw_context || '{}').item_number || github.run_id }}
   cancel-in-progress: true
 
 jobs:
