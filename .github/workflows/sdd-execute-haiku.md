@@ -44,16 +44,31 @@ safe-outputs:
   create-pull-request:
     max: 1
     draft: false
-    # A protected file (the gh-aw default set includes pyproject.toml, setup.py,
-    # setup.cfg, manifests and lockfiles) edited by a legitimate impl task —
-    # e.g. a [project.scripts] console-script entry — would otherwise hard-fail
-    # create_pull_request and leave the task unsatisfiable (issue #142). With
-    # fallback-to-issue the branch is still pushed but a review issue is opened
-    # for a human instead of a pull request, matching the ADR 0001 needs-human
-    # hand-off rather than blocking the cascade.
-    protected-files: fallback-to-issue
+    # pyproject.toml is in gh-aw's default protected set (alongside setup.py,
+    # setup.cfg, manifests and lockfiles), but an impl task legitimately needs
+    # to edit it — e.g. add a [project.scripts] console-script entry (issue
+    # #142). Exclude pyproject.toml from protection so that edit produces a
+    # normal, auto-mergeable PR and the cascade drains to sdd:done instead of
+    # stalling on a review issue. Exclusion is path-scoped (gh-aw cannot scope
+    # to a single TOML table), so any pyproject.toml edit is permitted; this
+    # matches the pipeline's trust model, which already auto-merges
+    # agent-authored src behind CodeRabbit and the required checks. The
+    # remaining protected files keep policy: fallback-to-issue — the branch is
+    # pushed and a review issue opened for a human (ADR 0001 needs-human
+    # hand-off) rather than blocking the cascade.
+    protected-files:
+      policy: fallback-to-issue
+      exclude:
+        - pyproject.toml
   push-to-pull-request-branch:
     max: 1
+    # Mirror create-pull-request: a /revise that tweaks the [project.scripts]
+    # entry (e.g. a CodeRabbit change request on the same PR) must be able to
+    # push to the pyproject.toml the PR already touched, so exclude it here too
+    # (issue #142). Other protected files keep gh-aw's default push policy.
+    protected-files:
+      exclude:
+        - pyproject.toml
   add-comment:
     max: 1
   add-labels:
