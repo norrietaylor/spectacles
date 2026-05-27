@@ -5,6 +5,12 @@
 - Amended: 2026-05-19 — the spec and architecture sub-issues now close via a
   `Closes` keyword added to their pull request by `sdd-pr-sanitize`, not via an
   `update-issue` step in `sdd-spec` / `sdd-triage` (issue #58).
+- Amended: 2026-05-27 — `sdd-dispatch` applies `sdd:done` as a fallback when
+  it observes the task tree fully drained (`openTaskCount === 0`) and the
+  last task closed without an implementation pull request merge (manual
+  close, or a cascade path where no `sdd-execute` completion sweep fired).
+  `sdd-execute`'s step 8 sweep remains the primary path on a merged
+  implementation pull request; both paths are idempotent (issue #147).
 
 ## Context
 
@@ -49,7 +55,10 @@ the Unit issue above it. The issue tree is left half-open.
    of its own, so it cannot close on a merge. `sdd-execute` closes a Unit
    sub-issue once every task sub-issue under it is closed, and moves the
    feature to `sdd:done` — handing the final close to a human (ADR 0001) — once
-   the spec, the architecture, and every Unit sub-issue is closed.
+   the spec, the architecture, and every Unit sub-issue is closed. As a
+   fallback for the manual-close path (no implementation pull request ever
+   merged), `sdd-dispatch` also applies `sdd:done` on a fully drained tree
+   (see 2026-05-27 amendment).
 
 5. **Only the Unit close uses the `update-issue` safe-output.** The spec,
    architecture, and task sub-issues close through their pull request's

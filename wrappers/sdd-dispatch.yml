@@ -977,8 +977,17 @@ jobs:
               }
             }
 
-            // Tree drained: remove sdd:dispatched. The sdd:done transition
-            // itself stays in sdd-execute's completion path (ADR 0005).
+            // Tree drained: remove sdd:dispatched and apply the terminal
+            // sdd:done state. sdd-execute's completion sweep (step 8) is
+            // the primary path for sdd:done when the last task closes via
+            // an implementation PR merge; this branch is the fallback for
+            // the drained-via-manual-close path (no impl PR ever merged,
+            // so the sweep never ran). Idempotent: GitHub tolerates
+            // re-adding an existing label, and removeLabel is wrapped in
+            // try/catch so a missing prior label is a no-op. ADR 0005 §4
+            // names sdd-execute as the agent that hands the feature to
+            // sdd:done; this fallback covers the case where no
+            // sdd-execute run ever fires (see issue #147).
             if (openTaskCount === 0) {
               try {
                 await github.rest.issues.removeLabel({
@@ -992,6 +1001,33 @@ jobs:
               } catch (err) {
                 core.info('Could not remove sdd:dispatched from #' + tracking
                   + ': ' + err.message);
+              }
+              for (const stale of ['sdd:in-progress', 'sdd:review']) {
+                try {
+                  await github.rest.issues.removeLabel({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    issue_number: tracking,
+                    name: stale,
+                  });
+                  core.info('Tree drained; removed ' + stale + ' from #'
+                    + tracking);
+                } catch (err) {
+                  core.info('Could not remove ' + stale + ' from #'
+                    + tracking + ': ' + err.message);
+                }
+              }
+              try {
+                await github.rest.issues.addLabels({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: tracking,
+                  labels: ['sdd:done'],
+                });
+                core.info('Tree drained; applied sdd:done to #' + tracking);
+              } catch (err) {
+                core.info('Could not add sdd:done to #' + tracking + ': '
+                  + err.message);
               }
               return;
             }
@@ -1066,8 +1102,10 @@ jobs:
               body = reason;
             } else if (readyCount === 0 && openTaskCount === 0) {
               body = 'Every task sub-issue is closed; `sdd:dispatched`'
-                + ' removed and the cascade disarmed. `sdd-execute` owns'
-                + ' the `sdd:done` transition.';
+                + ' removed and the cascade disarmed. `sdd:done` is'
+                + ' applied here as a fallback when no implementation PR'
+                + ' merge fired `sdd-execute`\'s completion sweep'
+                + ' (ADR 0005).';
             } else if (readyCount === 0) {
               body = 'Every open task is either blocked or already in'
                 + ' flight; the cascade remains armed. The next task close'
