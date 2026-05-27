@@ -104,6 +104,17 @@ jobs:
       vars.SDD_MONITOR == '1'
       && (github.event_name != 'pull_request'
         || startsWith(github.event.pull_request.head.ref, 'sdd/'))
+    # Serialize monitor passes for this repo. The three triggers
+    # (workflow_run, pull_request closed, schedule */10) can fire in
+    # close succession; without a concurrency group two passes can both
+    # clear the in-flight and debounce checks before either posts and
+    # then double-post `/dispatch` for the same tracker. cancel-in-
+    # progress is false because a running pass is cheap and worth
+    # finishing — the queued pass picks up any state change the running
+    # one missed.
+    concurrency:
+      group: sdd-monitor-${{ github.repository }}
+      cancel-in-progress: false
     runs-on: ubuntu-latest
     steps:
       # Mint the App installation token. The /dispatch comment posted below
@@ -132,9 +143,19 @@ jobs:
             // if execution reaches this script the monitor is enabled.
 
             const { owner, repo } = context.repo;
-            const debounceMin = parseInt(
-              process.env.SDD_MONITOR_DEBOUNCE_MIN || '5', 10);
-            const debounceMs = Math.max(1, debounceMin) * 60 * 1000;
+            // Default to 5 minutes; treat a missing, empty, or
+            // non-numeric SDD_MONITOR_DEBOUNCE_MIN as "use the default".
+            // parseInt('', 10) and parseInt('abc', 10) both return NaN,
+            // and Math.max(1, NaN) is NaN — without this guard a typo
+            // in the repo var silently disables the debounce gate
+            // (every `ageMs < NaN` is false).
+            const parsedDebounce = parseInt(
+              process.env.SDD_MONITOR_DEBOUNCE_MIN || '', 10);
+            const debounceMin =
+              Number.isFinite(parsedDebounce) && parsedDebounce > 0
+                ? parsedDebounce
+                : 5;
+            const debounceMs = debounceMin * 60 * 1000;
 
             // In-flight gate. If any sdd-execute-* run is in_progress or
             // queued in this repo, exit without dispatching. The dispatch
