@@ -76,6 +76,8 @@ jobs:
       - name: Decide whether to run, and find the tracking issue
         id: decide
         uses: actions/github-script@v9
+        env:
+          APP_ID: ${{ vars.APP_ID }}
         with:
           script: |
             const event = context.eventName;
@@ -91,6 +93,14 @@ jobs:
             // returns the actual permission level; only write, maintain, or
             // admin may run a command. /dispatch on a pull request is
             // ignored: it is a tracking-issue command only.
+            //
+            // sdd-monitor (issue #148) posts /dispatch on an armed-but-idle
+            // tracker via the App installation token. The App user is not a
+            // collaborator and would 404 the permission check, so accept the
+            // command when the comment's performed_via_github_app.id matches
+            // the configured APP_ID. Any other bot posting /dispatch is still
+            // rejected. This mirrors the App-author carve-out in
+            // sdd-execute-{tier} for /execute and /revise (ADR 0014).
             //
             // Fast-path carve-out (ADR 0012): /dispatch on a tracking
             // issue carrying any fast-path lifecycle label (sdd:fastpath,
@@ -120,22 +130,31 @@ jobs:
                     + payload.issue.number
                     + '; only a tracking issue is valid; ignoring.');
                 } else {
+                  const appId = parseInt(process.env.APP_ID || '0', 10);
+                  const appComment = payload.comment.performed_via_github_app;
+                  const fromConfiguredApp = appId > 0
+                    && appComment
+                    && appComment.id === appId;
                   const actor = payload.comment.user.login;
                   let permission = 'none';
-                  try {
-                    const resp = await github.rest.repos
-                      .getCollaboratorPermissionLevel({
-                        owner: context.repo.owner,
-                        repo: context.repo.repo,
-                        username: actor,
-                      });
-                    permission = resp.data.role_name || resp.data.permission;
-                  } catch (err) {
-                    core.info(
-                      'Could not resolve repo permission for ' + actor
-                      + ': ' + err.message);
+                  if (!fromConfiguredApp) {
+                    try {
+                      const resp = await github.rest.repos
+                        .getCollaboratorPermissionLevel({
+                          owner: context.repo.owner,
+                          repo: context.repo.repo,
+                          username: actor,
+                        });
+                      permission =
+                        resp.data.role_name || resp.data.permission;
+                    } catch (err) {
+                      core.info(
+                        'Could not resolve repo permission for ' + actor
+                        + ': ' + err.message);
+                    }
                   }
-                  const canWrite = permission === 'write'
+                  const canWrite = fromConfiguredApp
+                    || permission === 'write'
                     || permission === 'maintain' || permission === 'admin';
                   if (canWrite) {
                     // Check for the fast-path carve-out before admitting
