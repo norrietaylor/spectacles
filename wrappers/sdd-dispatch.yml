@@ -222,14 +222,21 @@ jobs:
               // when it returns null we fall back to a reverse lookup
               // across open `sdd:dispatched` trackers in the same repo.
 
-              // Resolve a parent via GraphQL. Returns { number, id, labels }
-              // for the parent, or null when the issue has no native
-              // parent or the query fails. Labels are read once here so
-              // the caller can apply the sdd:dispatched gate without a
-              // second round-trip.
+              // Resolve a parent via GraphQL. Returns an object whose
+              // `kind` discriminates the three outcomes:
+              //   { kind: 'ok', id, number, labels } — parent found
+              //   { kind: 'none' }                   — no parent (root or
+              //                                        not a sub-issue)
+              //   { kind: 'error' }                  — query failed
+              // Distinguishing `none` from `error` matters because a
+              // transient lookup error must not be classified as a clean
+              // "no parent" result — that would silently drop a valid
+              // task closure into the Unit/tracker-closure branch.
+              // Labels are read once here so the caller can apply the
+              // sdd:dispatched gate without a second round-trip.
               async function parentViaGraphql(nodeId) {
                 if (!nodeId) {
-                  return null;
+                  return { kind: 'none' };
                 }
                 try {
                   const result = await github.graphql(
@@ -246,11 +253,12 @@ jobs:
                     { id: nodeId });
                   const parent = result && result.node && result.node.parent;
                   if (!parent) {
-                    return null;
+                    return { kind: 'none' };
                   }
                   const labels = ((parent.labels && parent.labels.nodes)
                     || []).map((l) => l.name);
                   return {
+                    kind: 'ok',
                     id: parent.id,
                     number: parent.number,
                     labels,
@@ -258,28 +266,32 @@ jobs:
                 } catch (err) {
                   core.info('GraphQL parent lookup failed for node '
                     + nodeId + ': ' + err.message);
-                  return null;
+                  return { kind: 'error' };
                 }
               }
 
               // Walk Feature <- Unit <- task using GraphQL parent. Each
               // hop returns the parent node id, which seeds the next hop.
-              // Returns the tracking-issue object (or null) and the number
-              // of hops actually walked.
+              // Returns the tracking-issue object (or null), the number
+              // of hops actually walked, and `stoppedBy` indicating why
+              // the walk ended: 'limit' (reached two hops), 'none'
+              // (parentless ancestor), or 'error' (lookup failed).
               async function walkViaGraphql(seedNodeId) {
                 let nodeId = seedNodeId;
                 let parent = null;
                 let walked = 0;
+                let stoppedBy = 'limit';
                 while (nodeId && walked < 2) {
                   const next = await parentViaGraphql(nodeId);
-                  if (!next) {
+                  if (next.kind !== 'ok') {
+                    stoppedBy = next.kind;
                     break;
                   }
                   parent = next;
                   nodeId = next.id;
                   walked += 1;
                 }
-                return { tracker: parent, walked };
+                return { tracker: parent, walked, stoppedBy };
               }
 
               // Reverse lookup: scan open issues in this repo carrying
@@ -288,17 +300,53 @@ jobs:
               // by the small number of armed trackers; tolerant of races
               // because the GraphQL path is primary. Returns the tracking
               // issue object (with labels) or null.
-              async function trackerViaReverseLookup(closedNumber) {
-                let trackers = [];
-                try {
+              //
+              // Each scan paginates so a closed task beyond the first
+              // 100 trackers/Units/tasks is still discovered — mirrors
+              // the paging that `compute` already does on sub_issues.
+              async function listSubIssuesAll(parentNumber) {
+                const items = [];
+                for (let page = 1; ; page += 1) {
+                  const { data } = await github.request(
+                    'GET /repos/{owner}/{repo}/issues/{issue_number}/sub_issues',
+                    {
+                      owner: context.repo.owner,
+                      repo: context.repo.repo,
+                      issue_number: parentNumber,
+                      per_page: 100,
+                      page,
+                    });
+                  items.push(...data);
+                  if (data.length < 100) {
+                    break;
+                  }
+                }
+                return items;
+              }
+
+              async function listDispatchedTrackersAll() {
+                const items = [];
+                for (let page = 1; ; page += 1) {
                   const { data } = await github.rest.issues.listForRepo({
                     owner: context.repo.owner,
                     repo: context.repo.repo,
                     state: 'open',
                     labels: 'sdd:dispatched',
                     per_page: 100,
+                    page,
                   });
-                  trackers = data;
+                  items.push(...data);
+                  if (data.length < 100) {
+                    break;
+                  }
+                }
+                return items;
+              }
+
+              async function trackerViaReverseLookup(closedNumber) {
+                let trackers = [];
+                try {
+                  trackers = await listDispatchedTrackersAll();
                 } catch (err) {
                   core.info('Could not list sdd:dispatched trackers: '
                     + err.message);
@@ -311,15 +359,7 @@ jobs:
                   }
                   let units = [];
                   try {
-                    const { data } = await github.request(
-                      'GET /repos/{owner}/{repo}/issues/{issue_number}/sub_issues',
-                      {
-                        owner: context.repo.owner,
-                        repo: context.repo.repo,
-                        issue_number: t.number,
-                        per_page: 100,
-                      });
-                    units = data;
+                    units = await listSubIssuesAll(t.number);
                   } catch (err) {
                     core.info('Could not list sub-issues of tracker #'
                       + t.number + ': ' + err.message);
@@ -328,15 +368,7 @@ jobs:
                   for (const unit of units) {
                     let tasks = [];
                     try {
-                      const { data } = await github.request(
-                        'GET /repos/{owner}/{repo}/issues/{issue_number}/sub_issues',
-                        {
-                          owner: context.repo.owner,
-                          repo: context.repo.repo,
-                          issue_number: unit.number,
-                          per_page: 100,
-                        });
-                      tasks = data;
+                      tasks = await listSubIssuesAll(unit.number);
                     } catch (err) {
                       core.info('Could not list sub-issues of unit #'
                         + unit.number + ': ' + err.message);
@@ -359,15 +391,39 @@ jobs:
               // is not a task closure and is ignored.
               let tracker = null;
               let walked = 0;
-              const { tracker: gqlTracker, walked: gqlWalked } =
-                await walkViaGraphql(closedIssue.node_id);
+              const {
+                tracker: gqlTracker,
+                walked: gqlWalked,
+                stoppedBy: gqlStoppedBy,
+              } = await walkViaGraphql(closedIssue.node_id);
               if (gqlTracker && gqlWalked === 2) {
                 tracker = gqlTracker;
                 walked = gqlWalked;
+              } else if (gqlStoppedBy === 'error') {
+                // A hop failed transiently. Treat the tracker as still
+                // unresolved and try the reverse lookup rather than
+                // misclassifying the closure as a Unit/tracker close.
+                const reverse = await trackerViaReverseLookup(
+                  closedIssue.number);
+                if (reverse) {
+                  const reverseLabels = (reverse.labels || []).map(
+                    (l) => l.name || l);
+                  tracker = {
+                    number: reverse.number,
+                    labels: reverseLabels,
+                  };
+                  walked = 2;
+                } else {
+                  // Reverse lookup also failed to place the closure;
+                  // preserve the partial-walk depth so the diagnostic
+                  // below reflects the GraphQL result.
+                  walked = gqlWalked;
+                }
               } else if (gqlWalked > 0) {
-                // GraphQL produced a partial walk (e.g. one hop), which
-                // means the closed issue is a Unit or the tracker itself,
-                // not a task. Record the depth so the diagnostic below
+                // GraphQL produced a partial walk (e.g. one hop) and
+                // stopped at a parentless ancestor, which means the
+                // closed issue is a Unit or the tracker itself, not a
+                // task. Record the depth so the diagnostic below
                 // reflects the GraphQL result rather than implying a
                 // missing parent.
                 walked = gqlWalked;
