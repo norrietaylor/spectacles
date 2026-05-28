@@ -48,7 +48,7 @@ from the `kind:*` labels.
 | `sdd-spec` | clarifying questions remain open after one comment round; the source issue is too vague to spec at 80% confidence or higher; scope is wrong and no split is obvious |
 | `sdd-triage` | the architecture has a genuine fork with material tradeoffs; a spec requirement maps to no task; a dependency cycle is not mechanically resolvable |
 | `sdd-execute` | a proof artifact cannot be made to pass; the task needs edits to protected paths; the task is underspecified to implement at 80% confidence or higher |
-| `sdd-validate` | a blocking gate fails and the remediation is not mechanical |
+| `sdd-validate` | a blocking gate fails and the remediation is not mechanical; not for a proof artifact the agent cannot execute on a firewall/toolchain limit when a consumer required status check covers it (that case is recorded as deferred to consumer CI), but yes when no consumer gate covers the proof |
 | `sdd-review` | a critical or high finding needs a human call; spec compliance is genuinely ambiguous |
 | any agent | a merge conflict it will not resolve; retries are exhausted; self-rated confidence is below the 80% evidence-rigor threshold |
 

@@ -192,9 +192,15 @@ history, not only a greenfield one. Before and after the install, confirm:
       a registry the firewall does not allow, `sdd-execute` and `sdd-validate`
       cannot install the toolchain: the proof-artifact gate degrades to manual
       inspection of the diff instead of executed tests. The run is not blocked
-      and verification still happens, but it is narrower. Extending the
-      firewall allowlist for a stack whose registry is not covered is a known
-      limitation.
+      and verification still happens, but it is narrower. When a required
+      status check on this repository runs the same command, `sdd-validate`
+      records the proof artifact as deferred to consumer CI (an Info finding)
+      rather than applying `needs-human`, so the auto-merge cascade is not
+      stalled by the firewall limit alone; the consumer's required check
+      remains the gate. If no required check covers the proof, `sdd-validate`
+      still hands off via `needs-human` so a human closes the gap. Extending
+      the firewall allowlist for a stack whose registry is not covered is a
+      known limitation.
 - [ ] The install did not overwrite any existing workflow. The `sdd-*` and
       `distillery-sync` workflow filenames do not collide with the target
       repository's own workflows. Review the dry-run output for any unexpected
