@@ -236,7 +236,7 @@ post-steps:
       # default patch-format). Mirror generate_git_bundle.cjs:
       #   git bundle create <bundle> <base>..<branch>
       if [ -n "$AGENT_BUNDLE" ]; then
-        git bundle create "$AGENT_BUNDLE" "${base_sha}..HEAD"
+        git bundle create "$AGENT_BUNDLE" "${base_sha}..${AGENT_BRANCH}"
         echo "Rewrote ${AGENT_BUNDLE} ($(wc -c < "$AGENT_BUNDLE") bytes)"
       fi
 ---
