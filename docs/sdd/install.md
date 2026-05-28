@@ -57,6 +57,11 @@ DISTILLERY_OAUTH_TOKEN=<machine-token> \
   already carries the same title — the deterministic backstop for the
   prose-only "emit each task at most once" rule in `sdd-triage` phase C
   (ADR 0008);
+- the `sdd-triage-promote-ready` utility workflow, which applies `sdd:ready`
+  to a phase-C task sub-issue when its last open `blocked by` dependency
+  closes: a task born with a `blocked by` link starts without `sdd:ready`,
+  and nothing else in the pipeline promotes it once its blockers clear
+  (ADR 0009);
 - the `sdd-monitor` utility workflow, the dispatch-cascade backstop
   (issue #148 Tier 1): on a `*/10` cron plus `sdd-execute-*` completion and
   `sdd/` pull-request close, it nudges an armed-but-idle `sdd:dispatched`
