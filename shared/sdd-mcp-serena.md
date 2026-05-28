@@ -93,11 +93,15 @@ pre-agent-steps:
       # non-executable placeholder makes Serena's `--version` probe fail and
       # fall back to text-level reading.
       [ -e "$dest" ] || : > "$dest"
-      # Gate on the consumer's Serena language-server set. Match a whole token
-      # so a hypothetical `rust-analyzer-foo` does not satisfy the gate.
+      # Gate on the consumer's Serena language-server set. The installer sets a
+      # single token today (scripts/quick-setup.sh), but normalize commas and
+      # spaces to a common delimiter so a future comma- or space-separated list
+      # still matches, and match a whole token so `rust-analyzer-foo` does not
+      # satisfy the gate.
       servers="${SERENA_LANGUAGE_SERVERS:-}"
-      case ",${servers// /},"  in
-        *,rust-analyzer,*) ;;
+      normalized="${servers//,/ }"
+      case " ${normalized} " in
+        *" rust-analyzer "*) ;;
         *)
           echo "SERENA_LANGUAGE_SERVERS does not name rust-analyzer; leaving placeholder."
           echo "  SERENA_LANGUAGE_SERVERS='${servers}'"
