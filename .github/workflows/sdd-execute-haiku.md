@@ -223,15 +223,20 @@ post-steps:
         exit 0
       fi
       # Resolve each touched dir to its workspace root so fmt/clippy run once
-      # per workspace, not once per touched member. `cargo locate-project
-      # --workspace` prints the workspace-root Cargo.toml; its dir is the
-      # invocation point. Skip dirs cargo can't resolve (e.g. a deleted crate).
+      # per workspace, not once per touched member. Run `cargo locate-project
+      # --workspace` from inside each touched dir: cargo's default discovery
+      # walks up to the enclosing Cargo.toml and `--workspace` resolves it to
+      # the workspace-root Cargo.toml; its dir is the invocation point. (The
+      # `--manifest-path "$dir/Cargo.toml"` form would require that exact file
+      # to exist, which it doesn't for a *.rs-derived dir like crates/foo/src.)
+      # Skip dirs cargo can't resolve (e.g. a path outside any cargo project).
       declare -A seen_roots=()
       ws_roots=()
       for dir in "${touched_dirs[@]}"; do
         [ -d "$dir" ] || continue
-        root_manifest="$(cargo locate-project --workspace --message-format plain \
-                          --manifest-path "$dir/Cargo.toml" 2>/dev/null || true)"
+        root_manifest="$(
+          cd "$dir" && cargo locate-project --workspace --message-format plain 2>/dev/null
+        )" || true
         [ -n "$root_manifest" ] || continue
         root_dir="$(dirname "$root_manifest")"
         if [ -z "${seen_roots[$root_dir]:-}" ]; then
