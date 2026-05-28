@@ -82,27 +82,33 @@ safe-outputs:
     target: "*"
     max: 1
   noop:
-# Host-side Cargo.lock refresh, post-agent, pre-PR. The agent edits Cargo.toml
-# from inside the firewalled container (no Rust toolchain) so the safe-output
-# patch carries the manifest change with a stale Cargo.lock. Any consumer CI
-# that runs `cargo fetch --locked` rejects the PR (first seen on
-# gominimal/minspec-test#20). These post-steps run on the host runner (outside
-# the firewall sandbox, per gh-aw's post-steps contract), detect a Cargo.toml
-# edit in the agent's patch, install the Rust toolchain on the host, run
-# `cargo update --workspace`, amend the agent's last commit with the refreshed
-# Cargo.lock, and re-emit the patch + bundle transport files that the
-# safe_outputs job replays. The toolchain step is gated on the patch actually
-# touching a Cargo.toml — no install on doc-only or non-Rust task runs. The
-# amend lands inside the agent's existing commit, so gh-aw's signed-commit
-# push (ADR 0004) re-attributes the lock refresh to the App identity at
-# PR-create time. The block is duplicated across the three sdd-execute tier
-# sources (haiku, sonnet, opus) because a new `shared/` fragment cannot be
-# referenced from `@main` in the same PR that introduces it (gh-aw fetches
-# imports from GitHub at the pinned ref, never from the local working tree —
-# precedent: `6e8035e`). A follow-up can extract to `shared/sdd-cargo-lock-
-# refresh.md` once this fragment lands on main.
+# Host-side Rust cleanup, post-agent, pre-PR. The agent edits Rust from inside
+# the firewalled container (no crates.io egress, no Rust toolchain) so it cannot
+# run `cargo fmt`/`clippy`/`update` to self-verify; the safe-output patch carries
+# rustfmt-dirty, clippy-dirty code and a stale Cargo.lock. Any consumer CI that
+# runs `cargo fetch --locked`, `fmt --check`, or `clippy -D warnings` rejects the
+# PR (first seen on gominimal/minspec-test#20, #26). These post-steps run on the
+# host runner (outside the firewall sandbox, per gh-aw's post-steps contract),
+# detect a Rust edit (*.rs or Cargo.toml) in the agent's patch, install the Rust
+# toolchain (with rustfmt + clippy components) on the host, then in a single
+# refresh: run `cargo update --workspace` (when a Cargo.toml changed),
+# `cargo fmt --all`, and `cargo clippy --fix` (machine-applicable lints only),
+# amend the agent's last commit with whatever changed, and re-emit the patch +
+# bundle transport files that the safe_outputs job replays. The toolchain step
+# is gated on the patch actually touching Rust — no install on doc-only or
+# non-Rust task runs. The amend lands inside the agent's existing commit, so
+# gh-aw's signed-commit push (ADR 0004) re-attributes the cleanup to the App
+# identity at PR-create time. Genuine compile errors and non-machine-applicable
+# lints are NOT masked: this only applies `--fix`-safe changes (issue #158).
+# Dead-code suppression is out of scope (#158 non-goal) — `clippy --fix` never
+# adds `#[allow(dead_code)]` or gates a module. The block is duplicated across
+# the three sdd-execute tier sources (haiku, sonnet, opus) because a new
+# `shared/` fragment cannot be referenced from `@main` in the same PR that
+# introduces it (gh-aw fetches imports from GitHub at the pinned ref, never from
+# the local working tree — precedent: `6e8035e`). A follow-up can extract to
+# `shared/sdd-rust-cleanup.md` once this fragment lands on main.
 post-steps:
-  - name: Detect Cargo.toml edits in the agent's patch
+  - name: Detect Rust edits in the agent's patch
     id: cargo_detect
     shell: bash
     run: |
@@ -110,25 +116,32 @@ post-steps:
       tmpdir=/tmp/gh-aw
       # Scan every aw-*.patch (a run may emit a create_pull_request and a
       # push_to_pull_request_branch in the same job; pick the patch that
-      # actually touches a Cargo.toml). The trailing-boundary on the regex
-      # avoids substring matches like `Cargo.toml.bak`.
+      # touches Rust — *.rs or Cargo.toml). The trailing-boundary on the
+      # regex avoids substring matches like `Cargo.toml.bak`; a `.rs` edit
+      # gates fmt/clippy even when no manifest changed. `cargo_toml` records
+      # whether a manifest changed so the refresh step runs `cargo update`
+      # (lock refresh) only then.
       shopt -s nullglob
       matched_patch=""
       matched_count=0
+      cargo_toml=false
       for f in "${tmpdir}/aw-"*.patch; do
-        if grep -qE '^diff --git .*Cargo\.toml([[:space:]]|$)' "$f"; then
+        if grep -qE '^diff --git .*(\.rs|Cargo\.toml)([[:space:]]|$)' "$f"; then
           matched_patch="$f"
           matched_count=$((matched_count + 1))
+          if grep -qE '^diff --git .*Cargo\.toml([[:space:]]|$)' "$f"; then
+            cargo_toml=true
+          fi
         fi
       done
       shopt -u nullglob
       if [ "$matched_count" -eq 0 ]; then
-        echo "No agent patch touches Cargo.toml; cargo lock refresh is a no-op."
+        echo "No agent patch touches Rust; cargo cleanup is a no-op."
         echo "changed=false" >> "$GITHUB_OUTPUT"
         exit 0
       fi
       if [ "$matched_count" -gt 1 ]; then
-        echo "::error::Multiple aw-*.patch files touch Cargo.toml; refusing to guess which to refresh."
+        echo "::error::Multiple aw-*.patch files touch Rust; refusing to guess which to clean up."
         exit 1
       fi
       patch_file="$matched_patch"
@@ -139,7 +152,7 @@ post-steps:
       # so HEAD names the real ref the patch came from.
       branch=$(git rev-parse --abbrev-ref HEAD)
       if [ "$branch" = "HEAD" ]; then
-        echo "Detached HEAD at post-step time; skipping cargo lock refresh."
+        echo "Detached HEAD at post-step time; skipping cargo cleanup."
         echo "changed=false" >> "$GITHUB_OUTPUT"
         exit 0
       fi
@@ -148,9 +161,10 @@ post-steps:
       bundle_stem=$(basename "$patch_file" .patch)
       bundle_file="${tmpdir}/${bundle_stem}.bundle"
       [ -f "$bundle_file" ] || bundle_file=""
-      echo "Agent patch ${patch_file} touches Cargo.toml; will refresh Cargo.lock."
+      echo "Agent patch ${patch_file} touches Rust (cargo_toml=${cargo_toml}); will run cargo cleanup."
       {
         echo "changed=true"
+        echo "cargo_toml=${cargo_toml}"
         echo "patch_file=${patch_file}"
         echo "bundle_file=${bundle_file}"
         echo "branch=${branch}"
@@ -160,13 +174,15 @@ post-steps:
     uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
     with:
       toolchain: stable
-  - name: Refresh Cargo.lock and rewrite agent patch
+      components: rustfmt, clippy
+  - name: Refresh Cargo.lock, format, and lint-fix the agent patch
     if: steps.cargo_detect.outputs.changed == 'true'
     shell: bash
     env:
       AGENT_BRANCH: ${{ steps.cargo_detect.outputs.branch }}
       AGENT_PATCH: ${{ steps.cargo_detect.outputs.patch_file }}
       AGENT_BUNDLE: ${{ steps.cargo_detect.outputs.bundle_file }}
+      CARGO_TOML_CHANGED: ${{ steps.cargo_detect.outputs.cargo_toml }}
     run: |
       set -euo pipefail
       # Pick the base ref the patch was generated against. Mirror the
@@ -189,43 +205,97 @@ post-steps:
       echo "Base ref: ${base_ref} (sha=${base_sha})"
       echo "Agent branch: ${AGENT_BRANCH}"
       git checkout "$AGENT_BRANCH"
-      # Enumerate every Cargo.toml the agent touched. Each one's directory
-      # is a cargo invocation point: in a workspace the cargo command walks
-      # up to find the workspace root, so running it from any member works.
-      # The empty-string-to-"." mapping covers a root Cargo.toml whose
-      # diff entry has no directory prefix.
-      mapfile -t manifest_dirs < <(
+      # Enumerate the directories the agent touched that are cargo invocation
+      # points: every changed Cargo.toml's dir, plus every changed *.rs file's
+      # dir. cargo walks up to find the workspace root, so running it from any
+      # member works. The empty-string-to-"." mapping covers a root-level path
+      # whose diff entry has no directory prefix.
+      mapfile -t touched_dirs < <(
         git diff --name-only "${base_sha}..HEAD" \
-          | awk '/Cargo\.toml$/ { sub(/\/?Cargo\.toml$/, ""); print ($0=="" ? "." : $0) }' \
+          | awk '
+              /Cargo\.toml$/ { sub(/\/?Cargo\.toml$/, ""); print ($0=="" ? "." : $0) }
+              /\.rs$/         { sub(/\/?[^\/]+\.rs$/, ""); print ($0=="" ? "." : $0) }
+            ' \
           | sort -u
       )
-      if [ "${#manifest_dirs[@]}" -eq 0 ]; then
-        echo "No Cargo.toml in the diff after recheck; skipping cargo update."
+      if [ "${#touched_dirs[@]}" -eq 0 ]; then
+        echo "No Rust paths in the diff after recheck; skipping cargo cleanup."
         exit 0
       fi
-      echo "Cargo manifest directories to refresh:"
-      printf '  %s\n' "${manifest_dirs[@]}"
-      for dir in "${manifest_dirs[@]}"; do
-        ( cd "$dir" && cargo update --workspace )
+      # Resolve each touched dir to its workspace root so fmt/clippy run once
+      # per workspace, not once per touched member. Run `cargo locate-project
+      # --workspace` from inside each touched dir: cargo's default discovery
+      # walks up to the enclosing Cargo.toml and `--workspace` resolves it to
+      # the workspace-root Cargo.toml; its dir is the invocation point. (The
+      # `--manifest-path "$dir/Cargo.toml"` form would require that exact file
+      # to exist, which it doesn't for a *.rs-derived dir like crates/foo/src.)
+      # Skip dirs cargo can't resolve (e.g. a path outside any cargo project).
+      declare -A seen_roots=()
+      ws_roots=()
+      for dir in "${touched_dirs[@]}"; do
+        [ -d "$dir" ] || continue
+        root_manifest="$(
+          cd "$dir" && cargo locate-project --workspace --message-format plain 2>/dev/null
+        )" || true
+        [ -n "$root_manifest" ] || continue
+        root_dir="$(dirname "$root_manifest")"
+        if [ -z "${seen_roots[$root_dir]:-}" ]; then
+          seen_roots[$root_dir]=1
+          ws_roots+=("$root_dir")
+        fi
       done
-      # cargo update --workspace writes the workspace-root Cargo.lock,
-      # which often sits above the touched member crate (so `$dir/Cargo.lock`
-      # would miss it). Collect every Cargo.lock the cargo invocations
-      # changed across the working tree and stage them.
-      mapfile -t changed_locks < <(
-        git diff --name-only -- ':(glob)**/Cargo.lock' 'Cargo.lock' | sort -u
-      )
-      if [ "${#changed_locks[@]}" -eq 0 ]; then
-        echo "cargo update produced no Cargo.lock change; nothing to amend."
+      if [ "${#ws_roots[@]}" -eq 0 ]; then
+        echo "No resolvable cargo workspace from the touched dirs; skipping cleanup."
         exit 0
       fi
-      echo "Cargo.lock files to stage:"
-      printf '  %s\n' "${changed_locks[@]}"
-      git add -- "${changed_locks[@]}"
-      # Amend the agent's last commit so the refreshed locks travel with
-      # the manifest change. gh-aw's signed-commit push (ADR 0004)
-      # re-attributes the resulting commit to the App identity at PR-create
-      # time, so the lock refresh inherits agent-authored attribution.
+      echo "Cargo workspace roots to clean up:"
+      printf '  %s\n' "${ws_roots[@]}"
+      # Refresh the lockfile first (only when a manifest changed): a stale
+      # Cargo.lock breaks `cargo fetch --locked` (#153). Run cargo update from
+      # each touched manifest dir so workspace-root locks above a member crate
+      # are caught too.
+      if [ "$CARGO_TOML_CHANGED" = "true" ]; then
+        mapfile -t manifest_dirs < <(
+          git diff --name-only "${base_sha}..HEAD" \
+            | awk '/Cargo\.toml$/ { sub(/\/?Cargo\.toml$/, ""); print ($0=="" ? "." : $0) }' \
+            | sort -u
+        )
+        for dir in "${manifest_dirs[@]}"; do
+          [ -d "$dir" ] || continue
+          ( cd "$dir" && cargo update --workspace )
+        done
+      fi
+      # Format and apply machine-applicable clippy fixes per workspace. fmt
+      # rewrites whitespace/layout; `clippy --fix` rewrites only lints rustc
+      # marks machine-applicable (collapsible_if, redundant clones, etc.).
+      # Both operate on the whole workspace (`--all` / `--workspace`), so one
+      # run per root covers every member. Both are best-effort: a genuine
+      # compile error (or code rustfmt cannot parse) makes the tool exit
+      # non-zero, but it leaves the source untouched (no false "fixed"), so the
+      # dirty code still surfaces for the consumer CI / human rather than being
+      # masked (#158). A tool failure must not abort the post-step — that would
+      # block PR creation and lose the agent's work — so each is guarded.
+      for root in "${ws_roots[@]}"; do
+        ( cd "$root" && cargo fmt --all ) || \
+          echo "::warning::cargo fmt --all in ${root} exited non-zero (likely unparseable source); leaving formatting for consumer CI."
+        ( cd "$root" && cargo clippy --fix --allow-dirty --allow-staged \
+            --workspace --all-targets ) || \
+          echo "::warning::cargo clippy --fix in ${root} exited non-zero (likely a non-machine-applicable lint or compile error); leaving those for consumer CI."
+      done
+      # Collect every tracked file the cleanup changed (refreshed locks,
+      # reformatted sources/manifests, clippy-fixed sources) and stage them.
+      mapfile -t changed_files < <( git diff --name-only | sort -u )
+      if [ "${#changed_files[@]}" -eq 0 ]; then
+        echo "cargo cleanup produced no change; nothing to amend."
+        exit 0
+      fi
+      echo "Files to stage:"
+      printf '  %s\n' "${changed_files[@]}"
+      git add -- "${changed_files[@]}"
+      # Amend the agent's last commit so the cleanup travels with the agent's
+      # change. gh-aw's signed-commit push (ADR 0004) re-attributes the
+      # resulting commit to the App identity at PR-create time, so the cleanup
+      # inherits agent-authored attribution.
       git commit --amend --no-edit
       # Regenerate the format-patch transport so the safe_outputs job
       # replays the amended history. Match gh-aw's generate_git_patch.cjs:
