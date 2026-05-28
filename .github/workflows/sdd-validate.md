@@ -215,10 +215,12 @@ limitation as a proof-artifact failure. Follow the proof-artifacts gate in the
 imported validation-gates fragment: if a required status check on the consumer
 repository runs the same command, record the gate as **deferred to consumer
 CI** and file an Info finding (no hand-off, the cascade proceeds); only when no
-consumer gate covers the proof is the unverified proof a Blocker. Read the
-consumer's required checks from the base branch's `required_status_checks`
-contexts and the check runs reported on the pull request head. A
-`needs-human` for the firewall limit alone stalls the auto-merge cascade even
+consumer gate covers the proof is the unverified proof a Blocker. Identify the
+covering check from the check runs and commit statuses on the pull request head
+SHA (readable with `pull-requests: read`), corroborating against the base
+branch's `required_status_checks` contexts only when that branch-protection
+read is available. A `needs-human` for the firewall limit alone stalls the
+auto-merge cascade even
 though the consumer's own CI is running the identical tests; reserve
 `needs-human` for a genuine validation failure or a proof no gate covers.
 

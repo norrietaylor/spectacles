@@ -149,13 +149,18 @@ spec file and not an architecture or decisions file.
        covering gate would let a PR pass whose declared proof was never
        satisfied, which this gate must never allow.
 
-   Read the consumer's required status checks from the pull request's branch
-   protection (the `required_status_checks` contexts on the base branch) and
-   from the check runs already reported on the head SHA; match a check to a
-   proof artifact by the command it runs as named in the task and in
-   `CLAUDE.md`. When the match is uncertain, apply the 80% confidence floor:
-   below it, treat the proof as uncovered and hand off rather than silently
-   deferring.
+   Identify a covering check from the check runs and commit statuses reported
+   on the pull request head SHA — the signal this agent can read with
+   `pull-requests: read` — and corroborate against the base branch's
+   `required_status_checks` contexts when that branch-protection read is
+   available (it may not be on a least-privilege token; treat it as
+   best-effort, not a prerequisite). A covering check is one that is required
+   on the base branch (or, when branch protection is unreadable, one whose name
+   maps to the proof's command as documented in `CLAUDE.md`) and is reported
+   green on the head SHA. Match a check to a proof artifact by the command it
+   runs as named in the task and in `CLAUDE.md`. When the match is uncertain,
+   apply the 80% confidence floor: below it, treat the proof as uncovered and
+   hand off rather than silently deferring.
 2. **Changed files within task scope.** Every file the pull request changes is
    within the files-in-scope block of the task it closes. A change outside that
    scope is a Warning; a change to a protected path (`.github/`, `decisions/`,
