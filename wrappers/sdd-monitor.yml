@@ -406,49 +406,70 @@ jobs:
               }
             }
 
-            // walkToTracker: walk parent_issue_url up to two hops from a
-            // task sub-issue to its tracking issue. Returns the tracker
-            // issue number, or 0 if the walk does not resolve. Mirrors
-            // the seed-fetch pattern in sdd-dispatch (issue #133): the
-            // initial issue is re-fetched so parent_issue_url is
-            // populated even when called from a context that has only
-            // the issue number.
+            // walkToTracker: walk a task sub-issue up to its tracking
+            // issue (task -> Unit -> tracker, two hops per ADR 0005).
+            // Returns the tracker issue number, or 0 if the walk does not
+            // resolve to a two-hop root.
+            //
+            // The parent link is read via GraphQL `Issue.parent`, NOT via
+            // the REST `parent_issue_url` field. REST does not populate
+            // the child->parent pointer for native sub-issues reliably:
+            // the field comes back empty on the close webhook and on an
+            // immediate REST re-fetch (issue #133, the cascade-stall
+            // repro on this issue). sdd-dispatch's own route job switched
+            // to GraphQL for exactly this reason; the monitor mirrors it
+            // so the in-flight PR-rollup guard does not silently misfire
+            // (an unresolved walk would return 0, the PR would look like
+            // it rolls up to no tracker, and the monitor would nudge a
+            // tracker whose layer is in fact in flight).
+            async function parentNumberViaGraphql(nodeId) {
+              if (!nodeId) { return null; }
+              try {
+                const result = await github.graphql(
+                  'query($id: ID!) {' +
+                  '  node(id: $id) {' +
+                  '    ... on Issue { parent { id number } }' +
+                  '  }' +
+                  '}',
+                  { id: nodeId });
+                const parent = result && result.node && result.node.parent;
+                return parent || null;
+              } catch (err) {
+                core.info(
+                  'walkToTracker: GraphQL parent lookup failed for node '
+                  + nodeId + ': ' + err.message);
+                return null;
+              }
+            }
+
             async function walkToTracker(ghCli, ownerArg, repoArg, taskNum) {
-              let cursor;
+              // Seed the GraphQL walk from the task issue's node id.
+              let nodeId;
               try {
                 const { data } = await ghCli.rest.issues.get({
                   owner: ownerArg, repo: repoArg, issue_number: taskNum,
                 });
-                cursor = data;
+                nodeId = data.node_id;
               } catch (err) {
                 core.info(
                   'walkToTracker: could not seed from #' + taskNum + ': '
                   + err.message);
                 return 0;
               }
+              let parent = null;
               let walked = 0;
-              while (cursor && walked < 2) {
-                const parentUrl = cursor.parent_issue_url || '';
-                if (!parentUrl) { break; }
-                const m = parentUrl.match(/\/issues\/(\d+)$/);
-                if (!m) { break; }
-                const parentNumber = parseInt(m[1], 10);
-                try {
-                  const { data } = await ghCli.rest.issues.get({
-                    owner: ownerArg, repo: repoArg,
-                    issue_number: parentNumber,
-                  });
-                  cursor = data;
-                  walked += 1;
-                } catch (err) {
-                  core.info(
-                    'walkToTracker: could not fetch parent #' + parentNumber
-                    + ': ' + err.message);
-                  return 0;
-                }
+              while (nodeId && walked < 2) {
+                const next = await parentNumberViaGraphql(nodeId);
+                if (!next) { break; }
+                parent = next;
+                nodeId = next.id;
+                walked += 1;
               }
-              if (cursor && !cursor.parent_issue_url && walked === 2) {
-                return cursor.number;
+              // A task closure is exactly two hops below a tracking issue.
+              // A shorter walk means the seed was a Unit or the tracker
+              // itself, not a task — not a tracker match for this guard.
+              if (parent && walked === 2) {
+                return parent.number;
               }
               return 0;
             }
