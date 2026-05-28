@@ -206,6 +206,22 @@ Apply each gate as one checkable property. Apply the 80% confidence floor from
 the imported evidence-rigor standard before filing any finding: an uncertain
 pattern is a note, not a Blocker.
 
+When a proof artifact cannot be re-executed because of an infrastructure limit
+— this agent runs inside the same firewalled gh-aw container as the other
+agents, with no toolchain for the consumer's language and no egress to its
+package registry, so a command such as `cargo test` fails on a registry
+403/CONNECT-tunnel error before exercising the change — do not treat the
+limitation as a proof-artifact failure. Follow the proof-artifacts gate in the
+imported validation-gates fragment: if a required status check on the consumer
+repository runs the same command, record the gate as **deferred to consumer
+CI** and file an Info finding (no hand-off, the cascade proceeds); only when no
+consumer gate covers the proof is the unverified proof a Blocker. Read the
+consumer's required checks from the base branch's `required_status_checks`
+contexts and the check runs reported on the pull request head. A
+`needs-human` for the firewall limit alone stalls the auto-merge cascade even
+though the consumer's own CI is running the identical tests; reserve
+`needs-human` for a genuine validation failure or a proof no gate covers.
+
 ### 4. Post the findings as a single comment
 
 Post exactly one comment, via the `add-comment` safe-output, on the triggering
@@ -234,6 +250,15 @@ architecture, or implementation boundary; the tracking issue for the triage
 boundary — and make sure the findings comment names the failed gate and its
 citing evidence. This is the `needs-human` hand-off from the imported
 interaction contract and ADR 0001.
+
+A proof artifact recorded as **deferred to consumer CI** is an Info finding,
+not a Blocker: it does not apply `needs-human` and does not stall the cascade.
+Apply `needs-human` only for a genuine validation failure (a proof artifact
+that ran and failed, or any other Blocker) or for a proof artifact blocked by
+an infrastructure limit that **no** consumer required status check covers — in
+the latter case the proof is verified by no gate and a human must close the
+gap. Do not apply `needs-human` for an infrastructure limit that a consumer
+required check already covers.
 
 A Blocker on a pull request is resumed when the human clears `needs-human` and
 pushes a fix commit: the `pull_request: synchronize` event re-runs this agent
