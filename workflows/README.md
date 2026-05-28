@@ -92,10 +92,10 @@ reusable workflow fronted by a thin wrapper.
 
 `scripts/quick-setup.sh --suite sdd` writes, under the consumer repository's
 `.github/workflows/`, the eight thin wrappers listed in the table above and
-the `sdd-pr-sanitize` and `sdd-triage-dedupe-tasks` utility workflows — and
-nothing else under that directory. No `.lock.yml`, no agent `.md` source, and
-no `.github/aw/imports/` tree is copied: the locks are hosted, and they are
-self-contained.
+the `sdd-pr-sanitize`, `sdd-triage-dedupe-tasks`, `sdd-triage-promote-ready`,
+and `sdd-monitor` utility workflows — and nothing else under that directory.
+No `.lock.yml`, no agent `.md` source, and no `.github/aw/imports/` tree is
+copied: the locks are hosted, and they are self-contained.
 
 `sdd-pr-sanitize` is not an agent wrapper: it is a plain workflow that corrects
 the issue references in every `spec/*` and `arch/*` pull request body. It
@@ -104,12 +104,22 @@ merge cannot auto-close the feature tracking issue, and it adds
 `Closes #<sub-issue>` for the deliverable spec or architecture sub-issue so the
 merge closes it (ADR 0005, ADR 0006).
 
-`sdd-triage-dedupe-tasks` is the other utility workflow. It runs on every
+`sdd-triage-dedupe-tasks` is another utility workflow. It runs on every
 issue opened in the consumer repository and closes a phase-C task sub-issue
 as a duplicate when an earlier-numbered sibling under the same Unit already
 carries the same title — the deterministic backstop for `sdd-triage` phase C
 emitting two `create-issue` safe-outputs for the same single-session task
 (ADR 0008).
+
+`sdd-monitor` is the dispatch-cascade backstop (issue #148 Tier 1). It runs
+on a `*/10` cron plus `sdd-execute-*` run completion and `sdd/` pull-request
+close, and nudges an armed-but-idle `sdd:dispatched` tracker with one
+`/dispatch` comment when the close-driven cascade stalls — the failure the
+cascade-stall repro on issue #148 demonstrates, where a post-close REST
+re-fetch returned an empty `parent_issue_url` and the walk broke at zero
+hops. It is disabled by default behind the `SDD_MONITOR` repository
+variable; a consumer that has not opted in carries the wrapper but pays no
+cost. See `docs/sdd/sdd-monitor.md`.
 
 The installer also syncs the `sdd:*` and `model:*` labels and installs the
 issue templates. `--ref <ref>` pins the `uses:` lines in the installed

@@ -482,6 +482,14 @@ jobs:
           standard. A Blocker finding triggers the `needs-human` hand-off; it never fails
           the workflow.
           
+          A gate the agent cannot execute because of an infrastructure limit (a
+          firewalled network or a toolchain the agent's container does not carry) is not
+          a Blocker on that basis alone. When a required status check on the consumer
+          repository covers the same property, the gate is recorded as deferred to
+          consumer CI (an Info finding) and the cascade proceeds; `needs-human` is
+          reserved for a genuine validation failure or a proof that no gate covers. See
+          the implementation gates for the proof-artifact case.
+          
           ## Severity
           
           - **Blocker.** The artifact has a defect that a human must resolve before the
@@ -582,8 +590,47 @@ jobs:
           spec file and not an architecture or decisions file.
           
           1. **Proof artifacts re-executed and passing.** Each proof artifact named in
-             the task is re-run and observed to pass. A proof artifact that fails on
-             re-execution, or that cannot be re-executed, is a Blocker.
+             the task is re-run and observed to pass. Distinguish two failure modes
+             before assigning a severity:
+             - A proof artifact that **fails on re-execution** — the test ran and
+               reported a failure, the CLI ran and returned the wrong output or a
+               non-zero exit unrelated to the environment, the URL returned the wrong
+               response, the browser assertion did not hold, or the file assertion was
+               not satisfied — is a genuine validation failure and is a **Blocker**.
+             - A proof artifact that **cannot be executed because of an infrastructure
+               limit** — the agent runs inside gh-aw's network-restricted firewall with
+               no toolchain for the consumer's language and no egress to its package
+               registry, so the command fails before exercising the change (a package
+               registry 403/CONNECT-tunnel error, "command not found" for an
+               uninstalled toolchain, a missing-dependency fetch error) — is **not** a
+               Blocker. It is an infrastructure limit, not a code defect, and must not
+               trigger `needs-human` on its own. Resolve it as follows:
+               - If a **required status check on the consumer repository** runs the same
+                 command (or a superset that exercises the same proof — e.g. the
+                 consumer's CI runs `cargo test` / `just verify` covering the named
+                 test), record the gate as **deferred to consumer CI** and file an
+                 **Info** finding naming the proof artifact, the infrastructure error
+                 observed, and the consumer check that covers it. The cascade proceeds;
+                 the consumer's required check remains the gate.
+               - If **no consumer gate covers the proof artifact**, the proof is
+                 satisfied by no gate — neither agent re-execution nor consumer CI. That
+                 is a **Blocker**: file the finding and hand off via `needs-human` so a
+                 human verifies the proof or adds a covering check. Degrading without a
+                 covering gate would let a PR pass whose declared proof was never
+                 satisfied, which this gate must never allow.
+          
+             Identify a covering check from the check runs and commit statuses reported
+             on the pull request head SHA — the signal this agent can read with
+             `pull-requests: read` — and corroborate against the base branch's
+             `required_status_checks` contexts when that branch-protection read is
+             available (it may not be on a least-privilege token; treat it as
+             best-effort, not a prerequisite). A covering check is one that is required
+             on the base branch (or, when branch protection is unreadable, one whose name
+             maps to the proof's command as documented in `CLAUDE.md`) and is reported
+             green on the head SHA. Match a check to a proof artifact by the command it
+             runs as named in the task and in `CLAUDE.md`. When the match is uncertain,
+             apply the 80% confidence floor: below it, treat the proof as uncovered and
+             hand off rather than silently deferring.
           2. **Changed files within task scope.** Every file the pull request changes is
              within the files-in-scope block of the task it closes. A change outside that
              scope is a Warning; a change to a protected path (`.github/`, `decisions/`,
@@ -599,6 +646,11 @@ jobs:
             boundary before applying a gate set.
           - Each gate set names the artifact it applies to and the boundary that selects
             it.
+          - The proof-artifacts gate distinguishes a genuine re-execution failure
+            (Blocker, `needs-human`) from an infrastructure limit that blocks execution.
+            An infrastructure limit covered by a consumer required status check is
+            recorded as deferred to consumer CI (Info, no hand-off); an infrastructure
+            limit covered by no gate is a Blocker.
           
           # sdd-validate
           
