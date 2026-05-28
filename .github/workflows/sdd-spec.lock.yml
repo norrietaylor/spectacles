@@ -666,6 +666,36 @@ jobs:
           agent's precision; it never blocks the run and never triggers `needs-human` on
           its own.
           
+          ### rust-analyzer for Rust consumers
+          
+          The Serena MCP image ships no Rust language server, and it cannot install one
+          inside the agent: `cargo install rust-analyzer` reaches crates.io, which the
+          agent firewall blocks (and which stays blocked — keeping the toolchain off the
+          agent's network surface, consistent with the host-side Rust steps the execute
+          agent already runs). Without rust-analyzer, Serena degrades to text-level
+          reading on a Rust repository, losing the symbol-level precision that makes the
+          suite effective on a substantial codebase (issue #159).
+          
+          The `Provision rust-analyzer for Serena` pre-agent host step restores it
+          without widening the agent firewall. It runs on the runner — before the
+          firewalled agent and before the Serena container starts — and downloads the
+          pinned rust-analyzer release binary from GitHub's release host (reachable from
+          the runner's unrestricted network). It verifies the asset's SHA-256 before
+          decompressing, then lands the binary at `/tmp/gh-aw/serena/rust-analyzer` on
+          the host. The single-file bind mount declared above maps that host path to
+          `/usr/local/bin/rust-analyzer` inside the Serena container, which is the third
+          entry in Serena's Unix language-server search (system locations after rustup
+          and `PATH`), so Serena resolves it and starts the Rust LSP.
+          
+          The download is gated on the consumer's `SERENA_LANGUAGE_SERVERS` naming
+          `rust-analyzer`, so a non-Rust consumer pays nothing. The host step always
+          creates the mount source (a non-executable placeholder when it downloads
+          nothing), so the static bind mount never fails the Serena container start; on a
+          non-Rust consumer Serena's `--version` probe fails and it falls back to
+          text-level reading exactly as before. Bumping the language server means bumping
+          the pinned tag and its checksum in the step's `env` block; no `latest` tag is
+          ever used.
+          
           ### Read and write scope
           
           Serena is granted read and write to the checked-out working tree only. It is
@@ -1429,6 +1459,14 @@ jobs:
           GH_AW_SUB_AGENT_DIR: ".github/agents"
           GH_AW_SUB_AGENT_EXT: ".agent.md"
         run: bash "${RUNNER_TEMP}/gh-aw/actions/restore_inline_sub_agents.sh"
+      - env:
+          RUST_ANALYZER_SHA256: 1f5b5dbd12109b9959c56092a0ca4222b834094b66fba2998422adf6c5a1b51c
+          RUST_ANALYZER_TAG: "2026-05-25"
+          SERENA_LANGUAGE_SERVERS: ${{ vars.SERENA_LANGUAGE_SERVERS }}
+        name: Provision rust-analyzer for Serena
+        run: "set -euo pipefail\ndest_dir=/tmp/gh-aw/serena\ndest=\"${dest_dir}/rust-analyzer\"\nmkdir -p \"$dest_dir\"\n# Always create the mount source so the Serena bind mount never fails the\n# container start, even when no rust-analyzer is provisioned. A\n# non-executable placeholder makes Serena's `--version` probe fail and\n# fall back to text-level reading.\n[ -e \"$dest\" ] || : > \"$dest\"\n# Gate on the consumer's Serena language-server set. The installer sets a\n# single token today (scripts/quick-setup.sh), but normalize commas and\n# spaces to a common delimiter so a future comma- or space-separated list\n# still matches, and match a whole token so `rust-analyzer-foo` does not\n# satisfy the gate.\nservers=\"${SERENA_LANGUAGE_SERVERS:-}\"\nnormalized=\"${servers//,/ }\"\ncase \" ${normalized} \" in\n  *\" rust-analyzer \"*) ;;\n  *)\n    echo \"SERENA_LANGUAGE_SERVERS does not name rust-analyzer; leaving placeholder.\"\n    echo \"  SERENA_LANGUAGE_SERVERS='${servers}'\"\n    exit 0\n    ;;\nesac\nurl=\"https://github.com/rust-lang/rust-analyzer/releases/download/${RUST_ANALYZER_TAG}/rust-analyzer-x86_64-unknown-linux-gnu.gz\"\ntmp_gz=\"$(mktemp)\"\necho \"Downloading pinned rust-analyzer ${RUST_ANALYZER_TAG} from ${url}\"\ncurl -fsSL --retry 3 --retry-delay 2 -o \"$tmp_gz\" \"$url\"\necho \"Verifying SHA-256 of the downloaded asset before decompressing\"\necho \"${RUST_ANALYZER_SHA256}  ${tmp_gz}\" | sha256sum -c -\n# Decompress to a temp path, then move into place atomically so a partial\n# write never shadows /usr/local/bin/rust-analyzer with a broken file.\ntmp_bin=\"$(mktemp)\"\ngunzip -c \"$tmp_gz\" > \"$tmp_bin\"\nchmod 0755 \"$tmp_bin\"\nmv -f \"$tmp_bin\" \"$dest\"\nrm -f \"$tmp_gz\"\necho \"Installed rust-analyzer at ${dest}:\"\n\"$dest\" --version\n"
+        shell: bash
+
       - name: Download container images
         run: bash "${RUNNER_TEMP}/gh-aw/actions/download_docker_images.sh" ghcr.io/github/gh-aw-firewall/agent:0.25.46 ghcr.io/github/gh-aw-firewall/api-proxy:0.25.46 ghcr.io/github/gh-aw-firewall/squid:0.25.46 ghcr.io/github/gh-aw-mcpg:v0.3.9@sha256:64828b42a4482f58fab16509d7f8f495a6d97c972a98a68aff20543531ac0388 ghcr.io/github/github-mcp-server:v1.0.4 ghcr.io/github/serena-mcp-server:latest@sha256:bf343399e3725c45528f531a230f3a04521d4cdef29f9a5af6282ff0d3c393c5 node:lts-alpine@sha256:d1b3b4da11eefd5941e7f0b9cf17783fc99d9c6fc34884a665f40a06dbdfc94f
       - name: Generate Safe Outputs Config
@@ -1866,7 +1904,8 @@ jobs:
                   "${GITHUB_WORKSPACE}"
                 ],
                 "mounts": [
-                  "${GITHUB_WORKSPACE}:${GITHUB_WORKSPACE}:rw"
+                  "${GITHUB_WORKSPACE}:${GITHUB_WORKSPACE}:rw",
+                  "/tmp/gh-aw/serena/rust-analyzer:/usr/local/bin/rust-analyzer:ro"
                 ],
                 "args": [
                   "--network",
