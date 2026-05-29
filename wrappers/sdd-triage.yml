@@ -72,6 +72,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      issues: read
     outputs:
       should_run: ${{ steps.decide.outputs.should_run }}
       aw_context: ${{ steps.decide.outputs.aw_context }}
@@ -95,6 +96,29 @@ jobs:
                 run = true;
               } else if (action === 'unlabeled' && label === 'needs-human') {
                 run = true;
+              }
+              // The triage boundary is the tracking issue only. sdd:triage or a
+              // needs-human clear on a sub-issue (a Unit or a task, each of
+              // which has a parent in the feature tree) must not route triage.
+              // A tracking issue has no parent; filter on parent_issue_url, the
+              // same guard sdd-validate applies on its sdd:ready route.
+              if (run) {
+                try {
+                  const { data } = await github.rest.issues.get({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    issue_number: payload.issue.number,
+                  });
+                  if (data.parent_issue_url) {
+                    run = false;
+                    core.info('Issue #' + payload.issue.number
+                      + ' has a parent (' + data.parent_issue_url
+                      + '); not a tracking issue, ignoring.');
+                  }
+                } catch (err) {
+                  core.info('Could not fetch issue #' + payload.issue.number
+                    + ': ' + err.message);
+                }
               }
               if (run) {
                 ctx = { item_type: 'issue', item_number: payload.issue.number };
