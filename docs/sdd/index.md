@@ -242,8 +242,9 @@ never blocks a merge. Human review plus consumer CI is the only merge gate.
 
 - Open a test issue from the `feature` template and confirm it carries both
   the `kind:feature` and `sdd:spec` labels.
-- Confirm `templates/.github/labels.yml` defines all six `sdd:*` lifecycle
-  labels and all three `model:*` tier labels.
+- Confirm `templates/.github/labels.yml` defines all eight `sdd:*` lifecycle
+  labels, the `sdd:dispatched` and `plan:provided` markers, and all three
+  `model:*` tier labels.
 - Confirm `shared/sdd-interaction.md` states the lifecycle state machine, the
   command table, and the `needs-human` contract, and references
   `decisions/0001-needs-human.md`.
