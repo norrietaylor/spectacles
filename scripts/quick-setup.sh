@@ -41,8 +41,16 @@ Options:
   --ref <ref>    The spectacles ref the installed wrappers pin their hosted
                  reusable workflows to. Default: main. Set this to a release
                  tag to pin a consumer to an immutable suite version.
+  --direct       Write file artifacts straight to the target's default branch
+                 instead of opening an installer PR. Fails on a repo whose
+                 default branch is protected; use only on unprotected repos.
   --dry-run      Print planned actions without applying them.
   -h, --help     Show this help.
+
+By default the file artifacts (workflow wrappers, issue templates, .gitignore)
+are written to a 'spectacles/install' branch and an installer PR is opened, so
+a target repo with a protected default branch accepts the install. Labels,
+variables, and secrets are not branch-scoped and apply directly in both modes.
 
 With --suite sdd the installer also provisions the target repo's Distillery
 configuration. DISTILLERY_PROJECT is set to the repo name. DISTILLERY_MCP_URL
@@ -60,6 +68,15 @@ target_repo=""
 suite=""
 ref="main"
 dry_run=0
+# PR mode is the default: file artifacts (workflows, issue templates,
+# .gitignore) land on a branch and an installer PR is opened, so a target
+# repo with a protected default branch accepts the install. --direct restores
+# the legacy behavior of writing straight to the default branch. Labels,
+# variables, and secrets are never branch-scoped and apply directly in both
+# modes.
+direct=0
+install_branch="spectacles/install"
+pr_base=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --target-repo)
@@ -92,6 +109,10 @@ while [ $# -gt 0 ]; do
       ;;
     --dry-run)
       dry_run=1
+      shift
+      ;;
+    --direct)
+      direct=1
       shift
       ;;
     -h | --help)
@@ -204,22 +225,21 @@ install_file() {
     echo "quick-setup: would write $dest"
     return 0
   fi
+  # In PR mode reads and writes are scoped to the install branch; in --direct
+  # mode install_branch is empty and the calls target the default branch.
+  local read_path="repos/$target_repo/contents/$dest"
+  if [ -n "$install_branch" ]; then
+    read_path="$read_path?ref=$install_branch"
+  fi
   local existing_sha=""
-  existing_sha="$(gh api \
-    "repos/$target_repo/contents/$dest" \
-    --jq '.sha' 2>/dev/null || true)"
+  existing_sha="$(gh api "$read_path" --jq '.sha' 2>/dev/null || true)"
   local content
   content="$(base64 <"$src" | tr -d '\n')"
-  if [ -n "$existing_sha" ]; then
-    gh api --method PUT "repos/$target_repo/contents/$dest" \
-      -f message="$message" \
-      -f content="$content" \
-      -f sha="$existing_sha" >/dev/null
-  else
-    gh api --method PUT "repos/$target_repo/contents/$dest" \
-      -f message="$message" \
-      -f content="$content" >/dev/null
-  fi
+  local args=(--method PUT "repos/$target_repo/contents/$dest"
+    -f message="$message" -f content="$content")
+  [ -n "$existing_sha" ] && args+=(-f sha="$existing_sha")
+  [ -n "$install_branch" ] && args+=(-f branch="$install_branch")
+  gh api "${args[@]}" >/dev/null
   echo "quick-setup: wrote $dest"
 }
 
@@ -293,16 +313,17 @@ ensure_serena_gitignore() {
     return 0
   fi
   local existing_sha="" existing_b64="" existing=""
+  # In PR mode read from the install branch; --direct reads the default branch.
+  local read_path="repos/$target_repo/contents/$dest"
+  if [ -n "$install_branch" ]; then
+    read_path="$read_path?ref=$install_branch"
+  fi
   # Read the current .gitignore, if any. A 404 yields an empty sha and we fall
   # through to the create path. `gh api` exits non-zero on 404; the `|| true`
   # suppresses that so the script's `set -e` does not trip.
-  existing_sha="$(gh api \
-    "repos/$target_repo/contents/$dest" \
-    --jq '.sha' 2>/dev/null || true)"
+  existing_sha="$(gh api "$read_path" --jq '.sha' 2>/dev/null || true)"
   if [ -n "$existing_sha" ]; then
-    existing_b64="$(gh api \
-      "repos/$target_repo/contents/$dest" \
-      --jq '.content' 2>/dev/null || true)"
+    existing_b64="$(gh api "$read_path" --jq '.content' 2>/dev/null || true)"
     if [ -n "$existing_b64" ]; then
       # GitHub returns Contents API bodies as base64 with embedded newlines.
       existing="$(printf '%s' "$existing_b64" | tr -d '\n' | base64 -d)"
@@ -330,16 +351,14 @@ ensure_serena_gitignore() {
   local content
   content="$(printf '%s' "$updated" | base64 | tr -d '\n')"
   local message="chore: ignore Serena .serena/ state (spectacles quick-setup)"
+  local args=(--method PUT "repos/$target_repo/contents/$dest"
+    -f message="$message" -f content="$content")
+  [ -n "$install_branch" ] && args+=(-f branch="$install_branch")
   if [ -n "$existing_sha" ]; then
-    gh api --method PUT "repos/$target_repo/contents/$dest" \
-      -f message="$message" \
-      -f content="$content" \
-      -f sha="$existing_sha" >/dev/null
+    gh api "${args[@]}" -f sha="$existing_sha" >/dev/null
     echo "quick-setup: appended $marker to existing $dest."
   else
-    gh api --method PUT "repos/$target_repo/contents/$dest" \
-      -f message="$message" \
-      -f content="$content" >/dev/null
+    gh api "${args[@]}" >/dev/null
     echo "quick-setup: created $dest with $marker."
   fi
 }
@@ -459,6 +478,56 @@ report_configuration() {
   echo "    LEAK_DENYLIST              leak-scan denylist, one term per line"
 }
 
+# Create the install branch off the target repo's default branch so the file
+# writes that follow target a branch, not the protected default. Records the
+# default branch in pr_base for open_install_pr. Idempotent: an existing branch
+# is reused, so re-running quick-setup updates the same install PR. In --direct
+# mode this is never called and install_branch stays empty.
+ensure_install_branch() {
+  pr_base="$(gh repo view "$target_repo" --json defaultBranchRef \
+    --jq '.defaultBranchRef.name')"
+  if [ "$dry_run" -eq 1 ]; then
+    echo "quick-setup: dry-run; would create branch '$install_branch' off"
+    echo "             '$pr_base' and write the suite onto it."
+    return 0
+  fi
+  if gh api "repos/$target_repo/git/refs/heads/$install_branch" \
+    >/dev/null 2>&1; then
+    echo "quick-setup: reusing existing branch '$install_branch'."
+  else
+    local base_sha
+    base_sha="$(gh api "repos/$target_repo/git/refs/heads/$pr_base" \
+      --jq '.object.sha')"
+    gh api --method POST "repos/$target_repo/git/refs" \
+      -f ref="refs/heads/$install_branch" -f sha="$base_sha" >/dev/null
+    echo "quick-setup: created branch '$install_branch' off '$pr_base'."
+  fi
+}
+
+# Open the installer pull request from the install branch onto the default
+# branch. Idempotent: when a PR for the branch is already open it is reported,
+# not duplicated. In --direct mode this is never called.
+open_install_pr() {
+  if [ "$dry_run" -eq 1 ]; then
+    echo "quick-setup: dry-run; would open a PR from '$install_branch' into"
+    echo "             '$pr_base'."
+    return 0
+  fi
+  local existing
+  existing="$(gh pr list --repo "$target_repo" --head "$install_branch" \
+    --state open --json url --jq '.[0].url' 2>/dev/null || true)"
+  if [ -n "$existing" ]; then
+    echo "quick-setup: install PR already open: $existing"
+    return 0
+  fi
+  local url
+  url="$(gh pr create --repo "$target_repo" --base "$pr_base" \
+    --head "$install_branch" \
+    --title "Install spectacles SDD suite (ref: $ref)" \
+    --body "Installs the spectacles SDD agent suite (ADR 0004) via \`scripts/quick-setup.sh\`. Wrappers pin hosted reusable workflows at \`@$ref\`. Labels, variables, and secrets were applied directly; the file artifacts in this PR honor the protected default branch. Merge to activate the workflows.")"
+  echo "quick-setup: opened install PR: $url"
+}
+
 if [ ! -f "$labels_file" ]; then
   echo "error: labels file not found at $labels_file" >&2
   exit 1
@@ -467,12 +536,22 @@ sync_labels
 echo "quick-setup: label sync complete."
 
 if [ "$suite" = "sdd" ]; then
+  # PR mode (default): scope the file writes to an install branch and open a
+  # PR. --direct clears install_branch so the writes hit the default branch.
+  if [ "$direct" -eq 1 ]; then
+    install_branch=""
+  else
+    ensure_install_branch
+  fi
   install_sdd_workflows
   install_issue_templates
   ensure_serena_gitignore
   detect_serena_language_server
   provision_distillery_config
   report_configuration
+  if [ "$direct" -ne 1 ]; then
+    open_install_pr
+  fi
   echo "quick-setup: --suite sdd install complete."
   echo "quick-setup: next, supply the configuration listed above, then run"
   echo "             the smoke test in docs/sdd/install.md."
