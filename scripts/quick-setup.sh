@@ -142,7 +142,11 @@ fi
 # earlier-numbered sibling under the same Unit already carries the same
 # title (ADR 0008). sdd-triage-promote-ready applies `sdd:ready` to a
 # task when its last `blocked by` blocker closes (ADR 0013), closing
-# the gap ADR 0009 names as out-of-scope.
+# the gap ADR 0009 names as out-of-scope. sdd-monitor is a scheduled
+# backstop that nudges an armed-but-idle `sdd:dispatched` tracker with a
+# `/dispatch` when the close-driven cascade stalls (issue #148 Tier 1); it
+# is disabled by default behind the SDD_MONITOR repo variable, so a
+# consumer that has not opted in carries the wrapper but pays no cost.
 wrappers=(
   "sdd-spec"
   "sdd-triage"
@@ -156,6 +160,7 @@ wrappers=(
   "sdd-pr-sanitize"
   "sdd-triage-dedupe-tasks"
   "sdd-triage-promote-ready"
+  "sdd-monitor"
 )
 
 # Sync the labels. labels.yml is a flat list of '- name:' records, so it is

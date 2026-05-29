@@ -89,8 +89,27 @@ permissions:
 # workflow evaluation here, which is the correct failure mode (the route
 # step's try/catch would silently ignore them and the run would do nothing
 # useful).
+#
+# A label-removal event (issues.unlabeled / pull_request.unlabeled) is routed
+# to its own throwaway group (github.run_id) so it never lands in a task's
+# shared per-task-per-tier group. At step 2 the agent removes its own task's
+# sdd:ready label; that self-induced issues.unlabeled event re-fires this
+# wrapper, and without the carve-out it entered the active run's group where
+# cancel-in-progress killed the running agent mid-work (issue #143). The only
+# label-removal the route step acts on is needs-human (a resume), which runs
+# when no agent is in flight, so a unique group is safe there too.
+#
+# An issue_comment whose body is not a recognized command (/execute or
+# /revise) is routed to its own throwaway group for the same reason.
+# gh-aw's create-pull-request fallback-to-issue posts an "Issue created:
+# #<n>" notice on the task issue via the App token (issue #142); that
+# App-authored comment re-fires this wrapper as issue_comment.created,
+# and without the carve-out it landed in the active run's per-task group
+# where cancel-in-progress killed the originating run's safe_outputs tail
+# and its auto-merge job. The route step acts only on /execute and
+# /revise comments, so a non-command comment in a unique group is safe.
 concurrency:
-  group: sdd-execute-opus-${{ github.event.issue.number || github.event.pull_request.number || fromJSON(github.event.inputs.aw_context || '{}').item_number || github.run_id }}
+  group: sdd-execute-opus-${{ github.event.action == 'unlabeled' && github.run_id || (github.event_name == 'issue_comment' && !startsWith(github.event.comment.body, '/execute') && !startsWith(github.event.comment.body, '/revise')) && github.run_id || github.event.issue.number || github.event.pull_request.number || fromJSON(github.event.inputs.aw_context || '{}').item_number || github.run_id }}
   cancel-in-progress: true
 
 jobs:
@@ -847,6 +866,18 @@ jobs:
       # holds, `gh pr merge --auto` errors or the PR merges immediately, so
       # detect and skip (issue #127). When both hold, enable squash +
       # delete-branch auto-merge to match the manual-merge convention.
+      #
+      # `enablePullRequestAutoMerge` refuses an UNSTABLE PR even when every
+      # REQUIRED check is green: cancelled sibling-tier check-runs (from
+      # cancelled sibling sdd-execute runs of other model tiers) and
+      # non-required checks such as `auto-merge`/`route` leave the PR UNSTABLE,
+      # so `--auto` errors with "Pull request is in unstable status" and the
+      # cascade PR never merges (issue #135). Branch protection gates only on
+      # the required checks, so when those are all green a direct squash merge
+      # is exactly what auto-merge would do once the non-required noise
+      # settled. The step therefore keys off REQUIRED checks only: it arms
+      # `--auto`, and if that fails because the PR is UNSTABLE with every
+      # required check already green, it falls back to a direct squash merge.
       - name: Enable auto-merge when protection requires a check
         env:
           GH_TOKEN: ${{ steps.app.outputs.token }}
@@ -865,21 +896,68 @@ jobs:
           # URL-encode the base ref so a branch name containing `/` (e.g.
           # release/2026.05) does not split the protection endpoint path.
           base_encoded=$(printf '%s' "$base" | jq -sRr @uri)
-          # Count required status checks on the base branch. The protection
+          # Read the required status checks on the base branch. The protection
           # endpoint 404s when no protection is configured; treat that as
-          # "no required checks" and skip. `// length` covers both the
-          # `checks` (new) and `contexts` (legacy) shapes; an absent
-          # required_status_checks yields 0.
-          required=$(gh api \
+          # "no required checks" and skip. `.checks[].context` (new) and
+          # `.contexts[]` (legacy) cover both shapes; an absent
+          # required_status_checks yields an empty list.
+          required_names=$(gh api \
             "repos/${OWNER}/${REPO}/branches/${base_encoded}/protection" \
-            --jq '(.required_status_checks.checks
-              // .required_status_checks.contexts // []) | length' \
-            2>/dev/null || echo 0)
-          if [ "${required:-0}" -lt 1 ]; then
+            --jq '[(.required_status_checks.checks // [] | .[].context),
+              (.required_status_checks.contexts // [] | .[])] | unique | .[]' \
+            2>/dev/null || true)
+          if [ -z "${required_names}" ]; then
             echo "Base branch ${base} has no required status checks;" \
               "skipping auto-merge (would merge immediately)."
             exit 0
           fi
-          gh pr merge "${PR_NUMBER}" --auto --squash --delete-branch \
+          # Arm GitHub auto-merge. This succeeds for a CLEAN or BLOCKED PR and
+          # waits for the required checks to go green before merging.
+          if gh pr merge "${PR_NUMBER}" --auto --squash --delete-branch \
+            --repo "${OWNER}/${REPO}"; then
+            echo "Auto-merge (squash, delete-branch) enabled on PR" \
+              "#${PR_NUMBER}."
+            exit 0
+          fi
+          # Arming failed. The common cause is an UNSTABLE mergeStateStatus:
+          # cancelled sibling-tier check-runs and non-required `auto-merge`/
+          # `route` checks leave the PR UNSTABLE, which
+          # `enablePullRequestAutoMerge` refuses, even though branch
+          # protection gates only on the required checks (issue #135). Key off
+          # REQUIRED checks only: if the PR is UNSTABLE and every required
+          # check has already concluded SUCCESS, the non-required noise is the
+          # only thing blocking the GraphQL mutation, so merge directly — the
+          # same squash + delete-branch merge auto-merge would perform.
+          state=$(gh pr view "${PR_NUMBER}" --repo "${OWNER}/${REPO}" \
+            --json mergeStateStatus --jq '.mergeStateStatus' 2>/dev/null \
+            || echo UNKNOWN)
+          if [ "${state}" != "UNSTABLE" ]; then
+            echo "Auto-merge could not be armed and PR #${PR_NUMBER} is" \
+              "${state}, not UNSTABLE; leaving for human review." >&2
+            exit 1
+          fi
+          # Confirm every required check has concluded SUCCESS on this PR.
+          rollup=$(gh pr view "${PR_NUMBER}" --repo "${OWNER}/${REPO}" \
+            --json statusCheckRollup \
+            --jq '[.statusCheckRollup[]
+              | {name: (.name // .context),
+                 state: (.conclusion // .state // .status)}]')
+          all_green=true
+          while IFS= read -r name; do
+            [ -z "${name}" ] && continue
+            st=$(printf '%s' "${rollup}" | jq -r \
+              --arg n "${name}" \
+              'map(select(.name == $n)) | (last.state // "MISSING")')
+            if [ "${st}" != "SUCCESS" ]; then
+              echo "Required check '${name}' is '${st}', not SUCCESS;" \
+                "not merging PR #${PR_NUMBER}." >&2
+              all_green=false
+            fi
+          done <<< "${required_names}"
+          if [ "${all_green}" != "true" ]; then
+            exit 1
+          fi
+          gh pr merge "${PR_NUMBER}" --squash --delete-branch \
             --repo "${OWNER}/${REPO}"
-          echo "Auto-merge (squash, delete-branch) enabled on PR #${PR_NUMBER}."
+          echo "PR #${PR_NUMBER} was UNSTABLE with all required checks green;" \
+            "merged directly (squash, delete-branch)."

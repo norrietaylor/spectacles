@@ -442,7 +442,17 @@ issue** that names the action the human is expected to take. The diagram in
 without an explicit hand-off comment the human has no signal in the tracker
 that work is waiting on them. The comment must:
 
-- Name the spec pull request by number, e.g. `Spec PR opened: #<pr>.`.
+- Name the spec pull request by its **title**, e.g.
+  `Spec PR opened: spec(<slug>): <issue title>.`. Do **not** write a `#`
+  placeholder for the pull request number. The number is unknown while this
+  agent runs: `create-pull-request` is a deferred safe-output that creates the
+  pull request after the agent turn ends, and the only same-run handle —
+  a `temporary_id` — is accepted as a comment *target* (`item_number`), not
+  substituted inside comment *body* text. A token such as `#aw_specpr` written
+  into the body is therefore posted verbatim and leaks (bug
+  `norrietaylor/spectacles#137`). gh-aw posts the clickable real-number link
+  separately on the tracking issue (`Pull request created: [#<n>](<url>)`), so
+  the human can click through from that line; this comment names the action.
 - Name the action: "Please **review and merge** the spec PR to advance the
   tracking issue from the spec phase into triage."
 - Name the deliverable sub-issue: "Merging the spec PR will close the spec

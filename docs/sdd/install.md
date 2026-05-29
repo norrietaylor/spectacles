@@ -57,6 +57,17 @@ DISTILLERY_OAUTH_TOKEN=<machine-token> \
   already carries the same title — the deterministic backstop for the
   prose-only "emit each task at most once" rule in `sdd-triage` phase C
   (ADR 0008);
+- the `sdd-triage-promote-ready` utility workflow, which applies `sdd:ready`
+  to a phase-C task sub-issue when its last open `blocked by` dependency
+  closes: a task born with a `blocked by` link starts without `sdd:ready`,
+  and nothing else in the pipeline promotes it once its blockers clear
+  (ADR 0009);
+- the `sdd-monitor` utility workflow, the dispatch-cascade backstop
+  (issue #148 Tier 1): on a `*/10` cron plus `sdd-execute-*` completion and
+  `sdd/` pull-request close, it nudges an armed-but-idle `sdd:dispatched`
+  tracker with one `/dispatch` when the close-driven cascade stalls. It is
+  disabled by default — set the `SDD_MONITOR` repository variable to `1` to
+  enable it (see `sdd-monitor.md`);
 - the `sdd:*` lifecycle labels and the `model:*` tier labels;
 - the `feature`, `bug`, and `chore` issue templates.
 
@@ -181,9 +192,15 @@ history, not only a greenfield one. Before and after the install, confirm:
       a registry the firewall does not allow, `sdd-execute` and `sdd-validate`
       cannot install the toolchain: the proof-artifact gate degrades to manual
       inspection of the diff instead of executed tests. The run is not blocked
-      and verification still happens, but it is narrower. Extending the
-      firewall allowlist for a stack whose registry is not covered is a known
-      limitation.
+      and verification still happens, but it is narrower. When a required
+      status check on this repository runs the same command, `sdd-validate`
+      records the proof artifact as deferred to consumer CI (an Info finding)
+      rather than applying `needs-human`, so the auto-merge cascade is not
+      stalled by the firewall limit alone; the consumer's required check
+      remains the gate. If no required check covers the proof, `sdd-validate`
+      still hands off via `needs-human` so a human closes the gap. Extending
+      the firewall allowlist for a stack whose registry is not covered is a
+      known limitation.
 - [ ] The install did not overwrite any existing workflow. The `sdd-*` and
       `distillery-sync` workflow filenames do not collide with the target
       repository's own workflows. Review the dry-run output for any unexpected
@@ -191,7 +208,15 @@ history, not only a greenfield one. Before and after the install, confirm:
 - [ ] The target repository's primary language has a Serena language server
       (`SERENA_LANGUAGE_SERVERS` was set by the installer). If not, the agents
       still work via text-level reading; precision is narrower but no run is
-      blocked.
+      blocked. For a **Rust** consumer (`SERENA_LANGUAGE_SERVERS=rust-analyzer`),
+      the Serena MCP image ships no Rust language server and cannot install one
+      inside the firewalled agent. The SDD agents provision it on the runner: a
+      host pre-agent step downloads a pinned, checksum-verified `rust-analyzer`
+      release binary from GitHub (outside the firewall sandbox) and mounts it
+      into the Serena container, so symbol-level intelligence works without
+      adding any toolchain registry to the agent's network. The download is
+      gated on `SERENA_LANGUAGE_SERVERS` naming `rust-analyzer`, so non-Rust
+      consumers are unaffected. See `shared/sdd-mcp-serena.md`.
 - [ ] `distillery-sync` has run at least once (it is daily; dispatch it
       manually for the first run) so the knowledge store holds this
       repository's specs, decisions, issues, and pull requests before the
@@ -209,10 +234,11 @@ its dependencies:
 
 1. **Workflows present.** Confirm the nine wrappers — the eight `sdd-*`
    wrappers (including `sdd-dispatch.yml`) and `distillery-sync.yml` — and
-   `sdd-pr-sanitize.yml` and `sdd-triage-dedupe-tasks.yml` appear under
-   `.github/workflows/` on the target repository. The `.lock.yml` reusable
-   workflows are hosted in the spectacles repository and are not copied
-   onto the consumer.
+   the `sdd-pr-sanitize.yml`, `sdd-triage-dedupe-tasks.yml`,
+   `sdd-triage-promote-ready.yml`, and `sdd-monitor.yml` utility workflows
+   appear under `.github/workflows/` on the target repository. The
+   `.lock.yml` reusable workflows are hosted in the spectacles repository
+   and are not copied onto the consumer.
 2. **Labels present.** Confirm all six `sdd:*` labels and all three `model:*`
    labels exist on the target repository.
 3. **MCP reachable.** Dispatch `distillery-sync` once and confirm its run logs
@@ -221,7 +247,14 @@ its dependencies:
 4. **Serena resolves.** Confirm a `sdd-spec` or `sdd-execute` run logs a
    non-empty Serena symbol query, or, on an unrecognised stack, logs the
    graceful text-level fallback. Either outcome is a pass; a hard failure is
-   not.
+   not. On a **Rust** consumer, the run's `Provision rust-analyzer for Serena`
+   host step logs `Installed rust-analyzer at /tmp/gh-aw/serena/rust-analyzer`
+   followed by its version, and the run no longer logs Serena's "Please install
+   rust-analyzer" fallback — a `find_symbol` query resolves instead. (This
+   live confirmation needs a real agent run on a Rust consumer; the host step's
+   download and checksum are unit-verifiable, but the "Serena resolves a Rust
+   symbol" check is an operator acceptance step, like the rest of this smoke
+   test.)
 5. **Issue template applies a label.** Open a test issue from the `feature`
    template and confirm it carries both `kind:feature` and `sdd:spec`.
 

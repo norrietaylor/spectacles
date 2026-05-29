@@ -135,10 +135,17 @@ jobs:
 
             // Add `Closes #<deliverable>` so merging the pull request closes
             // the deliverable sub-issue (ADR 0005). Idempotent: skip when the
-            // body already closes it.
+            // body already closes it — but only a **bare**, line-anchored
+            // `Closes #N` counts. GitHub does not honor a closing keyword
+            // inside an inline-code span, so a backtick-wrapped mention such as
+            // `` `Closes #162` `` (which agents write in their hand-off prose)
+            // must NOT satisfy this guard, or the real bare line is never
+            // appended and the sub-issue stays open on merge (issue #136). The
+            // line anchor matches exactly the bare line appended below.
             if (deliverable) {
               const hasClose = new RegExp(
-                '\\bcloses?\\s+#' + deliverable + '\\b', 'i').test(body);
+                '(^|\\n)[ \\t]*closes?\\s+#' + deliverable + '\\b', 'i')
+                .test(body);
               if (!hasClose) {
                 body = body.replace(/\s*$/, '')
                   + '\n\nCloses #' + deliverable + '\n';

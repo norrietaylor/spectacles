@@ -1,4 +1,4 @@
-# gh-aw-metadata: {"schema_version":"v3","frontmatter_hash":"28e1b5a025f266dae058b41088724527c4ecb23fbbc8654bc973364a7805a9f1","compiler_version":"v0.74.3","agent_id":"copilot"}
+# gh-aw-metadata: {"schema_version":"v3","frontmatter_hash":"592a02de5e231093c793d7e22fd16afa6df8554e97697ade36955432c1285724","compiler_version":"v0.74.3","agent_id":"copilot"}
 # gh-aw-manifest: {"version":1,"secrets":["APP_PRIVATE_KEY","COPILOT_GITHUB_TOKEN","DISTILLERY_OAUTH_TOKEN","GH_AW_CI_TRIGGER_TOKEN","GH_AW_GITHUB_MCP_SERVER_TOKEN","GH_AW_GITHUB_TOKEN","GITHUB_TOKEN"],"actions":[{"repo":"actions/checkout","sha":"de0fac2e4500dabe0009e67214ff5f5447ce83dd","version":"v6.0.2"},{"repo":"actions/create-github-app-token","sha":"bcd2ba49218906704ab6c1aa796996da409d3eb1","version":"v3.2.0"},{"repo":"actions/download-artifact","sha":"3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c","version":"v8.0.1"},{"repo":"actions/github-script","sha":"3a2844b7e9c422d3c10d287c895573f7108da1b3","version":"v9.0.0"},{"repo":"actions/setup-node","sha":"48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e","version":"v6.4.0"},{"repo":"actions/upload-artifact","sha":"043fb46d1a93c77aae656e7c1c64a875d1fc6a0a","version":"v7.0.1"},{"repo":"github/gh-aw-actions/setup","sha":"8a9a52673cb8f97ebb43b344618af2d6f2c9ac7f","version":"v0.74.3"}],"containers":[{"image":"ghcr.io/github/gh-aw-firewall/agent:0.25.46"},{"image":"ghcr.io/github/gh-aw-firewall/api-proxy:0.25.46"},{"image":"ghcr.io/github/gh-aw-firewall/squid:0.25.46"},{"image":"ghcr.io/github/gh-aw-mcpg:v0.3.9","digest":"sha256:64828b42a4482f58fab16509d7f8f495a6d97c972a98a68aff20543531ac0388","pinned_image":"ghcr.io/github/gh-aw-mcpg:v0.3.9@sha256:64828b42a4482f58fab16509d7f8f495a6d97c972a98a68aff20543531ac0388"},{"image":"ghcr.io/github/github-mcp-server:v1.0.4"},{"image":"ghcr.io/github/serena-mcp-server:latest","digest":"sha256:bf343399e3725c45528f531a230f3a04521d4cdef29f9a5af6282ff0d3c393c5","pinned_image":"ghcr.io/github/serena-mcp-server:latest@sha256:bf343399e3725c45528f531a230f3a04521d4cdef29f9a5af6282ff0d3c393c5"},{"image":"node:lts-alpine","digest":"sha256:d1b3b4da11eefd5941e7f0b9cf17783fc99d9c6fc34884a665f40a06dbdfc94f","pinned_image":"node:lts-alpine@sha256:d1b3b4da11eefd5941e7f0b9cf17783fc99d9c6fc34884a665f40a06dbdfc94f"}]}
 #    ___                   _   _      
 #   / _ \                 | | (_)     
@@ -247,24 +247,24 @@ jobs:
         run: |
           bash "${RUNNER_TEMP}/gh-aw/actions/create_prompt_first.sh"
           {
-          cat << 'GH_AW_PROMPT_01b322c7ca2d6698_EOF'
+          cat << 'GH_AW_PROMPT_acc37afb52a4522c_EOF'
           <system>
-          GH_AW_PROMPT_01b322c7ca2d6698_EOF
+          GH_AW_PROMPT_acc37afb52a4522c_EOF
           cat "${RUNNER_TEMP}/gh-aw/prompts/xpia.md"
           cat "${RUNNER_TEMP}/gh-aw/prompts/temp_folder_prompt.md"
           cat "${RUNNER_TEMP}/gh-aw/prompts/markdown.md"
           cat "${RUNNER_TEMP}/gh-aw/prompts/safe_outputs_prompt.md"
-          cat << 'GH_AW_PROMPT_01b322c7ca2d6698_EOF'
+          cat << 'GH_AW_PROMPT_acc37afb52a4522c_EOF'
           <safe-output-tools>
           Tools: add_comment, create_issue, create_pull_request, add_labels(max:2), remove_labels(max:3), push_to_pull_request_branch, hide_comment(max:5), missing_tool, missing_data, noop
-          GH_AW_PROMPT_01b322c7ca2d6698_EOF
+          GH_AW_PROMPT_acc37afb52a4522c_EOF
           cat "${RUNNER_TEMP}/gh-aw/prompts/safe_outputs_create_pull_request.md"
           cat "${RUNNER_TEMP}/gh-aw/prompts/safe_outputs_push_to_pr_branch.md"
-          cat << 'GH_AW_PROMPT_01b322c7ca2d6698_EOF'
+          cat << 'GH_AW_PROMPT_acc37afb52a4522c_EOF'
           </safe-output-tools>
-          GH_AW_PROMPT_01b322c7ca2d6698_EOF
+          GH_AW_PROMPT_acc37afb52a4522c_EOF
           cat "${RUNNER_TEMP}/gh-aw/prompts/mcp_cli_tools_prompt.md"
-          cat << 'GH_AW_PROMPT_01b322c7ca2d6698_EOF'
+          cat << 'GH_AW_PROMPT_acc37afb52a4522c_EOF'
           <github-context>
           The following GitHub context information is available for this workflow:
           {{#if github.actor}}
@@ -293,9 +293,9 @@ jobs:
           {{/if}}
           </github-context>
           
-          GH_AW_PROMPT_01b322c7ca2d6698_EOF
+          GH_AW_PROMPT_acc37afb52a4522c_EOF
           cat "${RUNNER_TEMP}/gh-aw/prompts/github_mcp_tools_with_safeoutputs_prompt.md"
-          cat << 'GH_AW_PROMPT_01b322c7ca2d6698_EOF'
+          cat << 'GH_AW_PROMPT_acc37afb52a4522c_EOF'
           </system>
           # Core principles
           
@@ -665,6 +665,36 @@ jobs:
           working tree, and proceeds. The absence of a language server narrows the
           agent's precision; it never blocks the run and never triggers `needs-human` on
           its own.
+          
+          ### rust-analyzer for Rust consumers
+          
+          The Serena MCP image ships no Rust language server, and it cannot install one
+          inside the agent: `cargo install rust-analyzer` reaches crates.io, which the
+          agent firewall blocks (and which stays blocked — keeping the toolchain off the
+          agent's network surface, consistent with the host-side Rust steps the execute
+          agent already runs). Without rust-analyzer, Serena degrades to text-level
+          reading on a Rust repository, losing the symbol-level precision that makes the
+          suite effective on a substantial codebase (issue #159).
+          
+          The `Provision rust-analyzer for Serena` pre-agent host step restores it
+          without widening the agent firewall. It runs on the runner — before the
+          firewalled agent and before the Serena container starts — and downloads the
+          pinned rust-analyzer release binary from GitHub's release host (reachable from
+          the runner's unrestricted network). It verifies the asset's SHA-256 before
+          decompressing, then lands the binary at `/tmp/gh-aw/serena/rust-analyzer` on
+          the host. The single-file bind mount declared above maps that host path to
+          `/usr/local/bin/rust-analyzer` inside the Serena container, which is the third
+          entry in Serena's Unix language-server search (system locations after rustup
+          and `PATH`), so Serena resolves it and starts the Rust LSP.
+          
+          The download is gated on the consumer's `SERENA_LANGUAGE_SERVERS` naming
+          `rust-analyzer`, so a non-Rust consumer pays nothing. The host step always
+          creates the mount source (a non-executable placeholder when it downloads
+          nothing), so the static bind mount never fails the Serena container start; on a
+          non-Rust consumer Serena's `--version` probe fails and it falls back to
+          text-level reading exactly as before. Bumping the language server means bumping
+          the pinned tag and its checksum in the step's `env` block; no `latest` tag is
+          ever used.
           
           ### Read and write scope
           
@@ -1081,7 +1111,17 @@ jobs:
           without an explicit hand-off comment the human has no signal in the tracker
           that work is waiting on them. The comment must:
           
-          - Name the spec pull request by number, e.g. `Spec PR opened: #<pr>.`.
+          - Name the spec pull request by its **title**, e.g.
+            `Spec PR opened: spec(<slug>): <issue title>.`. Do **not** write a `#`
+            placeholder for the pull request number. The number is unknown while this
+            agent runs: `create-pull-request` is a deferred safe-output that creates the
+            pull request after the agent turn ends, and the only same-run handle —
+            a `temporary_id` — is accepted as a comment *target* (`item_number`), not
+            substituted inside comment *body* text. A token such as `#aw_specpr` written
+            into the body is therefore posted verbatim and leaks (bug
+            `norrietaylor/spectacles#137`). gh-aw posts the clickable real-number link
+            separately on the tracking issue (`Pull request created: [#<n>](<url>)`), so
+            the human can click through from that line; this comment names the action.
           - Name the action: "Please **review and merge** the spec PR to advance the
             tracking issue from the spec phase into triage."
           - Name the deliverable sub-issue: "Merging the spec PR will close the spec
@@ -1332,7 +1372,7 @@ jobs:
             from the plan, the execution plan comment is the plan reformatted, and
             `plan:provided` is removed when the stub spec PR opens.
           
-          GH_AW_PROMPT_01b322c7ca2d6698_EOF
+          GH_AW_PROMPT_acc37afb52a4522c_EOF
           } > "$GH_AW_PROMPT"
       - name: Interpolate variables and render templates
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
@@ -1535,6 +1575,14 @@ jobs:
           GH_AW_SUB_AGENT_DIR: ".github/agents"
           GH_AW_SUB_AGENT_EXT: ".agent.md"
         run: bash "${RUNNER_TEMP}/gh-aw/actions/restore_inline_sub_agents.sh"
+      - env:
+          RUST_ANALYZER_SHA256: 1f5b5dbd12109b9959c56092a0ca4222b834094b66fba2998422adf6c5a1b51c
+          RUST_ANALYZER_TAG: "2026-05-25"
+          SERENA_LANGUAGE_SERVERS: ${{ vars.SERENA_LANGUAGE_SERVERS }}
+        name: Provision rust-analyzer for Serena
+        run: "set -euo pipefail\ndest_dir=/tmp/gh-aw/serena\ndest=\"${dest_dir}/rust-analyzer\"\nmkdir -p \"$dest_dir\"\n# Always create the mount source so the Serena bind mount never fails the\n# container start, even when no rust-analyzer is provisioned. A\n# non-executable placeholder makes Serena's `--version` probe fail and\n# fall back to text-level reading.\n[ -e \"$dest\" ] || : > \"$dest\"\n# Gate on the consumer's Serena language-server set. The installer sets a\n# single token today (scripts/quick-setup.sh), but normalize commas and\n# spaces to a common delimiter so a future comma- or space-separated list\n# still matches, and match a whole token so `rust-analyzer-foo` does not\n# satisfy the gate.\nservers=\"${SERENA_LANGUAGE_SERVERS:-}\"\nnormalized=\"${servers//,/ }\"\ncase \" ${normalized} \" in\n  *\" rust-analyzer \"*) ;;\n  *)\n    echo \"SERENA_LANGUAGE_SERVERS does not name rust-analyzer; leaving placeholder.\"\n    echo \"  SERENA_LANGUAGE_SERVERS='${servers}'\"\n    exit 0\n    ;;\nesac\nurl=\"https://github.com/rust-lang/rust-analyzer/releases/download/${RUST_ANALYZER_TAG}/rust-analyzer-x86_64-unknown-linux-gnu.gz\"\ntmp_gz=\"$(mktemp)\"\necho \"Downloading pinned rust-analyzer ${RUST_ANALYZER_TAG} from ${url}\"\ncurl -fsSL --retry 3 --retry-delay 2 -o \"$tmp_gz\" \"$url\"\necho \"Verifying SHA-256 of the downloaded asset before decompressing\"\necho \"${RUST_ANALYZER_SHA256}  ${tmp_gz}\" | sha256sum -c -\n# Decompress to a temp path, then move into place atomically so a partial\n# write never shadows /usr/local/bin/rust-analyzer with a broken file.\ntmp_bin=\"$(mktemp)\"\ngunzip -c \"$tmp_gz\" > \"$tmp_bin\"\nchmod 0755 \"$tmp_bin\"\nmv -f \"$tmp_bin\" \"$dest\"\nrm -f \"$tmp_gz\"\necho \"Installed rust-analyzer at ${dest}:\"\n\"$dest\" --version\n"
+        shell: bash
+
       - name: Download container images
         run: bash "${RUNNER_TEMP}/gh-aw/actions/download_docker_images.sh" ghcr.io/github/gh-aw-firewall/agent:0.25.46 ghcr.io/github/gh-aw-firewall/api-proxy:0.25.46 ghcr.io/github/gh-aw-firewall/squid:0.25.46 ghcr.io/github/gh-aw-mcpg:v0.3.9@sha256:64828b42a4482f58fab16509d7f8f495a6d97c972a98a68aff20543531ac0388 ghcr.io/github/github-mcp-server:v1.0.4 ghcr.io/github/serena-mcp-server:latest@sha256:bf343399e3725c45528f531a230f3a04521d4cdef29f9a5af6282ff0d3c393c5 node:lts-alpine@sha256:d1b3b4da11eefd5941e7f0b9cf17783fc99d9c6fc34884a665f40a06dbdfc94f
       - name: Generate Safe Outputs Config
@@ -1542,9 +1590,9 @@ jobs:
           mkdir -p "${RUNNER_TEMP}/gh-aw/safeoutputs"
           mkdir -p /tmp/gh-aw/safeoutputs
           mkdir -p /tmp/gh-aw/mcp-logs/safeoutputs
-          cat > "${RUNNER_TEMP}/gh-aw/safeoutputs/config.json" << 'GH_AW_SAFE_OUTPUTS_CONFIG_4a0c8c3eeb88a2cd_EOF'
+          cat > "${RUNNER_TEMP}/gh-aw/safeoutputs/config.json" << 'GH_AW_SAFE_OUTPUTS_CONFIG_a983d757dea73240_EOF'
           {"add_comment":{"max":1},"add_labels":{"allowed":["sdd:spec","sdd:triage","sdd:fastpath","sdd:fastpath-review","needs-human"],"max":2},"create_issue":{"max":1},"create_pull_request":{"branch_prefix":"spec/","draft":false,"max":1,"max_patch_files":100,"max_patch_size":1024,"protect_top_level_dot_folders":true,"protected_files":["package.json","bun.lockb","bunfig.toml","deno.json","deno.jsonc","deno.lock","global.json","NuGet.Config","Directory.Packages.props","mix.exs","mix.lock","go.mod","go.sum","stack.yaml","stack.yaml.lock","pom.xml","build.gradle","build.gradle.kts","settings.gradle","settings.gradle.kts","gradle.properties","package-lock.json","yarn.lock","pnpm-lock.yaml","npm-shrinkwrap.json","requirements.txt","Pipfile","Pipfile.lock","pyproject.toml","setup.py","setup.cfg","Gemfile","Gemfile.lock","uv.lock","CODEOWNERS","DESIGN.md","README.md","CONTRIBUTING.md","CHANGELOG.md","SECURITY.md","CODE_OF_CONDUCT.md","AGENTS.md","CLAUDE.md","GEMINI.md"],"title_prefix":"spec"},"create_report_incomplete_issue":{},"hide_comment":{"max":5},"missing_data":{},"missing_tool":{},"noop":{"max":1,"report-as-issue":"true"},"push_to_pull_request_branch":{"if_no_changes":"warn","max":1,"max_patch_size":1024,"protect_top_level_dot_folders":true,"protected_files":["package.json","bun.lockb","bunfig.toml","deno.json","deno.jsonc","deno.lock","global.json","NuGet.Config","Directory.Packages.props","mix.exs","mix.lock","go.mod","go.sum","stack.yaml","stack.yaml.lock","pom.xml","build.gradle","build.gradle.kts","settings.gradle","settings.gradle.kts","gradle.properties","package-lock.json","yarn.lock","pnpm-lock.yaml","npm-shrinkwrap.json","requirements.txt","Pipfile","Pipfile.lock","pyproject.toml","setup.py","setup.cfg","Gemfile","Gemfile.lock","uv.lock","CODEOWNERS","DESIGN.md","README.md","CONTRIBUTING.md","CHANGELOG.md","SECURITY.md","CODE_OF_CONDUCT.md","AGENTS.md","CLAUDE.md","GEMINI.md"]},"remove_labels":{"allowed":["sdd:spec","sdd:fastpath","sdd:fastpath-review","plan:provided"],"max":3},"report_incomplete":{}}
-          GH_AW_SAFE_OUTPUTS_CONFIG_4a0c8c3eeb88a2cd_EOF
+          GH_AW_SAFE_OUTPUTS_CONFIG_a983d757dea73240_EOF
       - name: Generate Safe Outputs Tools
         env:
           GH_AW_TOOLS_META_JSON: |
@@ -1904,7 +1952,7 @@ jobs:
           
           mkdir -p /home/runner/.copilot
           GH_AW_NODE=$(which node 2>/dev/null || command -v node 2>/dev/null || echo node)
-          cat << GH_AW_MCP_CONFIG_8c70a87bbd2211e7_EOF | "$GH_AW_NODE" "${RUNNER_TEMP}/gh-aw/actions/start_mcp_gateway.cjs"
+          cat << GH_AW_MCP_CONFIG_0d0e4a62709d0462_EOF | "$GH_AW_NODE" "${RUNNER_TEMP}/gh-aw/actions/start_mcp_gateway.cjs"
           {
             "mcpServers": {
               "distillery": {
@@ -1972,7 +2020,8 @@ jobs:
                   "${GITHUB_WORKSPACE}"
                 ],
                 "mounts": [
-                  "${GITHUB_WORKSPACE}:${GITHUB_WORKSPACE}:rw"
+                  "${GITHUB_WORKSPACE}:${GITHUB_WORKSPACE}:rw",
+                  "/tmp/gh-aw/serena/rust-analyzer:/usr/local/bin/rust-analyzer:ro"
                 ],
                 "args": [
                   "--network",
@@ -2005,7 +2054,7 @@ jobs:
               "payloadDir": "${MCP_GATEWAY_PAYLOAD_DIR}"
             }
           }
-          GH_AW_MCP_CONFIG_8c70a87bbd2211e7_EOF
+          GH_AW_MCP_CONFIG_0d0e4a62709d0462_EOF
       - name: Mount MCP servers as CLIs
         id: mount-mcp-clis
         continue-on-error: true
