@@ -10,8 +10,14 @@ name: sdd-validate
 #
 # sdd-validate has no comment-command trigger, so this wrapper performs no
 # repository-permission gate: the gh-aw command:/slash_command trigger is not
-# used here. The triggers are a pull request opened or synchronized and a
-# tracking issue gaining the sdd:ready label.
+# used here. The triggers are a pull request opened or synchronized on a suite
+# branch (head ref `spec/`, `arch/`, or `sdd/`) and a tracking issue gaining
+# the sdd:ready label. The branch-prefix gate keeps the agent from commenting
+# on PRs the suite did not create — dependabot bumps, external contributions,
+# and unrelated human PRs. Suite PRs carry no distinguishing label (the
+# lifecycle label lives on the tracking issue), so the head ref is the signal,
+# matching CLAUDE.md's branch conventions and the sdd-execute/sdd-dispatch
+# wrappers' head-ref routing.
 #
 # No needs-human-removal resume is wired here. When sdd-validate escalates a
 # Blocker on a pull request, the hand-off is resumed by a fresh
@@ -41,18 +47,28 @@ jobs:
   # reusable workflow consumes. A non-match leaves should_run = false so the
   # agent job is skipped.
   #
-  # The job-level if: gate skips the route job entirely on issues label events
-  # whose label this wrapper does not route (fixes issue #119 — the
-  # sdd:in-progress/sdd:dispatched label mutations a /dispatch performs on a
-  # tracker no longer spawn a route-job runner on this wrapper). The route
-  # step routes an `issues` event only on `labeled` `sdd:ready`; every other
-  # label add is skipped here without a runner. pull_request events pass
-  # through unchanged.
+  # The job-level if: gate skips the route job entirely for events this wrapper
+  # does not route, so no runner spins up for them. It admits two cases:
+  #   - a pull_request whose head ref is a suite branch (`spec/`, `arch/`, or
+  #     `sdd/`); a PR on any other branch is not a suite PR and is skipped,
+  #     keeping the agent off dependabot, external, and unrelated human PRs;
+  #   - an `issues` `labeled` event for `sdd:ready` only (fixes issue #119 — the
+  #     sdd:in-progress/sdd:dispatched label mutations a /dispatch performs on a
+  #     tracker no longer spawn a route-job runner on this wrapper). Every other
+  #     label add is skipped here without a runner.
   route:
     if: |
-      github.event_name != 'issues'
+      (
+        github.event_name == 'pull_request'
+        && (
+          startsWith(github.event.pull_request.head.ref, 'spec/')
+          || startsWith(github.event.pull_request.head.ref, 'arch/')
+          || startsWith(github.event.pull_request.head.ref, 'sdd/')
+        )
+      )
       || (
-        github.event.action == 'labeled'
+        github.event_name == 'issues'
+        && github.event.action == 'labeled'
         && github.event.label.name == 'sdd:ready'
       )
     runs-on: ubuntu-latest
@@ -73,13 +89,26 @@ jobs:
             let run = false;
             let ctx = {};
 
-            // A pull request was opened or synchronized. Every such event is
-            // validated; the agent resolves the boundary from the changed
-            // files. A draft pull request is still validated: validation is
-            // advisory and never blocks.
+            // A pull request was opened or synchronized on a suite branch. The
+            // agent resolves the boundary from the changed files. A draft pull
+            // request is still validated: validation is advisory and never
+            // blocks. The suite-branch check repeats the job-level if: gate as
+            // defense in depth — a non-suite head ref leaves run = false so the
+            // agent never comments on a PR the suite did not create.
             if (event === 'pull_request') {
               const action = payload.action;
-              if (action === 'opened' || action === 'synchronize') {
+              const headRef = (payload.pull_request
+                && payload.pull_request.head
+                && payload.pull_request.head.ref) || '';
+              const isSuiteBranch = headRef.startsWith('spec/')
+                || headRef.startsWith('arch/')
+                || headRef.startsWith('sdd/');
+              if (!isSuiteBranch) {
+                core.info('PR #'
+                  + (payload.pull_request && payload.pull_request.number)
+                  + ' head ref "' + headRef + '" is not a suite branch'
+                  + ' (spec/, arch/, sdd/); not validating.');
+              } else if (action === 'opened' || action === 'synchronize') {
                 run = true;
                 ctx = {
                   item_type: 'pull_request',
