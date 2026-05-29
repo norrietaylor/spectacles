@@ -303,6 +303,18 @@ jobs:
           the cascade and replace it with another `/dispatch` to resume. It
           coexists with the lifecycle label the same way `needs-human` does.
           
+          `plan:provided` is an **orthogonal translation marker**, not a lifecycle
+          label. The `spec.md` issue template ("Specification (from Claude plan)")
+          sets it, and a human can apply it by hand, to declare that the tracking
+          issue body is a Claude plan document. `sdd-spec` reads it to translate the
+          plan into a spec, and `sdd-triage` Phase A reads it to translate the
+          plan's architecture section into `architecture.md`, instead of authoring
+          either from scratch (issue #102). It is cleared by `sdd-triage` Phase A
+          when the architecture PR opens — or, on the fast path where triage never
+          runs, by `sdd-spec` when the stub spec PR opens. Like `sdd:dispatched`
+          and `needs-human`, it coexists with whatever lifecycle label the tracking
+          issue carries and survives phase transitions untouched.
+          
           ## Comment-command vocabulary
           
           A small command vocabulary steers the pipeline. Every command is gated, via
