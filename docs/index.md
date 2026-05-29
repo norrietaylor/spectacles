@@ -38,9 +38,10 @@ issues, comments, labels, and pull requests.
 ## Status
 
 The repository foundation, the human-interaction contract, the shared MCP
-tooling, and all five pipeline agents (`sdd-spec`, `sdd-triage`,
-`sdd-execute`, `sdd-validate`, `sdd-review`) are built. Consumer packaging,
-the one-command install onto another repo, is the last unit.
+tooling, the six pipeline agents (`sdd-spec`, `sdd-triage`, `sdd-dispatch`,
+`sdd-execute`, `sdd-validate`, `sdd-review`), and the consumer packaging — the
+one-command install onto another repo — are built. See
+[Installing the SDD suite](sdd/install.md).
 
 The source, including the workflow definitions, shared fragments, and ADRs,
 is at [github.com/norrietaylor/spectacles](https://github.com/norrietaylor/spectacles).

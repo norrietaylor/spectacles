@@ -40,6 +40,20 @@ DISTILLERY_OAUTH_TOKEN=<machine-token> \
   bash scripts/quick-setup.sh --target-repo <owner>/<name> --suite sdd
 ```
 
+By default the installer writes the file artifacts — the workflow wrappers, the
+issue templates, and the `.gitignore` `.serena/` entry — to a
+`spectacles/install` branch on the target and opens a pull request into its
+default branch. This is what lets the install succeed on a repository whose
+default branch is protected: the files land through review, not a direct push.
+Merge that PR to activate the workflows. Labels, variables, and secrets are not
+branch-scoped and are applied directly in both modes. Re-running the installer
+updates the same branch and PR rather than duplicating them.
+
+Pass `--direct` to write the file artifacts straight to the default branch
+instead, skipping the PR. Use it only on a repository whose default branch is
+unprotected; on a protected branch the direct writes are rejected and the
+install aborts.
+
 `--suite sdd` installs, onto the target repository:
 
 - the nine thin wrappers — the eight `sdd-*` agents (`sdd-spec`,
@@ -68,8 +82,9 @@ DISTILLERY_OAUTH_TOKEN=<machine-token> \
   tracker with one `/dispatch` when the close-driven cascade stalls. It is
   disabled by default — set the `SDD_MONITOR` repository variable to `1` to
   enable it (see `sdd-monitor.md`);
-- the `sdd:*` lifecycle labels and the `model:*` tier labels;
-- the `feature`, `bug`, and `chore` issue templates.
+- the `sdd:*` lifecycle labels, the `model:*` tier labels, and the
+  `plan:provided` translation marker;
+- the `feature`, `bug`, `chore`, and `spec` issue templates.
 
 Without `--suite sdd` the installer only syncs the base labels, which is the
 Unit 1 behavior and is left intact.
@@ -102,24 +117,40 @@ run time from repository (or organization) variables and secrets.
 
 Set with `gh variable set <NAME> --repo <owner>/<name> --body <value>`.
 
-| Variable | Purpose |
-|---|---|
-| `DISTILLERY_MCP_URL` | The Distillery HTTP MCP endpoint the agents query for retrieval and memory. The installer sets it from `DISTILLERY_MCP_URL` in its environment. |
-| `DISTILLERY_PROJECT` | The Distillery project slug for this repository. All queries are scoped to it so a shared store cannot surface unrelated content. The installer sets it to the target repository's name. |
-| `SERENA_LANGUAGE_SERVERS` | The Serena language server set for this repository's stack. The installer auto-detects and sets this when the stack is recognised; set it by hand otherwise, or leave it unset to run Serena in text-level fallback. |
-| `APP_ID` | The ID of the GitHub App that is the agents' write identity. Each agent run mints its own short-lived installation token from it; see "The GitHub App identity" below. |
-| `SDD_DISPATCH_MAX_PARALLEL` | The matrix parallelism cap for `sdd-dispatch`'s fan-out to `sdd-execute` runs. Default 5; any positive integer. A ready set larger than the cap queues at the matrix level and starts more cells as earlier ones finish. Set this lower on a repo with strict billing limits, or higher on a repo whose CI capacity allows it. |
+The table lists every repository (or organization) variable the suite reads.
+The first four are required for the agents to run; the rest are optional
+toggles with the defaults shown.
+
+| Variable | Default when unset | Set by | Purpose |
+|---|---|---|---|
+| `DISTILLERY_MCP_URL` | — (required) | installer (from its environment) | The Distillery HTTP MCP endpoint the agents query for retrieval and memory. |
+| `DISTILLERY_PROJECT` | — (required) | installer (target repo name) | The Distillery project slug for this repository. All queries are scoped to it so a shared store cannot surface unrelated content. |
+| `SERENA_LANGUAGE_SERVERS` | Serena text-level fallback | installer (auto-detect) | The Serena language server set for this repository's stack. The installer auto-detects and sets this when the stack is recognised; set it by hand otherwise, or leave it unset to run Serena in text-level fallback. |
+| `APP_ID` | — (required) | operator | The ID of the GitHub App that is the agents' write identity. Each agent run mints its own short-lived installation token from it; see "The GitHub App identity" below. |
+| `SDD_DISPATCH_MAX_PARALLEL` | `5` | operator | The matrix parallelism cap for `sdd-dispatch`'s fan-out to `sdd-execute` runs. Any positive integer. A ready set larger than the cap queues at the matrix level and starts more cells as earlier ones finish. Set this lower on a repo with strict billing limits, or higher on a repo whose CI capacity allows it. |
+| `SDD_AUTO_MERGE` | unset (off) | operator | Toggles the `auto-merge` job in each `sdd-execute` tier. Set to `1` or `true` to enable GitHub squash + delete-branch auto-merge on the PR the cascade just opened, so a green PR merges with no human in the loop (issue #127). When off, the agent opens the PR and leaves merge to a human. Leave off on a repo without branch protection. |
+| `SDD_MAX_REVIEW_ITERATIONS` | `3` | operator | Cap on auto-revise cycles per implementation PR for `CHANGES_REQUESTED` reviews (issue #128). Read by every `sdd-execute` tier. On hitting the cap the agent stops auto-revising and applies `needs-human`. |
+| `SDD_MONITOR` | unset (off) | operator | Master switch for the `sdd-monitor` backstop workflow. Set to `1` to enable monitor `/dispatch` nudges of an armed-but-idle `sdd:dispatched` tracker; any other value keeps it off. See `sdd-monitor.md`. |
+| `SDD_MONITOR_DEBOUNCE_MIN` | `5` | operator | Minutes between consecutive `/dispatch` comments `sdd-monitor` posts on the same tracker (counting both monitor- and operator-issued). Consulted only when `SDD_MONITOR=1`. |
+| `GH_AW_MODEL_AGENT_COPILOT` | `claude-sonnet-4.6` | operator (optional) | Overrides the Copilot model the agent step runs. Consumed by every agent lock except the `sdd-execute` tiers, which pin their model via the `model:*` task label. |
+| `GH_AW_MODEL_DETECTION_COPILOT` | `claude-sonnet-4.6` | operator (optional) | Overrides the Copilot model the gh-aw detection step runs. Consumed by the `sdd-spec`, `sdd-triage`, `sdd-dispatch`, `sdd-validate`, and `sdd-review` locks. |
 
 ### Secrets
 
 Set with `gh secret set <NAME> --repo <owner>/<name>`.
 
-| Secret | Purpose |
-|---|---|
-| `COPILOT_GITHUB_TOKEN` | The token for the Copilot engine that runs the agents. |
-| `APP_PRIVATE_KEY` | The private key (PEM) of the GitHub App that is the agents' write identity. Each agent run mints its own installation token from `APP_ID` and this key; nothing static is stored. The agents open PRs, create issues, and apply labels through that token. |
-| `DISTILLERY_OAUTH_TOKEN` | The Distillery machine token — a pre-shared static bearer credential the workflows present to the Distillery MCP endpoint. Operator-issued; the installer sets it from `DISTILLERY_OAUTH_TOKEN` in its environment. See "The Distillery machine token" below. Despite the secret name, it is **not** a GitHub OAuth token. |
-| `LEAK_DENYLIST` | The leak-scan denylist, one term per line. Supplied as a secret so the private terms are never themselves committed to the public tree. Comment lines begin with `#`. |
+These four are the only operator-supplied secrets. They may be set at
+repository or organization level; an organization secret covers every consumer
+at once. The `GH_AW_*` token secrets that appear in the compiled locks are
+gh-aw boilerplate satisfied by the workflow's default `GITHUB_TOKEN`; the
+operator does not provision them.
+
+| Secret | Set by | Purpose |
+|---|---|---|
+| `COPILOT_GITHUB_TOKEN` | operator | The token for the Copilot engine that runs the agents. Consumed by every agent lock. |
+| `APP_PRIVATE_KEY` | operator | The private key (PEM) of the GitHub App that is the agents' write identity. Each agent run mints its own installation token from `APP_ID` and this key; nothing static is stored. The agents open PRs, create issues, and apply labels through that token. |
+| `DISTILLERY_OAUTH_TOKEN` | installer (from its environment) | The Distillery machine token — a pre-shared static bearer credential the workflows present to the Distillery MCP endpoint. Operator-issued; the installer sets it from `DISTILLERY_OAUTH_TOKEN` in its environment. See "The Distillery machine token" below. Despite the secret name, it is **not** a GitHub OAuth token. |
+| `LEAK_DENYLIST` | operator | The leak-scan denylist, one term per line. Supplied as a secret so the private terms are never themselves committed to the public tree. Comment lines begin with `#`. Consumed by the `leak-scan` CI workflow, which runs in the spectacles repository, not on a consumer. |
 
 ### The GitHub App identity
 
@@ -175,6 +206,61 @@ everywhere at once. Keep access to the secret minimal. Isolation between
 repositories' knowledge is enforced by `DISTILLERY_PROJECT` scoping, not by
 the token.
 
+## Workflows installed
+
+`--suite sdd` writes thirteen workflow files to the consumer's
+`.github/workflows/`. Nine are agent wrappers; four are utility workflows.
+None carries a `.lock.yml` — every wrapper calls a hosted reusable workflow by
+pinned ref (ADR 0004).
+
+| Workflow | Triggers | What it does |
+|---|---|---|
+| `sdd-spec` | `issues`, `issue_comment`, `pull_request` | Drafts a spec (full path) or proposes/runs the fast path from a tracking issue. |
+| `sdd-triage` | `issues`, `issue_comment`, `pull_request` | On `/triage`: architecture record, then plan comment, then the Unit/task tree on `/approve`. |
+| `sdd-dispatch` | `issue_comment`, `issues` | On `/dispatch`: computes the ready set and fans out `sdd-execute` runs in a bounded matrix; re-fires on every task close. |
+| `sdd-execute-haiku` | `workflow_dispatch`, `issue_comment`, `issues`, `pull_request` | Low-complexity tier. Implements a ready task and opens an implementation PR. |
+| `sdd-execute-sonnet` | `workflow_dispatch`, `issue_comment`, `issues`, `pull_request` | Moderate-complexity tier. |
+| `sdd-execute-opus` | `workflow_dispatch`, `issue_comment`, `issues`, `pull_request` | High-complexity tier. |
+| `sdd-validate` | `pull_request`, `issues` | Posts advisory findings at each phase boundary. |
+| `sdd-review` | `pull_request` | Posts code-review comments on the implementation PR. |
+| `distillery-sync` | `schedule` (daily), `workflow_dispatch` | Ingests specs, ADRs, issues, and PRs into the Distillery store. The only Distillery writer. |
+| `sdd-pr-sanitize` | `pull_request` | Neutralizes a stray issue-closing keyword in a spec/architecture PR body and adds `Closes #<sub-issue>` (ADR 0005, ADR 0006). |
+| `sdd-triage-dedupe-tasks` | `issues` | Closes a duplicate phase-C task sub-issue (ADR 0008). |
+| `sdd-triage-promote-ready` | `issues` | Applies `sdd:ready` to a task when its last `blocked by` blocker closes (ADR 0009, ADR 0013). |
+| `sdd-monitor` | `workflow_run`, `pull_request`, `schedule` (`*/10`) | Backstop that nudges an armed-but-idle `sdd:dispatched` tracker with `/dispatch`. Disabled unless `SDD_MONITOR=1` (see `sdd-monitor.md`). |
+
+## Labels installed
+
+`--suite sdd` syncs the complete label set below. Eight `sdd:*` labels are the
+lifecycle state machine — exactly one is present on a tracking issue at a time.
+`sdd:dispatched`, `plan:provided`, and `needs-human` are orthogonal markers
+that coexist with the lifecycle label. The `kind:*`, `priority:*`, and
+`model:*` families are metadata, not states. The state machine and the agent
+that writes each transition are in `shared/sdd-interaction.md`.
+
+| Label | Family | Set by | Meaning |
+|---|---|---|---|
+| `sdd:spec` | lifecycle | template / `/spec` | Being specified by `sdd-spec`. |
+| `sdd:fastpath` | lifecycle | `sdd-spec` on `/fastpath`, or stub merge | Fast path armed; awaiting stub merge or `/approve` (ADR 0012). |
+| `sdd:fastpath-review` | lifecycle | `sdd-spec` on stub PR open | Fast-path stub spec PR open, awaiting merge (ADR 0012). |
+| `sdd:triage` | lifecycle | `sdd-spec` on spec-PR merge | Architecture and triage running. |
+| `sdd:ready` | lifecycle | `sdd-triage` phase C | Tasks decomposed and queued, awaiting `/dispatch`. |
+| `sdd:in-progress` | lifecycle | `sdd-dispatch` (full) / `sdd-execute` (fast) | Cascade armed; tasks being implemented. |
+| `sdd:review` | lifecycle | `sdd-validate` on clean pass | Implementation awaits human review. |
+| `sdd:done` | lifecycle | `sdd-execute` when all tasks close | Complete; human does the final close. |
+| `sdd:dispatched` | marker | `sdd-dispatch` on first `/dispatch` | Cascade armed; re-fires on every task close until the tree drains. |
+| `plan:provided` | marker | `spec.md` template / human | Tracking-issue body is a Claude plan; `sdd-spec`/`sdd-triage` translate it (issue #102). Cleared when the architecture (or fast-path stub) PR opens. |
+| `needs-human` | marker | any agent | Agent handed off; a human acts then clears it (ADR 0001). |
+| `model:haiku` | tier | `sdd-triage` | Low-complexity task; haiku `sdd-execute` variant. |
+| `model:sonnet` | tier | `sdd-triage` | Moderate-complexity task; sonnet variant. |
+| `model:opus` | tier | `sdd-triage` | High-complexity task; opus variant. |
+| `kind:feature` | kind | template | A new feature or capability. |
+| `kind:bug` | kind | template | Something is not working. |
+| `kind:chore` | kind | template | Maintenance, refactor, or internal improvement. |
+| `priority:must-have` | priority | human | Must be done. |
+| `priority:should-have` | priority | human | Should be done. |
+| `priority:nice-to-have` | priority | human | Nice to have. |
+
 ## Existing-codebase checklist
 
 The suite is designed to install onto a repository that already has code and
@@ -224,13 +310,15 @@ history, not only a greenfield one. Before and after the install, confirm:
 - [ ] The repository's branch protection, if any, does not require a status
       check that the agents cannot satisfy. The SDD agents never merge; merge
       authority stays with humans and the consumer's own CI.
-- [ ] The `feature`, `bug`, and `chore` issue templates installed cleanly and
-      do not collide with the target repository's existing templates.
+- [ ] The `feature`, `bug`, `chore`, and `spec` issue templates installed
+      cleanly and do not collide with the target repository's existing
+      templates.
 
 ## Post-install smoke test
 
-Before running a feature through the pipeline, confirm the install resolved
-its dependencies:
+Run these after the installer PR is merged (default mode), or right after the
+install in `--direct` mode. Before running a feature through the pipeline,
+confirm the install resolved its dependencies:
 
 1. **Workflows present.** Confirm the nine wrappers — the eight `sdd-*`
    wrappers (including `sdd-dispatch.yml`) and `distillery-sync.yml` — and
@@ -239,8 +327,13 @@ its dependencies:
    appear under `.github/workflows/` on the target repository. The
    `.lock.yml` reusable workflows are hosted in the spectacles repository
    and are not copied onto the consumer.
-2. **Labels present.** Confirm all six `sdd:*` labels and all three `model:*`
-   labels exist on the target repository.
+2. **Labels present.** Confirm the eight `sdd:*` lifecycle labels
+   (`sdd:spec`, `sdd:fastpath`, `sdd:fastpath-review`, `sdd:triage`,
+   `sdd:ready`, `sdd:in-progress`, `sdd:review`, `sdd:done`), the
+   `sdd:dispatched` cascade marker, the `plan:provided` translation marker,
+   the three `model:*` tier labels, the three `kind:*` labels, the three
+   `priority:*` labels, and `needs-human` all exist on the target repository.
+   The full set is in "Labels installed" below.
 3. **MCP reachable.** Dispatch `distillery-sync` once and confirm its run logs
    a non-zero count of ingested specs, decisions, issues, or pull requests.
    This proves the Distillery endpoint and OAuth credential resolve.
