@@ -258,11 +258,11 @@ install_sdd_workflows() {
   done
 }
 
-# Install the feature, bug, and chore issue templates.
+# Install the feature, bug, chore, and spec issue templates.
 install_issue_templates() {
   echo "quick-setup: installing the issue templates."
   local tpl
-  for tpl in feature bug chore; do
+  for tpl in feature bug chore spec; do
     install_file "$templates_dir/$tpl.md" \
       ".github/ISSUE_TEMPLATE/$tpl.md" \
       "chore: install $tpl issue template (spectacles quick-setup)"

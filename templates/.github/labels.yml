@@ -61,3 +61,6 @@
 - name: model:opus
   color: b60205
   description: Tier - a high-complexity task; run by the opus sdd-execute variant.
+- name: plan:provided
+  color: bfd4f2
+  description: Marker - a Claude plan is in the tracking-issue body; sdd-spec and sdd-triage translate it instead of authoring from scratch.

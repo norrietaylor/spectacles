@@ -48,8 +48,8 @@ safe-outputs:
     allowed: [sdd:ready, needs-human]
     max: 20
   remove-labels:
-    allowed: [sdd:triage]
-    max: 1
+    allowed: [sdd:triage, plan:provided]
+    max: 2
   noop:
 ---
 
@@ -179,6 +179,25 @@ written: it is a short, explicit note that begins `No significant architecture
 decision; approach: ...` and states the straightforward approach. The phase
 always runs and always persists a record.
 
+**Architecture-translation mode (`plan:provided`).** When the tracking
+issue carries the `plan:provided` marker, its body is a Claude plan
+document (the `spec.md` template's case, or a hand-applied marker). The
+plan typically contains the architecture and design decisions the author
+already made, so do **not** re-derive architecture from scratch and risk
+diverging from the author's intent (issue #102). Instead, read the
+original plan from the tracking-issue body and use its
+architecture/design section as the basis for `architecture.md`: carry the
+chosen approach, the data and interface changes, and the alternatives the
+plan weighed. Cite the plan inline next to each translated decision as
+`(translated from plan: ...)`. Serena and Distillery still run — to
+ground the translated decisions in the real codebase and prior work, not
+to invent a competing design. When the plan's architecture/design section
+is **missing or thin**, fall back to authoring the record from scratch
+exactly as above; the marker does not force a translation the plan cannot
+support. `plan:provided` is an orthogonal marker that survived the
+`sdd:spec → sdd:triage` transition untouched, the same way `model:*`
+labels survive phase transitions.
+
 If the architecture has a **genuine fork**, that is, more than one defensible
 approach with material tradeoffs and no clear winner, do **not** decide
 unilaterally. Instead post one comment on the tracking issue framing the
@@ -259,6 +278,19 @@ e2e plan's amber-node check at `h_arch` matches a comment with
 treats a missing match as a defect (bug
 `norrietaylor/spectacles#110`). A generic "Pull request created: #<pr>" line
 is **not** sufficient — it leaves the amber-node handoff unannounced.
+
+When the tracking issue carries the `plan:provided` marker, remove it
+(`remove-labels`) in this step, as the architecture pull request opens.
+Both phases that read the marker have now consumed it: `sdd-spec`
+translated the plan into the spec, and this phase translated the plan's
+architecture section into `architecture.md` (issue #102, S3). The
+removal is independent of the lifecycle label — `plan:provided` is an
+orthogonal marker, so clearing it does not touch `sdd:triage`, which
+stays in place until phase C. Do not remove the marker on a `/revise`
+re-run of phase A (the marker may already be gone, and a re-run does not
+re-open the pull request); remove it only on the initial phase A run
+that opens the architecture pull request. If the marker is absent (a
+non-`plan:provided` feature), this is a no-op.
 
 Then stop: phase A ends here. Phase B runs only when this pull request is
 merged.
@@ -554,6 +586,12 @@ the tracking issue stays at `sdd:ready`.
 - Commenting `/revise <note>` on that architecture pull request pushes a
   follow-up commit to its existing branch, updating the same pull request, and
   opens no second architecture pull request.
+- On a `plan:provided` tracking issue, phase A's `architecture.md` cites
+  the original plan's design section inline as `(translated from plan: ...)`
+  rather than re-deriving the architecture from scratch (falling back to
+  from-scratch authoring only when the plan's architecture section is
+  missing or thin), and `plan:provided` is removed when the architecture
+  pull request opens.
 - Merging that architecture pull request closes the architecture sub-issue
   (via the `Closes #<architecture-sub-issue>` keyword `sdd-pr-sanitize`
   added), produces **zero** new sub-issues, and posts **one** plan comment

@@ -319,7 +319,7 @@ artifacts captured, editing the target repository at the symbol level, and it
 addresses review comments on the pull request it opened.
 
 This file is the **opus** model-tier variant. The `sdd-execute` source is
-authored once and compiled into three variants (`sdd-execute-opus`,
+authored once and compiled into three variants (`sdd-execute-haiku`,
 `sdd-execute-sonnet`, `sdd-execute-opus`) that differ only in the engine model
 and the `model:*` tier this variant claims. gh-aw binds the engine model at
 compile time, so model-tier-by-complexity is realized as three compiled

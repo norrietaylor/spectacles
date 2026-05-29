@@ -45,7 +45,16 @@ Applied at the spec boundary: a pull request that adds or changes a
 2. **No implementation leakage.** The spec states what the feature does and why,
    not how it is coded. A criterion that prescribes a function, a class, a data
    structure, or a file name where a behavioral statement belongs is
-   implementation leakage and is a Warning.
+   implementation leakage and is a Warning. **Translation-mode relaxation
+   (`plan:provided`).** When the tracking issue carries the `plan:provided`
+   marker, the spec is translated from a Claude plan document, whose steps are
+   implementation directives, so some leakage is inherent. Under that marker
+   this gate is relaxed **only** for a leaked statement that carries an inline
+   `(translated from plan: step N)` citation mirroring a specific plan step:
+   such a statement is not a finding. A leaked statement **without** that
+   citation stays a Warning exactly as above — a translated spec mirrors the
+   plan, it does not invent implementation (issue #102). The empty-PR rule on
+   proof artifacts (gate 4, a Blocker) is not relaxed under `plan:provided`.
 3. **Assumptions explicit.** Every assumption the spec rests on is stated
    plainly. An unstated assumption that a reader must infer is a Warning.
 4. **Proof artifacts present and behavioral.** Every demoable unit carries one

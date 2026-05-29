@@ -47,6 +47,14 @@ markers:
   # re-dispatch on task closure (ADR 0011). Orthogonal to the
   # lifecycle state; coexists with sdd:ready / sdd:in-progress.
   - sdd:dispatched
+  # plan:provided marks a tracking issue whose body is a Claude plan
+  # document. sdd-spec translates it into a spec and sdd-triage Phase A
+  # translates its architecture section into architecture.md, instead of
+  # authoring either from scratch (issue #102). Orthogonal to the
+  # lifecycle state; set by the spec.md template, cleared by sdd-triage
+  # Phase A when the architecture PR opens (or by sdd-spec on the
+  # fast-path stub-spec exit).
+  - plan:provided
 
 # Directed transition graph. Key is the source state; value is the
 # list of states reachable in one move from the source. Every state in
