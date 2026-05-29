@@ -75,7 +75,7 @@ jobs:
     steps:
       - name: Decide whether to run, and find the tracking issue
         id: decide
-        uses: actions/github-script@v9
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         env:
           APP_ID: ${{ vars.APP_ID }}
         with:
@@ -521,7 +521,7 @@ jobs:
     steps:
       - name: Compute ready set and precondition state
         id: compute
-        uses: actions/github-script@v9
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         env:
           TRACKING_ISSUE: ${{ needs.route.outputs.tracking_issue }}
           TRIGGER_KIND: ${{ needs.route.outputs.trigger_kind }}
@@ -853,7 +853,7 @@ jobs:
           owner: ${{ github.repository_owner }}
           repositories: ${{ github.event.repository.name }}
       - name: Post /execute on task #${{ matrix.task }}
-        uses: actions/github-script@v9
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         env:
           APP_TOKEN: ${{ steps.app.outputs.token }}
           TASK: ${{ matrix.task }}
@@ -883,7 +883,7 @@ jobs:
                 + ': ' + err.message);
             }
       - name: Apply sdd:ready hint to dispatched task #${{ matrix.task }}
-        uses: actions/github-script@v9
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         env:
           APP_TOKEN: ${{ steps.app.outputs.token }}
           TASK: ${{ matrix.task }}
@@ -929,7 +929,7 @@ jobs:
           owner: ${{ github.repository_owner }}
           repositories: ${{ github.event.repository.name }}
       - name: Apply lifecycle and sdd:dispatched labels
-        uses: actions/github-script@v9
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         env:
           APP_TOKEN: ${{ steps.app.outputs.token }}
           TRACKING: ${{ needs.route.outputs.tracking_issue }}
@@ -1098,7 +1098,7 @@ jobs:
           owner: ${{ github.repository_owner }}
           repositories: ${{ github.event.repository.name }}
       - name: Post the noop comment
-        uses: actions/github-script@v9
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         env:
           APP_TOKEN: ${{ steps.app.outputs.token }}
           TRACKING: ${{ needs.route.outputs.tracking_issue }}
@@ -1172,7 +1172,7 @@ jobs:
           owner: ${{ github.repository_owner }}
           repositories: ${{ github.event.repository.name }}
       - name: Post the fast-path noop comment
-        uses: actions/github-script@v9
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         env:
           APP_TOKEN: ${{ steps.app.outputs.token }}
           TRACKING: ${{ needs.route.outputs.tracking_issue }}
