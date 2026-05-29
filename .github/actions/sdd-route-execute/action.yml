@@ -1,0 +1,677 @@
+name: sdd-route-execute
+description: >
+  Decision logic shared by the three sdd-execute model-tier wrapper variants.
+  Resolves which trigger fired, gates /execute and /revise on real repository
+  permission (or the configured App identity), enforces the model:<tier> gate,
+  handles the CHANGES_REQUESTED auto-revise loop with its iteration cap, and
+  emits should_run plus the aw_context JSON the hosted lock consumes. Extracted
+  verbatim from the wrappers so the routing logic lives in one place; the only
+  per-variant difference is the tier input. See ADR 0004 and ADR 0015.
+
+inputs:
+  tier:
+    description: 'Model tier this caller variant claims (haiku|sonnet|opus).'
+    required: true
+  app-id:
+    description: >
+      Configured GitHub App ID. A /execute comment posted by sdd-dispatch's
+      cascade fan-out under the App identity is accepted when its
+      performed_via_github_app.id matches this; a human /execute still goes
+      through the repository-permission check.
+    required: false
+    default: ''
+  max-review-iterations:
+    description: 'Cap on auto-revise cycles per PR. Defaults to 3 when empty.'
+    required: false
+    default: ''
+  github-token:
+    description: 'Token used for the REST and GraphQL calls in the route logic.'
+    required: false
+    default: ${{ github.token }}
+
+outputs:
+  should_run:
+    description: "'true' when the agent job should run, 'false' otherwise."
+    value: ${{ steps.decide.outputs.should_run }}
+  aw_context:
+    description: 'JSON naming the triggering entity; empty when should_run is false.'
+    value: ${{ steps.decide.outputs.aw_context }}
+
+runs:
+  using: composite
+  steps:
+    - name: Decide whether to run and build aw_context
+      id: decide
+      uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+      env:
+        APP_ID: ${{ inputs.app-id }}
+        SDD_MAX_REVIEW_ITERATIONS: ${{ inputs.max-review-iterations }}
+        TIER: ${{ inputs.tier }}
+      with:
+        github-token: ${{ inputs.github-token }}
+        script: |
+            const event = context.eventName;
+            const payload = context.payload;
+            let run = false;
+            let ctx = {};
+            // Set true by the CHANGES_REQUESTED auto-revise branch (issue
+            // #128). The cap count, hidden marker, and needs-human side
+            // effects are deferred until AFTER the tier gate below confirms
+            // this variant owns the PR, so the two non-owning tiers never
+            // mutate PR state (they would otherwise inflate the cap count).
+            let reviewAutoRevise = false;
+            let reviewPrNumber = 0;
+
+            // The model tier is supplied by the wrapper as the tier
+            // input; the tier gate below skips a task another tier owns.
+            const TIER = process.env.TIER;
+
+            // A workflow_dispatch from sdd-dispatch (or from an operator
+            // running the queue by hand) carries an aw_context input naming
+            // the task to implement. The cron-based "schedule" trigger has
+            // been removed (issue #81 / ADR 0011): execution is event-driven
+            // now, dispatched per task from the cascade.
+            if (event === 'workflow_dispatch') {
+              const raw = (payload.inputs && payload.inputs.aw_context) || '';
+              if (raw) {
+                try {
+                  ctx = JSON.parse(raw);
+                  if (ctx && ctx.item_number) {
+                    run = true;
+                  } else {
+                    core.info('workflow_dispatch aw_context missing'
+                      + ' item_number; ignoring.');
+                  }
+                } catch (err) {
+                  core.info('workflow_dispatch aw_context not parseable: '
+                    + err.message);
+                }
+              } else {
+                core.info('workflow_dispatch with no aw_context; ignoring.');
+              }
+            }
+
+            // A /execute or /revise comment from either an author with repo
+            // write access or sdd-dispatch's App identity. The gate is the
+            // actor's real repository permission, not author_association:
+            // author_association reports the relationship to the thread
+            // (OWNER/MEMBER/COLLABORATOR), which is not the same as push
+            // access. A MEMBER of the org need not have write on this repo,
+            // and a COLLABORATOR may be read-only. The
+            // collaborators/{user}/permission API returns the actual
+            // permission level; only write, maintain, or admin may run a
+            // command. /execute on a pull request is ignored: it is a
+            // task-sub-issue command only.
+            //
+            // sdd-dispatch fans the cascade out by posting /execute on each
+            // ready task issue via the App installation token (ADR 0014).
+            // The App user is not a collaborator and would 404 the
+            // permission check, so accept the command when the comment's
+            // performed_via_github_app.id matches the configured APP_ID.
+            // Any other bot posting /execute is still rejected.
+            if (event === 'issue_comment' && payload.action === 'created') {
+              const body = (payload.comment.body || '').trim();
+              const firstWord = body.split(/\s+/)[0];
+              const isPr = !!payload.issue.pull_request;
+              const isExecute = firstWord === '/execute' && !isPr;
+              const isRevise = firstWord === '/revise' && isPr;
+              if (firstWord === '/execute' && isPr) {
+                core.info('/execute on a pull request; ignoring.');
+              } else if (isExecute || isRevise) {
+                const appId = parseInt(process.env.APP_ID || '0', 10);
+                const appComment = payload.comment.performed_via_github_app;
+                const fromConfiguredApp = appId > 0
+                  && appComment
+                  && appComment.id === appId;
+                let permission = 'none';
+                if (!fromConfiguredApp) {
+                  const actor = payload.comment.user.login;
+                  try {
+                    const resp = await github.rest.repos
+                      .getCollaboratorPermissionLevel({
+                        owner: context.repo.owner,
+                        repo: context.repo.repo,
+                        username: actor,
+                      });
+                    // role_name is the precise role
+                    // (write/maintain/triage/...) when present; permission is
+                    // the legacy bucket (admin/write/read/none) that collapses
+                    // maintain into write and triage into read.
+                    permission = resp.data.role_name || resp.data.permission;
+                  } catch (err) {
+                    core.info(
+                      'Could not resolve repo permission for ' + actor
+                      + ': ' + err.message);
+                  }
+                }
+                const canWrite = fromConfiguredApp
+                  || permission === 'write'
+                  || permission === 'maintain'
+                  || permission === 'admin';
+                if (canWrite) {
+                  run = true;
+                  ctx = isRevise
+                    ? {
+                        trigger: 'revise',
+                        item_type: 'pull_request',
+                        item_number: payload.issue.number,
+                        comment_id: payload.comment.id,
+                      }
+                    : {
+                        trigger: 'command',
+                        item_type: 'issue',
+                        item_number: payload.issue.number,
+                        comment_id: payload.comment.id,
+                      };
+                } else {
+                  core.info(
+                    'Command from an author without write access ('
+                    + permission + '); ignoring.');
+                }
+              }
+            }
+
+            // A review comment on a pull request. The agent confirms the pull
+            // request is one it opened (an sdd/<task-id>-<slug> branch) before
+            // pushing follow-up commits.
+            if (event === 'pull_request_review_comment'
+                && payload.action === 'created') {
+              run = true;
+              ctx = {
+                trigger: 'review_comment',
+                item_type: 'pull_request',
+                item_number: payload.pull_request.number,
+                comment_id: payload.comment.id,
+              };
+            }
+
+            // A formal review with state CHANGES_REQUESTED on an sdd/ PR is
+            // treated as an implicit /revise (issue #128). The directive is
+            // the review body plus the unresolved review-comment threads, so
+            // one revise run addresses the whole verdict; the individual
+            // pull_request_review_comment events that co-arrive collapse into
+            // this run at the per-PR-per-tier concurrency group (the existing
+            // dedupe mechanism). A COMMENTED or APPROVED review does not match
+            // and never triggers a revise. The manual /revise path above is
+            // untouched. The agent confirms ownership (sdd/ head ref + body
+            // marker) at step 7 exactly as it does for a review comment.
+            if (event === 'pull_request_review'
+                && payload.action === 'submitted') {
+              const review = payload.review || {};
+              const state = (review.state || '').toLowerCase();
+              const pr = payload.pull_request || {};
+              const headRef = (pr.head && pr.head.ref) || '';
+              if (state === 'changes_requested'
+                  && headRef.startsWith('sdd/')) {
+                // Author scope: accept CodeRabbit's bot review or a review by
+                // an author with repository write access, mirroring the
+                // /revise permission check above. A login of `coderabbitai`
+                // (with or without a `[bot]` suffix) is the CodeRabbit bot.
+                const reviewer = (review.user && review.user.login) || '';
+                const reviewerLc = reviewer.toLowerCase();
+                const isCodeRabbit = reviewerLc === 'coderabbitai'
+                  || reviewerLc === 'coderabbitai[bot]';
+                let reviewerCanWrite = isCodeRabbit;
+                if (!isCodeRabbit && reviewer) {
+                  let permission = 'none';
+                  try {
+                    const resp = await github.rest.repos
+                      .getCollaboratorPermissionLevel({
+                        owner: context.repo.owner,
+                        repo: context.repo.repo,
+                        username: reviewer,
+                      });
+                    permission = resp.data.role_name || resp.data.permission;
+                  } catch (err) {
+                    core.info('Could not resolve repo permission for '
+                      + reviewer + ': ' + err.message);
+                  }
+                  reviewerCanWrite = permission === 'write'
+                    || permission === 'maintain'
+                    || permission === 'admin';
+                }
+                if (!reviewerCanWrite) {
+                  core.info('CHANGES_REQUESTED review by a non-allowed'
+                    + ' reviewer (' + reviewer + '); ignoring.');
+                } else {
+                  const prNumber = pr.number;
+                  // Assemble the directive: the review body plus the
+                  // unresolved review-comment threads. Resolved threads are
+                  // skipped to avoid re-fixing addressed items. Thread
+                  // resolution state is only exposed by GraphQL. This is
+                  // read-only; the cap count and the side-effecting marker /
+                  // needs-human are deferred to the post-tier-gate block so
+                  // only the owning tier mutates PR state.
+                  const parts = [];
+                  if ((review.body || '').trim()) {
+                    parts.push(review.body.trim());
+                  }
+                  try {
+                    const result = await github.graphql(`
+                      query($owner:String!,$repo:String!,$pr:Int!) {
+                        repository(owner:$owner,name:$repo) {
+                          pullRequest(number:$pr) {
+                            reviewThreads(first:100) {
+                              nodes {
+                                isResolved
+                                comments(first:1) { nodes { body path } }
+                              }
+                            }
+                          }
+                        }
+                      }`, {
+                      owner: context.repo.owner,
+                      repo: context.repo.repo,
+                      pr: prNumber,
+                    });
+                    const threads = (result.repository
+                      && result.repository.pullRequest
+                      && result.repository.pullRequest.reviewThreads
+                      && result.repository.pullRequest.reviewThreads.nodes)
+                      || [];
+                    for (const t of threads) {
+                      if (t.isResolved) {
+                        continue;
+                      }
+                      const first = t.comments
+                        && t.comments.nodes
+                        && t.comments.nodes[0];
+                      if (first && (first.body || '').trim()) {
+                        const where = first.path ? (first.path + ': ') : '';
+                        parts.push('- ' + where + first.body.trim());
+                      }
+                    }
+                  } catch (err) {
+                    core.info('Could not read review threads on PR #'
+                      + prNumber + ': ' + err.message);
+                  }
+                  const directive = parts.join('\n').trim()
+                    || 'Address the requested changes.';
+                  run = true;
+                  reviewAutoRevise = true;
+                  reviewPrNumber = prNumber;
+                  ctx = {
+                    trigger: 'revise',
+                    item_type: 'pull_request',
+                    item_number: prNumber,
+                    directive,
+                  };
+                }
+              }
+            }
+
+            // The needs-human label was cleared on a task sub-issue (resume a
+            // step 5 or step 6 hand-off this agent applied). needs-human is
+            // shared by all six SDD agents, so the agent itself confirms the
+            // item is one it handed off before resuming.
+            if (event === 'issues' && payload.action === 'unlabeled') {
+              const label = payload.label && payload.label.name;
+              if (label === 'needs-human') {
+                run = true;
+                ctx = {
+                  trigger: 'resume',
+                  item_type: 'issue',
+                  item_number: payload.issue.number,
+                };
+              }
+            }
+
+            // The needs-human label was cleared on a pull request (resume a
+            // step 7 hand-off this agent applied). needs-human is shared by
+            // all six SDD agents, so the agent itself confirms the pull
+            // request is one it opened before resuming.
+            if (event === 'pull_request' && payload.action === 'unlabeled') {
+              const label = payload.label && payload.label.name;
+              if (label === 'needs-human') {
+                run = true;
+                ctx = {
+                  trigger: 'resume',
+                  item_type: 'pull_request',
+                  item_number: payload.pull_request.number,
+                };
+              }
+            }
+
+            // A fast-path implementation PR was merged. The wrapper detects
+            // a merged PR whose head ref follows the `sdd/<n>-` convention
+            // and whose referenced work-item is the tracking issue itself
+            // (no parent_issue_url, no task sub-issue tree). On that match
+            // the agent is invoked with `entry: 'fastpath-complete'` to run
+            // step 8's completion sweep: `sdd:in-progress → sdd:done` on
+            // the tracking issue, plus `needs-human` for the human's final
+            // close. A merged full-path implementation PR (whose head ref
+            // also follows `sdd/<task-id>-` but whose work-item is a task
+            // sub-issue) is left to the existing flow: the merge closes
+            // the task sub-issue via `Closes #<task>`, the `issues.closed`
+            // event re-fires `sdd-dispatch`, and `sdd-execute`'s next idle
+            // run (step 8) handles the feature-completion sweep. See
+            // ADR 0012.
+            if (event === 'pull_request' && payload.action === 'closed'
+                && payload.pull_request.merged === true) {
+              const headRef = payload.pull_request.head
+                && payload.pull_request.head.ref || '';
+              const headMatch = headRef.match(/^sdd\/(\d+)-/);
+              if (headMatch) {
+                const refNumber = parseInt(headMatch[1], 10);
+                let isFastpath = false;
+                try {
+                  const { data } = await github.rest.issues.get({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    issue_number: refNumber,
+                  });
+                  // A tracking issue has no parent_issue_url. A task
+                  // sub-issue has its Unit as parent. We treat
+                  // "no parent and currently in-progress" as the
+                  // fast-path completion signal.
+                  const parentUrl = data.parent_issue_url || '';
+                  const labels = (data.labels || []).map(
+                    (l) => l.name || l);
+                  const fastpathSignal = labels.includes('sdd:fastpath')
+                    || labels.includes('sdd:fastpath-review')
+                    || (!parentUrl
+                      && labels.includes('sdd:in-progress')
+                      && !labels.includes('sdd:dispatched'));
+                  if (!parentUrl && fastpathSignal) {
+                    isFastpath = true;
+                  }
+                } catch (err) {
+                  core.info('Could not fetch ref #' + refNumber + ': '
+                    + err.message);
+                }
+                if (isFastpath) {
+                  run = true;
+                  ctx = {
+                    trigger: 'command',
+                    entry: 'fastpath-complete',
+                    item_type: 'issue',
+                    item_number: refNumber,
+                  };
+                }
+              }
+            }
+
+            // Tier gate. sdd-triage assigns each task sub-issue exactly one
+            // model:* label. Every trigger this wrapper handles resolves to a
+            // specific task sub-issue: directly for an issue event, through
+            // the pull request's `Closes #<task>` reference for a
+            // pull-request event, and through the aw_context input for a
+            // workflow_dispatch from sdd-dispatch. This variant runs only
+            // when that sub-issue carries the model:<TIER> label. This stops
+            // the needless agent run, and its inference cost, on the two
+            // tiers the trigger does not belong to. sdd-dispatch already
+            // picks the matching variant per task (the matrix cell selects
+            // the wrapper file by tier), so the tier gate here is a
+            // defence-in-depth check that catches the corner where a task's
+            // model:* label has changed between dispatch and pickup.
+            //
+            // The fast-path entries (`entry: 'fastpath'` from sdd-spec's
+            // /approve, and `entry: 'fastpath-complete'` from a merged
+            // implementation PR) bypass the tier gate: the work-item on a
+            // fast-path entry is the tracking issue, which carries no
+            // model:* label by design. The completion entry only moves
+            // labels and posts a comment; the dispatch entry's tier match
+            // is enforced by sdd-spec when it picks the variant to
+            // workflow_dispatch.
+            const fastpathEntry = ctx && (
+              ctx.entry === 'fastpath' || ctx.entry === 'fastpath-complete');
+            if (run && fastpathEntry && ctx.entry === 'fastpath') {
+              // For the fastpath dispatch entry, the wrapper still confirms
+              // that the variant matches the tier the plan comment names.
+              // sdd-spec is expected to dispatch the matching variant
+              // directly, but a misroute (operator-run workflow_dispatch
+              // with a hand-supplied aw_context) is rejected here.
+              const planTier = (ctx.tier || '').toLowerCase();
+              if (planTier && planTier !== TIER) {
+                core.info('Fast-path dispatch tier (' + planTier
+                  + ') does not match this variant (' + TIER
+                  + '); this variant skips it.');
+                run = false;
+                ctx = {};
+              }
+            }
+            if (run && !fastpathEntry) {
+              let taskIssue = 0;
+              // A pull-request review/revise event on a fast-path
+              // implementation PR identifies the tracking issue (not a
+              // task sub-issue) via the head ref. The tracking issue
+              // has no `model:*` label by design (ADR 0012). Mark this
+              // case so the tier gate accepts a fast-path tracking
+              // issue in lieu of a model-label match. `prBody` is
+              // hoisted to outer scope so the tier-marker scan in the
+              // label-check block can read it.
+              let inferredFastpathFromPr = false;
+              let prBody = '';
+              if (ctx.item_type === 'issue') {
+                taskIssue = ctx.item_number;
+              } else if (ctx.item_type === 'pull_request') {
+                // A pull_request_review_comment event carries the pull
+                // request inline; an issue_comment event (a /revise comment)
+                // does not, so fetch the pull request to read its body and
+                // head ref.
+                prBody = (payload.pull_request
+                  && payload.pull_request.body) || '';
+                let prHeadRef = (payload.pull_request
+                  && payload.pull_request.head
+                  && payload.pull_request.head.ref) || '';
+                if (!prBody || !prHeadRef) {
+                  try {
+                    const { data } = await github.rest.pulls.get({
+                      owner: context.repo.owner,
+                      repo: context.repo.repo,
+                      pull_number: ctx.item_number,
+                    });
+                    prBody = prBody || (data.body || '');
+                    prHeadRef = prHeadRef
+                      || (data.head && data.head.ref) || '';
+                  } catch (err) {
+                    core.info('Could not fetch pull request #'
+                      + ctx.item_number + ': ' + err.message);
+                  }
+                }
+                // The pull request body is the documented place for the task
+                // sub-issue reference (`Closes #<task>`); prefer it.
+                const m = prBody.match(
+                  /(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s+#(\d+)/i);
+                if (m) {
+                  taskIssue = parseInt(m[1], 10);
+                } else {
+                  // Fall back to the head ref, which this agent encodes as
+                  // `sdd/<task-id>-<slug>` for every implementation pull
+                  // request it opens. This is robust against a future PR
+                  // whose body omits `Closes #<task>` for any reason, and
+                  // makes the route gate independent of body text. See #68.
+                  // A fast-path PR encodes the tracking issue here (no
+                  // `Closes #` reference exists, since the tracking issue
+                  // stays open until a human closes it per ADR 0012).
+                  const refMatch = prHeadRef.match(/^sdd\/(\d+)-/);
+                  if (refMatch) {
+                    taskIssue = parseInt(refMatch[1], 10);
+                    inferredFastpathFromPr = true;
+                  }
+                }
+              }
+              let tierMatch = false;
+              if (taskIssue) {
+                try {
+                  const { data } = await github.rest.issues.get({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    issue_number: taskIssue,
+                  });
+                  const labels = (data.labels || []).map(
+                    (l) => l.name || l);
+                  const hasTier = labels.includes('model:' + TIER);
+                  // A fast-path tracking issue carries no `model:*` label
+                  // (ADR 0012); identify it by the lifecycle labels and
+                  // the absence of a parent. On a fast-path PR
+                  // review/revise event, prefer the durable PR-body
+                  // tier marker `[sdd-fastpath: tracking=<N>
+                  // tier=<tier>]` written by sdd-execute on PR open
+                  // (per sdd-execute-{tier}.md, step 5 fast-path
+                  // paragraph). The marker is the strong routing
+                  // signal: it pinpoints the tier so only the matching
+                  // variant runs. When the marker is absent (e.g. a
+                  // pre-marker PR), fall back to the
+                  // fast-path-tracking-issue heuristic, which lets all
+                  // three variants pass the route gate; the agent
+                  // itself then noops on tier mismatch.
+                  const isTracking = !data.parent_issue_url;
+                  const isFastpathTracking = isTracking && (
+                    labels.includes('sdd:fastpath')
+                    || labels.includes('sdd:fastpath-review')
+                    || labels.includes('sdd:in-progress')
+                    || labels.includes('sdd:done'));
+                  let fastpathTierMatch = false;
+                  if (inferredFastpathFromPr && isFastpathTracking) {
+                    const markerRe = new RegExp(
+                      '\\[sdd-fastpath:\\s*tracking=\\d+\\s+'
+                      + 'tier=(haiku|sonnet|opus)\\]', 'i');
+                    const markerHit = (prBody || '').match(markerRe);
+                    if (markerHit) {
+                      fastpathTierMatch =
+                        markerHit[1].toLowerCase() === TIER;
+                    } else {
+                      // Marker absent (e.g. an older fast-path PR
+                      // opened before the marker convention landed).
+                      // Resolve the owning tier from the stable
+                      // metadata source: the execution plan comment on
+                      // the tracking issue carries the `model:*` line.
+                      // Walk the comments looking for the
+                      // `[sdd-spec:fastpath-plan]` marker, pick the
+                      // latest such comment (mirrors the wrapper's
+                      // fastpath-approve job logic), and parse its
+                      // `model:` line. Match this variant only when
+                      // the resolved tier equals TIER. This keeps
+                      // tier ownership stable for review/revise even
+                      // without the PR-body marker.
+                      const planMarker = '[sdd-spec:fastpath-plan]';
+                      let planComment = null;
+                      let page = 1;
+                      try {
+                        for (;;) {
+                          const { data } = await github.rest.issues
+                            .listComments({
+                              owner: context.repo.owner,
+                              repo: context.repo.repo,
+                              issue_number: taskIssue,
+                              per_page: 100,
+                              page,
+                            });
+                          for (const c of data) {
+                            if ((c.body || '').includes(planMarker)) {
+                              if (!planComment
+                                  || (new Date(c.created_at))
+                                    > (new Date(planComment.created_at))) {
+                                planComment = c;
+                              }
+                            }
+                          }
+                          if (data.length < 100) {
+                            break;
+                          }
+                          page += 1;
+                        }
+                      } catch (planErr) {
+                        core.info('Could not list comments on tracking'
+                          + ' issue #' + taskIssue + ' for tier'
+                          + ' resolution: ' + planErr.message);
+                      }
+                      if (planComment) {
+                        const planTierHit = (planComment.body || '')
+                          .match(
+                            /model\s*:\s*(haiku|sonnet|opus)\b/i);
+                        if (planTierHit) {
+                          fastpathTierMatch =
+                            planTierHit[1].toLowerCase() === TIER;
+                        }
+                      }
+                    }
+                  }
+                  tierMatch = hasTier || fastpathTierMatch;
+                } catch (err) {
+                  core.info('Could not read labels for #' + taskIssue
+                    + ': ' + err.message);
+                }
+              }
+              if (!tierMatch) {
+                core.info('Task is not the model:' + TIER
+                  + ' tier; this variant skips it.');
+                run = false;
+                ctx = {};
+              }
+            }
+
+            // Auto-revise loop bound (issue #128). Only the owning tier
+            // reaches here with run still true (the tier gate above cleared
+            // run for the two non-owning variants), so the cap count and its
+            // side effects happen exactly once per CHANGES_REQUESTED review.
+            // Cap is tracked by a hidden marker comment so no extra label is
+            // needed. On cap, apply needs-human and stop;
+            // SDD_MAX_REVIEW_ITERATIONS defaults to 3.
+            if (run && reviewAutoRevise && reviewPrNumber) {
+              const MARKER = '<!-- sdd-execute:auto-revise -->';
+              const maxIters = parseInt(
+                process.env.SDD_MAX_REVIEW_ITERATIONS || '3', 10);
+              let priorIters = 0;
+              let page = 1;
+              try {
+                for (;;) {
+                  const { data } = await github.rest.issues.listComments({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    issue_number: reviewPrNumber,
+                    per_page: 100,
+                    page,
+                  });
+                  for (const c of data) {
+                    if ((c.body || '').includes(MARKER)) {
+                      priorIters += 1;
+                    }
+                  }
+                  if (data.length < 100) {
+                    break;
+                  }
+                  page += 1;
+                }
+              } catch (err) {
+                core.info('Could not list comments on PR #' + reviewPrNumber
+                  + ' for iteration count: ' + err.message);
+              }
+              if (priorIters >= maxIters) {
+                core.info('Auto-revise cap (' + maxIters + ') reached on PR #'
+                  + reviewPrNumber + '; applying needs-human.');
+                try {
+                  await github.rest.issues.addLabels({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    issue_number: reviewPrNumber,
+                    labels: ['needs-human'],
+                  });
+                } catch (err) {
+                  core.info('Could not apply needs-human to PR #'
+                    + reviewPrNumber + ': ' + err.message);
+                }
+                run = false;
+                ctx = {};
+              } else {
+                // Post the hidden iteration marker so the next review counts
+                // this cycle toward the cap.
+                try {
+                  await github.rest.issues.createComment({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    issue_number: reviewPrNumber,
+                    body: MARKER + '\nAuto-revise ' + (priorIters + 1)
+                      + ' of ' + maxIters
+                      + ' from a CHANGES_REQUESTED review.',
+                  });
+                } catch (err) {
+                  core.info('Could not post auto-revise marker on PR #'
+                    + reviewPrNumber + ': ' + err.message);
+                }
+              }
+            }
+
+            core.setOutput('should_run', run ? 'true' : 'false');
+            core.setOutput('aw_context', run ? JSON.stringify(ctx) : '');

@@ -52,32 +52,9 @@ jobs:
     steps:
       - name: Decide whether to run and build aw_context
         id: decide
-        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        uses: norrietaylor/spectacles/.github/actions/sdd-route-review@main
         with:
-          script: |
-            const payload = context.payload;
-            let run = false;
-            let ctx = {};
-
-            // An implementation pull request was opened or synchronized. The
-            // review runs only when the head branch carries the sdd-execute
-            // implementation branch prefix sdd/, which scopes the agent to
-            // implementation PRs. A draft pull request is still reviewed:
-            // review is advisory and never blocks.
-            const action = payload.action;
-            if (action === 'opened' || action === 'synchronize') {
-              const headRef = payload.pull_request.head.ref || '';
-              if (headRef.startsWith('sdd/')) {
-                run = true;
-                ctx = {
-                  item_type: 'pull_request',
-                  item_number: payload.pull_request.number,
-                };
-              }
-            }
-
-            core.setOutput('should_run', run ? 'true' : 'false');
-            core.setOutput('aw_context', run ? JSON.stringify(ctx) : '');
+          github-token: ${{ github.token }}
 
   sdd-review:
     needs: route

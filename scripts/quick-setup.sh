@@ -244,9 +244,11 @@ install_file() {
 }
 
 # Install one thin wrapper onto the target repo. The wrappers in wrappers/ pin
-# their hosted reusable workflows to @main; this rewrites that ref to --ref
-# before the wrapper is written, so a consumer can be pinned to a release tag
-# without the wrapper sources carrying a per-consumer literal. When --ref is
+# their hosted reusable workflows AND the hosted composite actions they call to
+# @main; this rewrites both refs to --ref before the wrapper is written, so a
+# consumer can be pinned to a release tag without the wrapper sources carrying a
+# per-consumer literal. Leaving the composite-action ref on @main while the lock
+# is pinned would break the pin guarantee (ADR 0004, ADR 0015). When --ref is
 # its default (main) the rewrite is a no-op.
 install_wrapper() {
   local agent="$1"
@@ -258,7 +260,8 @@ install_wrapper() {
   local rendered
   rendered="$(mktemp)"
   sed -E \
-    "s|(uses: norrietaylor/spectacles/\.github/workflows/[A-Za-z0-9_-]+\.lock\.yml)@[^[:space:]]+|\1@${ref}|" \
+    -e "s|(uses: norrietaylor/spectacles/\.github/workflows/[A-Za-z0-9_-]+\.lock\.yml)@[^[:space:]]+|\1@${ref}|" \
+    -e "s|(uses: norrietaylor/spectacles/\.github/actions/[A-Za-z0-9_-]+)@[^[:space:]]+|\1@${ref}|" \
     "$src" >"$rendered"
   install_file "$rendered" ".github/workflows/$agent.yml" \
     "chore: install $agent wrapper (spectacles quick-setup)"

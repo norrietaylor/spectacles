@@ -1,0 +1,84 @@
+name: sdd-spec-failure-handoff
+description: >
+  Post a failure hand-off comment and apply needs-human when the sdd-spec agent
+  job fails, so a stalled spec is visible on the tracking issue. Extracted
+  verbatim (ADR 0015). The caller mints the App token and passes it as
+  github-token.
+
+inputs:
+  github-token:
+    description: 'App-installation token for the comment and label writes.'
+    required: true
+  aw-context:
+    description: 'The aw_context JSON from the route job.'
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Post failure hand-off to tracking issue
+      uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+      env:
+        AW_CONTEXT: ${{ inputs.aw-context }}
+      with:
+        github-token: ${{ inputs.github-token }}
+        script: |
+            let ctx = {};
+            try {
+              ctx = JSON.parse(process.env.AW_CONTEXT || '{}');
+            } catch (err) {
+              core.setFailed('Could not parse aw_context: ' + err.message);
+              return;
+            }
+            const itemType = ctx.item_type;
+            const itemNumber = ctx.item_number;
+            if (!itemNumber) {
+              core.info('No item_number in aw_context; nothing to hand off.');
+              return;
+            }
+            const runUrl = process.env.GITHUB_SERVER_URL + '/'
+              + context.repo.owner + '/' + context.repo.repo
+              + '/actions/runs/' + context.runId;
+            // A pull-request item is a /revise on a spec PR or a merged spec
+            // PR. Apply needs-human only to an issue (the tracking issue):
+            // its removal re-fires the agent (situation 6). On a PR, post a
+            // visibility comment only so the failure is no longer silent.
+            const isIssue = itemType === 'issue';
+            const body = isIssue
+              ? 'The `sdd-spec` agent run failed before it could post a '
+                + 'spec, a comment, or any lifecycle update — the failure '
+                + 'was not classified by the conclusion job (e.g. the '
+                + 'agent step itself crashed). Applying `needs-human` so '
+                + 'this is visible and recoverable. A human should '
+                + 'investigate the failed run and, once ready, clear the '
+                + '`needs-human` label to re-run the spec agent on this '
+                + 'tracking issue. Failed run: ' + runUrl
+              : 'The `sdd-spec` agent run failed before it could post a '
+                + 'comment or any lifecycle update. A human should '
+                + 'investigate the failed run and re-run the agent. '
+                + 'Failed run: ' + runUrl;
+            try {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: itemNumber,
+                body,
+              });
+            } catch (err) {
+              core.setFailed('Could not post failure comment on #'
+                + itemNumber + ': ' + err.message);
+              return;
+            }
+            if (isIssue) {
+              try {
+                await github.rest.issues.addLabels({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: itemNumber,
+                  labels: ['needs-human'],
+                });
+              } catch (err) {
+                core.setFailed('Could not apply needs-human to #'
+                  + itemNumber + ': ' + err.message);
+              }
+            }

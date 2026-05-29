@@ -1,0 +1,282 @@
+name: sdd-route-spec
+description: >
+  Route decision for sdd-spec. Filters tracking-issue vs sub-issue events,
+  gates /spec /approve /revise on real repository permission, detects a
+  fast-path /approve, and builds aw_context. Extracted verbatim (ADR 0015).
+
+inputs:
+  github-token:
+    description: 'Token for the REST calls in the route logic.'
+    required: false
+    default: ${{ github.token }}
+
+outputs:
+  should_run:
+    description: "'true' when the agent should run."
+    value: ${{ steps.decide.outputs.should_run }}
+  aw_context:
+    description: 'JSON naming the triggering entity; empty when should_run is false.'
+    value: ${{ steps.decide.outputs.aw_context }}
+  fastpath_approve:
+    description: "'true' when a fast-path /approve was detected."
+    value: ${{ steps.decide.outputs.fastpath_approve }}
+  fastpath_tracking:
+    description: 'Tracking issue number for a fast-path /approve.'
+    value: ${{ steps.decide.outputs.fastpath_tracking }}
+
+runs:
+  using: composite
+  steps:
+    - name: Decide whether to run and build aw_context
+      id: decide
+      uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+      with:
+        github-token: ${{ inputs.github-token }}
+        script: |
+            const event = context.eventName;
+            const payload = context.payload;
+            let run = false;
+            let ctx = {};
+
+            // A tracking issue gained sdd:spec or sdd:fastpath, or
+            // needs-human was cleared on a tracking issue. All three
+            // situations are tracking-issue-scoped: a tracking issue has no
+            // parent (it is the lifecycle anchor), and a task sub-issue has
+            // a parent (its Unit). The `sdd:spec` label and the
+            // `needs-human` label are both shared with sub-issues —
+            // `sdd:spec` is set by the feature/bug templates on the tracking
+            // issue but a human can label any issue, and `needs-human` is
+            // applied by every SDD agent on whatever item it is operating
+            // on. `sdd:fastpath` is applied here by the wrapper on a
+            // `/fastpath` from a write-access author (see the
+            // issue_comment branch below) and travels with the tracking
+            // issue. Filter out any unlabeled event whose item has a parent
+            // so a task sub-issue's `needs-human` removal never re-runs
+            // this agent. The labeled-event path is left unfiltered for
+            // sdd:spec because the feature/bug templates apply `sdd:spec`
+            // on creation, before a parent link can exist; if a sub-issue
+            // is hand-labelled `sdd:spec` the agent itself bails. The
+            // check reads `parent_issue_url` from the standard REST issue
+            // payload — the same field `wrappers/sdd-validate.yml` uses
+            // for the same kind of filter, kept symmetric to keep the two
+            // routing layers in step. A non-empty `parent_issue_url`
+            // means the item is nested under another issue (i.e. a
+            // sub-issue, not a tracking issue).
+            if (event === 'issues') {
+              const action = payload.action;
+              const label = payload.label && payload.label.name;
+              if (action === 'labeled'
+                  && (label === 'sdd:spec' || label === 'sdd:fastpath')) {
+                run = true;
+                // A manually-applied `sdd:fastpath` on a sub-issue must
+                // not route into sdd-spec. The feature/bug templates
+                // apply `sdd:spec` on tracking-issue creation before a
+                // parent link can exist, so that label is left
+                // unfiltered; but `sdd:fastpath` is human-curation only
+                // and may land on a sub-issue by mistake. Filter on the
+                // same `parent_issue_url` check the `needs-human`
+                // unlabeled branch below uses, so only tracking issues
+                // proceed.
+                if (label === 'sdd:fastpath') {
+                  let parentUrl = '';
+                  try {
+                    const { data } = await github.rest.issues.get({
+                      owner: context.repo.owner,
+                      repo: context.repo.repo,
+                      issue_number: payload.issue.number,
+                    });
+                    parentUrl = data.parent_issue_url || '';
+                  } catch (err) {
+                    // A transient error falls through to "proceed" so a
+                    // real tracking-issue label gain is never silently
+                    // swallowed; the agent's own situation guards are
+                    // the second line of defence.
+                    core.info(
+                      'Could not fetch issue #' + payload.issue.number
+                      + ': ' + err.message);
+                  }
+                  if (parentUrl) {
+                    core.info('Issue #' + payload.issue.number
+                      + ' has a parent (' + parentUrl
+                      + '); sdd:fastpath on a sub-issue is ignored.');
+                    run = false;
+                  }
+                }
+              } else if (action === 'unlabeled' && label === 'needs-human') {
+                run = true;
+                let parentUrl = '';
+                try {
+                  const { data } = await github.rest.issues.get({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    issue_number: payload.issue.number,
+                  });
+                  parentUrl = data.parent_issue_url || '';
+                } catch (err) {
+                  // Transient errors fall through to "proceed" so a real
+                  // tracking-issue resume is never silently swallowed. The
+                  // agent's situation-6 noop precondition is the second
+                  // line of defence.
+                  core.info(
+                    'Could not fetch issue #' + payload.issue.number + ': '
+                    + err.message);
+                }
+                if (parentUrl) {
+                  core.info('Issue #' + payload.issue.number
+                    + ' has a parent (' + parentUrl
+                    + '); sdd-spec only acts on tracking issues. Skipping.');
+                  run = false;
+                }
+              }
+              if (run) {
+                ctx = { item_type: 'issue', item_number: payload.issue.number };
+              }
+            }
+
+            // A /spec, /fastpath, /approve, or /revise comment from an
+            // author with repo write access. The gate is the actor's real
+            // repository permission, not author_association:
+            // author_association reports the relationship to the thread
+            // (OWNER/MEMBER/COLLABORATOR), which is not the same as push
+            // access. A MEMBER of the org need not have write on this
+            // repo, and a COLLABORATOR may be read-only. The
+            // collaborators/{user}/permission API returns the actual
+            // permission level; only write, maintain, or admin may run a
+            // command. `/fastpath` is the fast-path confirmation command
+            // from ADR 0012; it is valid only on a tracking issue (not a
+            // pull request) and is ignored on a PR comment. `/approve` on
+            // a tracking issue carrying `sdd:fastpath` routes to the
+            // deterministic fastpath-approve job below; `/approve` on a
+            // full-path tracking issue is left to sdd-triage's wrapper.
+            if (event === 'issue_comment' && payload.action === 'created') {
+              const body = (payload.comment.body || '').trim();
+              const firstWord = body.split(/\s+/)[0];
+              const isPr = !!payload.issue.pull_request;
+              const isFastpath = firstWord === '/fastpath' && !isPr;
+              const isApprove = firstWord === '/approve' && !isPr;
+              if (firstWord === '/fastpath' && isPr) {
+                core.info('/fastpath on a pull request; ignoring.');
+              } else if (isApprove) {
+                // Detect fastpath approval. Only act on /approve when the
+                // tracking issue carries sdd:fastpath; otherwise leave it
+                // to sdd-triage. Confirm write access first.
+                const actor = payload.comment.user.login;
+                let permission = 'none';
+                try {
+                  const resp = await github.rest.repos
+                    .getCollaboratorPermissionLevel({
+                      owner: context.repo.owner,
+                      repo: context.repo.repo,
+                      username: actor,
+                    });
+                  permission = resp.data.role_name || resp.data.permission;
+                } catch (err) {
+                  core.info(
+                    'Could not resolve repo permission for ' + actor
+                    + ': ' + err.message);
+                }
+                const canWrite = permission === 'write'
+                  || permission === 'maintain' || permission === 'admin';
+                if (canWrite) {
+                  let isFastpathTracking = false;
+                  try {
+                    const { data } = await github.rest.issues.get({
+                      owner: context.repo.owner,
+                      repo: context.repo.repo,
+                      issue_number: payload.issue.number,
+                    });
+                    const labels = (data.labels || []).map(
+                      (l) => l.name || l);
+                    // Accept /approve on either sdd:fastpath (the
+                    // documented post-stub-merge state, per ADR 0012) or
+                    // sdd:fastpath-review (a human typed /approve before
+                    // the stub PR merged). The fastpath-approve job
+                    // below detects fastpath-review and posts a
+                    // guidance comment instead of dispatching, so this
+                    // carve-out only owns routing — not dispatch policy.
+                    // Kept symmetric with wrappers/sdd-triage.yml's
+                    // skipFastpath check.
+                    isFastpathTracking = labels.includes('sdd:fastpath')
+                      || labels.includes('sdd:fastpath-review');
+                  } catch (err) {
+                    core.info('Could not fetch issue #'
+                      + payload.issue.number + ': ' + err.message);
+                  }
+                  if (isFastpathTracking) {
+                    core.setOutput('fastpath_approve', 'true');
+                    core.setOutput('fastpath_tracking',
+                      String(payload.issue.number));
+                    // Suppress the sdd-spec agent invocation: the
+                    // fastpath-approve job below handles this trigger.
+                  } else {
+                    core.info('/approve on a non-fast-path tracking issue;'
+                      + ' sdd-triage will handle it.');
+                  }
+                } else {
+                  core.info(
+                    '/approve from an author without write access ('
+                    + permission + '); ignoring.');
+                }
+              } else if (firstWord === '/spec'
+                  || firstWord === '/revise'
+                  || isFastpath) {
+                const actor = payload.comment.user.login;
+                let permission = 'none';
+                try {
+                  const resp = await github.rest.repos
+                    .getCollaboratorPermissionLevel({
+                      owner: context.repo.owner,
+                      repo: context.repo.repo,
+                      username: actor,
+                    });
+                  // role_name is the precise role (write/maintain/triage/...)
+                  // when present; permission is the legacy bucket
+                  // (admin/write/read/none) that collapses maintain into
+                  // write and triage into read.
+                  permission = resp.data.role_name || resp.data.permission;
+                } catch (err) {
+                  core.info(
+                    'Could not resolve repo permission for ' + actor
+                    + ': ' + err.message);
+                }
+                const canWrite = permission === 'write'
+                  || permission === 'maintain' || permission === 'admin';
+                if (canWrite) {
+                  run = true;
+                  ctx = {
+                    item_type: isPr ? 'pull_request' : 'issue',
+                    item_number: payload.issue.number,
+                    comment_id: payload.comment.id,
+                  };
+                  if (isFastpath) {
+                    ctx.command = 'fastpath';
+                  }
+                } else {
+                  core.info(
+                    'Command from an author without write access ('
+                    + permission + '); ignoring.');
+                }
+              }
+            }
+
+            // A merged spec pull request. Scoped to spec PRs only: the head
+            // branch must follow the spec/<slug> convention. A merged
+            // non-spec PR is not this agent's concern and is left to no-op.
+            if (event === 'pull_request' && payload.action === 'closed') {
+              const merged = payload.pull_request.merged === true;
+              const headRef = payload.pull_request.head
+                && payload.pull_request.head.ref || '';
+              const isSpecBranch = headRef.startsWith('spec/');
+              if (merged && isSpecBranch) {
+                run = true;
+                ctx = {
+                  item_type: 'pull_request',
+                  item_number: payload.pull_request.number,
+                };
+              } else if (merged) {
+                core.info('Merged PR is not a spec branch; ignoring.');
+              }
+            }
+
+            core.setOutput('should_run', run ? 'true' : 'false');
+            core.setOutput('aw_context', run ? JSON.stringify(ctx) : '');

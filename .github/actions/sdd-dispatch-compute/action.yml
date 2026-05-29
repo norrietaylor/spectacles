@@ -1,0 +1,330 @@
+name: sdd-dispatch-compute
+description: >
+  Compute the ready set and precondition state for the sdd-dispatch cascade.
+  Walks the tracking issue's sub-issue tree, parses each open task's depends-on
+  block, and emits the dispatch matrix plus the precondition/lifecycle state.
+  Extracted verbatim from the wrapper (ADR 0004, ADR 0015).
+
+inputs:
+  tracking-issue:
+    description: 'The tracking issue number resolved by sdd-route-dispatch.'
+    required: true
+  trigger-kind:
+    description: 'The trigger kind resolved by sdd-route-dispatch.'
+    required: true
+  github-token:
+    description: 'Token for the REST and GraphQL calls.'
+    required: false
+    default: ${{ github.token }}
+
+outputs:
+  matrix:
+    description: 'JSON matrix of {task, tier} pairs to fan out over.'
+    value: ${{ steps.compute.outputs.matrix }}
+  ready_count:
+    description: 'Number of ready tasks.'
+    value: ${{ steps.compute.outputs.ready_count }}
+  open_task_count:
+    description: 'Number of open task sub-issues.'
+    value: ${{ steps.compute.outputs.open_task_count }}
+  precondition:
+    description: 'Precondition state on the tracking issue.'
+    value: ${{ steps.compute.outputs.precondition }}
+  tracking_state:
+    description: 'Lifecycle label state on the tracking issue.'
+    value: ${{ steps.compute.outputs.tracking_state }}
+  reason:
+    description: 'Human-readable reason for the precondition outcome.'
+    value: ${{ steps.compute.outputs.reason }}
+
+runs:
+  using: composite
+  steps:
+    - name: Compute ready set and precondition state
+      id: compute
+      uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+      env:
+        TRACKING_ISSUE: ${{ inputs.tracking-issue }}
+        TRIGGER_KIND: ${{ inputs.trigger-kind }}
+      with:
+        github-token: ${{ inputs.github-token }}
+        script: |
+            const tracking = parseInt(process.env.TRACKING_ISSUE, 10);
+            const triggerKind = process.env.TRIGGER_KIND;
+
+            // Read the tracking issue and its lifecycle label.
+            const { data: trackingIssue } = await github.rest.issues.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: tracking,
+            });
+            const labels = (trackingIssue.labels || []).map(
+              (l) => l.name || l);
+            const lifecycle = labels.find((l) => l.startsWith('sdd:')
+              && l !== 'sdd:dispatched');
+            const hasNeedsHuman = labels.includes('needs-human');
+
+            // Precondition. /dispatch is valid when the tracking issue
+            // carries sdd:ready, sdd:in-progress, or sdd:review. A cascade
+            // fire skips this check (the tracking issue carries
+            // sdd:dispatched, which is only applied alongside
+            // sdd:in-progress or sdd:review). A needs-human label means the
+            // tracking issue is held for the human; defer unconditionally.
+            //
+            // sdd:review is accepted because the tracker can advance there
+            // while open task sub-issues remain unstarted: sdd-execute moves
+            // the feature to sdd:review once the first layer of impl PRs is
+            // open, before later layers are even dispatched. Refusing
+            // /dispatch (and close-triggered re-dispatch) at sdd:review would
+            // wedge the cascade, leaving ready tasks unstarted (issue #134).
+            // Treat sdd:review as armed for the remaining ready tasks: arm
+            // sdd:dispatched and fan out, but leave the lifecycle label
+            // alone (sdd-execute owns the lifecycle transitions).
+            let precondition = 'ok';
+            let reason = '';
+            if (hasNeedsHuman) {
+              precondition = 'needs_human';
+              reason = 'Tracking issue carries needs-human; deferring.';
+            } else if (triggerKind === 'command') {
+              if (lifecycle === 'sdd:ready'
+                  || lifecycle === 'sdd:in-progress'
+                  || lifecycle === 'sdd:review') {
+                precondition = 'ok';
+              } else if (lifecycle === 'sdd:spec'
+                  || lifecycle === 'sdd:triage') {
+                precondition = 'refuse_early';
+                reason = 'Tracking issue is at `' + lifecycle
+                  + '`. /dispatch is valid only on a tracking issue carrying'
+                  + ' `sdd:ready`, `sdd:in-progress`, or `sdd:review`. Merge'
+                  + ' the spec and the architecture PRs, then comment'
+                  + ' `/approve` on the tracking issue to materialize the'
+                  + ' plan and reach `sdd:ready`.';
+              } else if (lifecycle === 'sdd:done') {
+                precondition = 'refuse_late';
+                reason = 'Tracking issue is at `' + lifecycle
+                  + '`; no further dispatch work applies.';
+              } else {
+                precondition = 'refuse_late';
+                reason = 'Tracking issue carries no recognized sdd:*'
+                  + ' lifecycle label; nothing to dispatch.';
+              }
+            }
+            core.setOutput('precondition', precondition);
+            core.setOutput('tracking_state', lifecycle || '');
+            core.setOutput('reason', reason);
+
+            if (precondition !== 'ok') {
+              core.setOutput('matrix', JSON.stringify({ include: [] }));
+              core.setOutput('ready_count', '0');
+              core.setOutput('open_task_count', '0');
+              return;
+            }
+
+            // Walk Feature -> Unit -> task. List sub-issues of the tracking
+            // issue (Units), then for each Unit list its sub-issues (tasks).
+            // The REST sub-issues endpoint returns child issues. A page size
+            // of 100 covers any realistic feature; this loops if needed.
+            async function listChildren(parentNumber) {
+              const items = [];
+              let page = 1;
+              for (;;) {
+                const { data } = await github.request(
+                  'GET /repos/{owner}/{repo}/issues/{issue_number}/sub_issues',
+                  {
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    issue_number: parentNumber,
+                    per_page: 100,
+                    page,
+                  });
+                items.push(...data);
+                if (data.length < 100) {
+                  break;
+                }
+                page += 1;
+              }
+              return items;
+            }
+
+            const units = await listChildren(tracking);
+            const tasks = [];
+            for (const unit of units) {
+              const children = await listChildren(unit.number);
+              for (const child of children) {
+                tasks.push(child);
+              }
+            }
+
+            // Filter to open tasks. We need their full body to parse the
+            // `## Task` block; the sub-issues listing already includes
+            // body, but re-fetch defensively when body is missing.
+            const openTasks = tasks.filter((t) => t.state === 'open');
+            const openTaskCount = openTasks.length;
+            core.setOutput('open_task_count', String(openTaskCount));
+
+            // Parse `blocked by #<N>` and `blocked by <owner>/<repo>#<N>`
+            // lines from the task body. A task with zero blockers is born
+            // ready; a task whose every blocker resolves to a closed issue
+            // is now ready.
+            const blockerRegex =
+              /^\s*-?\s*blocked by\s+(?:([\w.-]+)\/([\w.-]+))?#(\d+)/gim;
+
+            // Build a set of closed task issue numbers in the same repo so
+            // blocker-resolution is O(1). Cross-repo blockers are read via
+            // a per-blocker fetch, but a same-repo blocker — the common
+            // case — is resolved from the tree state we already have.
+            const closedTasksInTree = new Set(
+              tasks.filter((t) => t.state === 'closed').map((t) => t.number));
+
+            async function isBlockerOpen(owner, repo, number) {
+              const isCross = owner && (
+                owner !== context.repo.owner || repo !== context.repo.repo);
+              if (!isCross && closedTasksInTree.has(number)) {
+                return false;
+              }
+              // Look up the blocker. A blocker that is not under this
+              // tracking issue at all (an external dependency in the same
+              // repo, or a cross-repo task) needs an explicit fetch.
+              try {
+                const { data } = await github.rest.issues.get({
+                  owner: owner || context.repo.owner,
+                  repo: repo || context.repo.repo,
+                  issue_number: number,
+                });
+                return data.state === 'open';
+              } catch (err) {
+                // A blocker we cannot resolve is conservatively treated as
+                // open, so we do not dispatch a task whose dependencies
+                // we cannot verify.
+                core.info('Could not resolve blocker #' + number + ': '
+                  + err.message);
+                return true;
+              }
+            }
+
+            // Detect in-flight tasks: those carrying sdd:in-progress, or
+            // those linked to an open implementation pull request. Listing
+            // every open PR once is cheaper than asking per-task. Paginate
+            // across pages of 100 so a repo with more than 100 open PRs
+            // does not silently miss in-flight task links and cause a
+            // re-dispatch of an already-active task.
+            const inFlightFromPrs = new Set();
+            for (let page = 1; ; page += 1) {
+              const { data: openPrs } = await github.rest.pulls.list({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                state: 'open',
+                per_page: 100,
+                page,
+              });
+              for (const pr of openPrs) {
+                const headRef = (pr.head && pr.head.ref) || '';
+                const headMatch = headRef.match(/^sdd\/(\d+)-/);
+                if (headMatch) {
+                  inFlightFromPrs.add(parseInt(headMatch[1], 10));
+                  continue;
+                }
+                const body = pr.body || '';
+                const closeMatch = body.match(
+                  /(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s+#(\d+)/i);
+                if (closeMatch) {
+                  inFlightFromPrs.add(parseInt(closeMatch[1], 10));
+                }
+              }
+              if (openPrs.length < 100) {
+                break;
+              }
+            }
+
+            // Compose the ready set.
+            const ready = [];
+            for (const task of openTasks) {
+              const taskLabels = (task.labels || []).map(
+                (l) => l.name || l);
+              if (taskLabels.includes('needs-human')) {
+                continue;
+              }
+              if (taskLabels.includes('sdd:in-progress')) {
+                continue;
+              }
+              if (inFlightFromPrs.has(task.number)) {
+                continue;
+              }
+              const modelLabels = taskLabels.filter(
+                (l) => l.startsWith('model:'));
+              const supportedTiers = new Set([
+                'model:haiku',
+                'model:sonnet',
+                'model:opus',
+              ]);
+              if (modelLabels.length !== 1
+                  || !supportedTiers.has(modelLabels[0])) {
+                // A task without a model:* tier cannot be routed to a
+                // sdd-execute-{tier} variant; a task with more than one
+                // tier label would wake more than one tier's wrapper;
+                // a single tier label outside {haiku, sonnet, opus}
+                // (e.g. a typo) would post /execute but no wrapper claims
+                // it. All three are triage bugs, not this agent's concern.
+                //
+                // Silently skipping is not enough: the invalid task still
+                // counts toward open_task_count, so the dispatcher would
+                // arm `sdd:dispatched` on the tracking issue and the
+                // lifecycle job would never disarm it (open_task_count
+                // never reaches 0). Refuse the whole /dispatch run with a
+                // clear reason naming the offending task; the human can
+                // fix the labels and re-dispatch.
+                let badness;
+                if (modelLabels.length === 0) {
+                  badness = 'no';
+                } else if (modelLabels.length > 1) {
+                  badness = 'multiple';
+                } else {
+                  badness = 'an unsupported';
+                }
+                const message = 'Task #' + task.number + ' has ' + badness
+                  + ' model:* label(s) (' + modelLabels.join(', ')
+                  + '). Fix the task labels (exactly one of model:haiku,'
+                  + ' model:sonnet, model:opus) and re-comment /dispatch.';
+                core.setOutput('precondition', 'refuse_early');
+                core.setOutput('reason', message);
+                core.setOutput('matrix', JSON.stringify({ include: [] }));
+                core.setOutput('ready_count', '0');
+                return;
+              }
+              const body = task.body || '';
+              const blockers = [];
+              let m;
+              blockerRegex.lastIndex = 0;
+              while ((m = blockerRegex.exec(body)) !== null) {
+                blockers.push({
+                  owner: m[1] || '',
+                  repo: m[2] || '',
+                  number: parseInt(m[3], 10),
+                });
+              }
+              let anyOpen = false;
+              for (const b of blockers) {
+                if (await isBlockerOpen(b.owner, b.repo, b.number)) {
+                  anyOpen = true;
+                  break;
+                }
+              }
+              if (!anyOpen) {
+                // Each ready item is a single task issue number. The fan-out
+                // step posts /execute on the task issue; the matching
+                // sdd-execute-{tier} wrapper picks the comment up via its
+                // wrapper-level command + tier gate (see ADR 0014). The
+                // model:* label is still required upstream (the `if (!tier)`
+                // guard a few lines above) so the matching tier has a
+                // wrapper to route to.
+                ready.push({
+                  task: task.number,
+                });
+              }
+            }
+
+            core.setOutput('ready_count', String(ready.length));
+            // Matrix format: { include: [...] } so each item drives one
+            // matrix cell. The dispatch job fans this out with max-parallel
+            // bounded by SDD_DISPATCH_MAX_PARALLEL.
+            core.setOutput('matrix', JSON.stringify({ include: ready }));
