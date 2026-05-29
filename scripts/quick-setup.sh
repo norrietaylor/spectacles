@@ -455,8 +455,10 @@ provision_distillery_config() {
 
 # Report the remaining configuration the operator must supply by hand. The
 # Distillery values are provisioned by provision_distillery_config above; the
-# GitHub App identity, the Copilot engine token, and the leak-scan denylist
-# stay operator-supplied. See docs/sdd/install.md for the full table.
+# GitHub App identity and the Copilot engine token stay operator-supplied.
+# LEAK_DENYLIST is not reported: no installed workflow consumes it — it gates
+# only the spectacles repository's own leak-scan CI, which is not installed
+# onto a consumer. See docs/sdd/install.md for the full table.
 report_configuration() {
   echo "quick-setup: configuration the operator must supply on $target_repo:"
   echo "  variables (gh variable set <NAME> --repo $target_repo):"
@@ -470,12 +472,17 @@ report_configuration() {
   echo "                               Lower it to stay under CI billing caps,"
   echo "                               raise it on a repo with capacity for"
   echo "                               more concurrent runs."
+  echo "    GH_AW_MODEL_AGENT_COPILOT  optional Copilot model override for the"
+  echo "                               agents. Unset uses the compiled default"
+  echo "                               (claude-sonnet-4.6)."
+  echo "    GH_AW_MODEL_DETECTION_COPILOT  optional Copilot model override for"
+  echo "                               the detection step. Unset uses the"
+  echo "                               compiled default (claude-sonnet-4.6)."
   echo "  secrets (gh secret set <NAME> --repo $target_repo):"
   echo "    COPILOT_GITHUB_TOKEN       token for the Copilot engine"
   echo "    APP_PRIVATE_KEY            private key (PEM) of the GitHub App;"
   echo "                               each agent run mints its own token"
   echo "                               from it"
-  echo "    LEAK_DENYLIST              leak-scan denylist, one term per line"
 }
 
 # Create the install branch off the target repo's default branch so the file
