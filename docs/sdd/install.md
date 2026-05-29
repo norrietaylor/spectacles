@@ -40,6 +40,20 @@ DISTILLERY_OAUTH_TOKEN=<machine-token> \
   bash scripts/quick-setup.sh --target-repo <owner>/<name> --suite sdd
 ```
 
+By default the installer writes the file artifacts — the workflow wrappers, the
+issue templates, and the `.gitignore` `.serena/` entry — to a
+`spectacles/install` branch on the target and opens a pull request into its
+default branch. This is what lets the install succeed on a repository whose
+default branch is protected: the files land through review, not a direct push.
+Merge that PR to activate the workflows. Labels, variables, and secrets are not
+branch-scoped and are applied directly in both modes. Re-running the installer
+updates the same branch and PR rather than duplicating them.
+
+Pass `--direct` to write the file artifacts straight to the default branch
+instead, skipping the PR. Use it only on a repository whose default branch is
+unprotected; on a protected branch the direct writes are rejected and the
+install aborts.
+
 `--suite sdd` installs, onto the target repository:
 
 - the nine thin wrappers — the eight `sdd-*` agents (`sdd-spec`,
@@ -68,8 +82,9 @@ DISTILLERY_OAUTH_TOKEN=<machine-token> \
   tracker with one `/dispatch` when the close-driven cascade stalls. It is
   disabled by default — set the `SDD_MONITOR` repository variable to `1` to
   enable it (see `sdd-monitor.md`);
-- the `sdd:*` lifecycle labels and the `model:*` tier labels;
-- the `feature`, `bug`, and `chore` issue templates.
+- the `sdd:*` lifecycle labels, the `model:*` tier labels, and the
+  `plan:provided` translation marker;
+- the `feature`, `bug`, `chore`, and `spec` issue templates.
 
 Without `--suite sdd` the installer only syncs the base labels, which is the
 Unit 1 behavior and is left intact.
@@ -224,13 +239,15 @@ history, not only a greenfield one. Before and after the install, confirm:
 - [ ] The repository's branch protection, if any, does not require a status
       check that the agents cannot satisfy. The SDD agents never merge; merge
       authority stays with humans and the consumer's own CI.
-- [ ] The `feature`, `bug`, and `chore` issue templates installed cleanly and
-      do not collide with the target repository's existing templates.
+- [ ] The `feature`, `bug`, `chore`, and `spec` issue templates installed
+      cleanly and do not collide with the target repository's existing
+      templates.
 
 ## Post-install smoke test
 
-Before running a feature through the pipeline, confirm the install resolved
-its dependencies:
+Run these after the installer PR is merged (default mode), or right after the
+install in `--direct` mode. Before running a feature through the pipeline,
+confirm the install resolved its dependencies:
 
 1. **Workflows present.** Confirm the nine wrappers — the eight `sdd-*`
    wrappers (including `sdd-dispatch.yml`) and `distillery-sync.yml` — and
@@ -239,8 +256,8 @@ its dependencies:
    appear under `.github/workflows/` on the target repository. The
    `.lock.yml` reusable workflows are hosted in the spectacles repository
    and are not copied onto the consumer.
-2. **Labels present.** Confirm all six `sdd:*` labels and all three `model:*`
-   labels exist on the target repository.
+2. **Labels present.** Confirm the `sdd:*` lifecycle labels, the `plan:provided`
+   marker, and all three `model:*` tier labels exist on the target repository.
 3. **MCP reachable.** Dispatch `distillery-sync` once and confirm its run logs
    a non-zero count of ingested specs, decisions, issues, or pull requests.
    This proves the Distillery endpoint and OAuth credential resolve.
