@@ -221,6 +221,21 @@ runs:
               core.info('Could not remove sdd:fastpath from #' + tracking
                 + ': ' + err.message);
             }
+            // Also clear sdd:fastpath-review so the both-labels-present
+            // edge (the early-state pre-check only catches review-only)
+            // does not strand a stale label on the tracking issue. A no-op
+            // when the label is absent.
+            try {
+              await github.rest.issues.removeLabel({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: tracking,
+                name: 'sdd:fastpath-review',
+              });
+            } catch (err) {
+              core.info('Could not remove sdd:fastpath-review from #'
+                + tracking + ': ' + err.message);
+            }
             try {
               await github.rest.issues.addLabels({
                 owner: context.repo.owner,

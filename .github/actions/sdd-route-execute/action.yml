@@ -611,8 +611,15 @@ runs:
             // SDD_MAX_REVIEW_ITERATIONS defaults to 3.
             if (run && reviewAutoRevise && reviewPrNumber) {
               const MARKER = '<!-- sdd-execute:auto-revise -->';
-              const maxIters = parseInt(
+              const parsedMaxIters = parseInt(
                 process.env.SDD_MAX_REVIEW_ITERATIONS || '3', 10);
+              // Guard a non-numeric repo variable: a NaN cap would make
+              // `priorIters >= maxIters` always false and silently disable
+              // the auto-revise bound. Fall back to 3.
+              const maxIters = Number.isFinite(parsedMaxIters)
+                && parsedMaxIters > 0
+                ? parsedMaxIters
+                : 3;
               let priorIters = 0;
               let page = 1;
               try {
