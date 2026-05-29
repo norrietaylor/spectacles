@@ -132,7 +132,7 @@ jobs:
           owner: ${{ github.repository_owner }}
           repositories: ${{ github.event.repository.name }}
       - name: Nudge armed-but-idle trackers
-        uses: actions/github-script@v9
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         env:
           SDD_MONITOR_DEBOUNCE_MIN: ${{ vars.SDD_MONITOR_DEBOUNCE_MIN }}
           APP_TOKEN: ${{ steps.app.outputs.token }}
