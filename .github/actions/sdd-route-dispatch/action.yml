@@ -1,0 +1,451 @@
+name: sdd-route-dispatch
+description: >
+  Route decision for the sdd-dispatch cascade orchestrator. Tokenises the
+  /dispatch command, gates it on real repository permission (or the App
+  identity), and resolves the tracking issue and trigger kind. Extracted
+  verbatim from the wrapper (ADR 0004, ADR 0015).
+
+inputs:
+  app-id:
+    description: 'Configured GitHub App ID; accepts a /dispatch posted by the App.'
+    required: false
+    default: ''
+  github-token:
+    description: 'Token for the REST and GraphQL calls in the route logic.'
+    required: false
+    default: ${{ github.token }}
+
+outputs:
+  should_run:
+    description: "'true' when the cascade should run."
+    value: ${{ steps.decide.outputs.should_run }}
+  tracking_issue:
+    description: 'The resolved tracking issue number.'
+    value: ${{ steps.decide.outputs.tracking_issue }}
+  trigger_kind:
+    description: 'The classified trigger kind.'
+    value: ${{ steps.decide.outputs.trigger_kind }}
+
+runs:
+  using: composite
+  steps:
+    - name: Decide whether to run, and find the tracking issue
+      id: decide
+      uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+      env:
+        APP_ID: ${{ inputs.app-id }}
+      with:
+        github-token: ${{ inputs.github-token }}
+        script: |
+            const event = context.eventName;
+            const payload = context.payload;
+            let run = false;
+            let tracking = 0;
+            let kind = '';
+
+            // A /dispatch comment from an author with repo write access. The
+            // gate is the actor's real repository permission, not
+            // author_association: a MEMBER of the org need not have push
+            // access on this repo. The collaborators/{user}/permission API
+            // returns the actual permission level; only write, maintain, or
+            // admin may run a command. /dispatch on a pull request is
+            // ignored: it is a tracking-issue command only.
+            //
+            // sdd-monitor (issue #148) posts /dispatch on an armed-but-idle
+            // tracker via the App installation token. The App user is not a
+            // collaborator and would 404 the permission check, so accept the
+            // command when the comment's performed_via_github_app.id matches
+            // the configured APP_ID. Any other bot posting /dispatch is still
+            // rejected. This mirrors the App-author carve-out in
+            // sdd-execute-{tier} for /execute and /revise (ADR 0014).
+            //
+            // Fast-path carve-out (ADR 0012): /dispatch on a tracking
+            // issue carrying any fast-path lifecycle label (sdd:fastpath,
+            // sdd:fastpath-review) is a noop. The fast-path flow has one
+            // task, so the cascade fan-out is unused. The noop-comment
+            // job posts a one-comment explanation pointing the human at
+            // /approve. We mark this by routing with kind='fastpath_noop'
+            // so the noop-comment job knows which message to post and the
+            // compute/dispatch/lifecycle jobs all short-circuit.
+            if (event === 'issue_comment' && payload.action === 'created') {
+              const body = (payload.comment.body || '').trim();
+              const firstWord = body.split(/\s+/)[0];
+              const isPr = !!payload.issue.pull_request;
+              // /dispatch is a tracking-issue command. A tracking issue has
+              // no parent (ADR 0005), a Unit's parent is the tracking issue,
+              // a task's parent is its Unit. If the comment lands on a
+              // sub-issue (Unit or task), the downstream `lifecycle` job
+              // would advance THAT sub-issue's lifecycle label and apply
+              // `sdd:dispatched` to it — both wrong. Reject before the
+              // permission check.
+              const isSubIssue = !!payload.issue.parent_issue_url;
+              if (firstWord === '/dispatch') {
+                if (isPr) {
+                  core.info('/dispatch on a pull request; ignoring.');
+                } else if (isSubIssue) {
+                  core.info('/dispatch on a sub-issue #'
+                    + payload.issue.number
+                    + '; only a tracking issue is valid; ignoring.');
+                } else {
+                  const appId = parseInt(process.env.APP_ID || '0', 10);
+                  const appComment = payload.comment.performed_via_github_app;
+                  const fromConfiguredApp = appId > 0
+                    && appComment
+                    && appComment.id === appId;
+                  const actor = payload.comment.user.login;
+                  let permission = 'none';
+                  if (!fromConfiguredApp) {
+                    try {
+                      const resp = await github.rest.repos
+                        .getCollaboratorPermissionLevel({
+                          owner: context.repo.owner,
+                          repo: context.repo.repo,
+                          username: actor,
+                        });
+                      permission =
+                        resp.data.role_name || resp.data.permission;
+                    } catch (err) {
+                      core.info(
+                        'Could not resolve repo permission for ' + actor
+                        + ': ' + err.message);
+                    }
+                  }
+                  const canWrite = fromConfiguredApp
+                    || permission === 'write'
+                    || permission === 'maintain' || permission === 'admin';
+                  if (canWrite) {
+                    // Check for the fast-path carve-out before admitting
+                    // the /dispatch. A tracking issue carrying any
+                    // fast-path lifecycle label routes to the noop branch.
+                    // A fast-path tracking issue in `sdd:in-progress` (the
+                    // implementation is running) also routes to noop: it
+                    // has no sub-issues, so /dispatch has nothing to
+                    // cascade. Detect this by the absence of children;
+                    // the full-path `sdd:in-progress` always has a
+                    // sub-issue tree under it (ADR 0010 / ADR 0011).
+                    let isFastpath = false;
+                    try {
+                      const { data } = await github.rest.issues.get({
+                        owner: context.repo.owner,
+                        repo: context.repo.repo,
+                        issue_number: payload.issue.number,
+                      });
+                      const labels = (data.labels || []).map(
+                        (l) => l.name || l);
+                      const hasFastpathLabel = labels.includes('sdd:fastpath')
+                        || labels.includes('sdd:fastpath-review');
+                      let inProgressFastpathHistory = false;
+                      if (!hasFastpathLabel
+                          && !data.parent_issue_url
+                          && labels.includes('sdd:in-progress')
+                          && !labels.includes('sdd:dispatched')) {
+                        try {
+                          const childrenResp = await github.request(
+                            'GET /repos/{owner}/{repo}/issues/{issue_number}/sub_issues',
+                            {
+                              owner: context.repo.owner,
+                              repo: context.repo.repo,
+                              issue_number: payload.issue.number,
+                              per_page: 1,
+                              page: 1,
+                            });
+                          inProgressFastpathHistory =
+                            (childrenResp.data || []).length === 0;
+                        } catch (subErr) {
+                          // Sub-issues endpoint failure leaves
+                          // inProgressFastpathHistory false; the run
+                          // proceeds as a normal dispatch, which is the
+                          // safer default for a full-path tracking issue.
+                          core.info('Could not list sub-issues for #'
+                            + payload.issue.number + ': ' + subErr.message);
+                        }
+                      }
+                      isFastpath = hasFastpathLabel
+                        || inProgressFastpathHistory;
+                    } catch (err) {
+                      core.info('Could not fetch issue #'
+                        + payload.issue.number + ': ' + err.message);
+                    }
+                    run = true;
+                    tracking = payload.issue.number;
+                    kind = isFastpath ? 'fastpath_noop' : 'command';
+                  } else {
+                    core.info(
+                      '/dispatch from an author without write access ('
+                      + permission + '); ignoring.');
+                  }
+                }
+              }
+            }
+
+            // A task sub-issue closed. Walk the parent chain to find the
+            // tracking issue (Feature -> Unit -> task per ADR 0005). The
+            // cascade fires only when the tracking issue carries
+            // sdd:dispatched; closures on issues outside an armed cascade
+            // are ignored. A closed Unit sub-issue or the tracking issue
+            // itself closing is not a task closure and is ignored too.
+            if (event === 'issues' && payload.action === 'closed') {
+              const closedIssue = payload.issue;
+              // GitHub does not populate the child->parent pointer for
+              // native sub-issues on either the `issues.closed` webhook
+              // payload OR on a re-fetch via REST `GET /issues/{n}`
+              // (`parent_issue_url` / `.parent` is empty in both). A REST
+              // re-fetch therefore cannot seed the walk and the cascade
+              // never fires (issue #133). The authoritative source for
+              // a native sub-issue's parent is GraphQL `Issue.parent`,
+              // which returns the parent node (or null when the issue
+              // is not a sub-issue). Use that as the primary mechanism;
+              // when it returns null we fall back to a reverse lookup
+              // across open `sdd:dispatched` trackers in the same repo.
+
+              // Resolve a parent via GraphQL. Returns an object whose
+              // `kind` discriminates the three outcomes:
+              //   { kind: 'ok', id, number, labels } — parent found
+              //   { kind: 'none' }                   — no parent (root or
+              //                                        not a sub-issue)
+              //   { kind: 'error' }                  — query failed
+              // Distinguishing `none` from `error` matters because a
+              // transient lookup error must not be classified as a clean
+              // "no parent" result — that would silently drop a valid
+              // task closure into the Unit/tracker-closure branch.
+              // Labels are read once here so the caller can apply the
+              // sdd:dispatched gate without a second round-trip.
+              async function parentViaGraphql(nodeId) {
+                if (!nodeId) {
+                  return { kind: 'none' };
+                }
+                try {
+                  const result = await github.graphql(
+                    'query($id: ID!) {' +
+                    '  node(id: $id) {' +
+                    '    ... on Issue {' +
+                    '      parent {' +
+                    '        id number' +
+                    '        labels(first: 50) { nodes { name } }' +
+                    '      }' +
+                    '    }' +
+                    '  }' +
+                    '}',
+                    { id: nodeId });
+                  const parent = result && result.node && result.node.parent;
+                  if (!parent) {
+                    return { kind: 'none' };
+                  }
+                  const labels = ((parent.labels && parent.labels.nodes)
+                    || []).map((l) => l.name);
+                  return {
+                    kind: 'ok',
+                    id: parent.id,
+                    number: parent.number,
+                    labels,
+                  };
+                } catch (err) {
+                  core.info('GraphQL parent lookup failed for node '
+                    + nodeId + ': ' + err.message);
+                  return { kind: 'error' };
+                }
+              }
+
+              // Walk Feature <- Unit <- task using GraphQL parent. Each
+              // hop returns the parent node id, which seeds the next hop.
+              // Returns the tracking-issue object (or null), the number
+              // of hops actually walked, and `stoppedBy` indicating why
+              // the walk ended: 'limit' (reached two hops), 'none'
+              // (parentless ancestor), or 'error' (lookup failed).
+              async function walkViaGraphql(seedNodeId) {
+                let nodeId = seedNodeId;
+                let parent = null;
+                let walked = 0;
+                let stoppedBy = 'limit';
+                while (nodeId && walked < 2) {
+                  const next = await parentViaGraphql(nodeId);
+                  if (next.kind !== 'ok') {
+                    stoppedBy = next.kind;
+                    break;
+                  }
+                  parent = next;
+                  nodeId = next.id;
+                  walked += 1;
+                }
+                return { tracker: parent, walked, stoppedBy };
+              }
+
+              // Reverse lookup: scan open issues in this repo carrying
+              // `sdd:dispatched` and walk their sub-issue trees (Unit,
+              // then task) looking for the closed issue's number. Bounded
+              // by the small number of armed trackers; tolerant of races
+              // because the GraphQL path is primary. Returns the tracking
+              // issue object (with labels) or null.
+              //
+              // Each scan paginates so a closed task beyond the first
+              // 100 trackers/Units/tasks is still discovered — mirrors
+              // the paging that `compute` already does on sub_issues.
+              async function listSubIssuesAll(parentNumber) {
+                const items = [];
+                for (let page = 1; ; page += 1) {
+                  const { data } = await github.request(
+                    'GET /repos/{owner}/{repo}/issues/{issue_number}/sub_issues',
+                    {
+                      owner: context.repo.owner,
+                      repo: context.repo.repo,
+                      issue_number: parentNumber,
+                      per_page: 100,
+                      page,
+                    });
+                  items.push(...data);
+                  if (data.length < 100) {
+                    break;
+                  }
+                }
+                return items;
+              }
+
+              async function listDispatchedTrackersAll() {
+                const items = [];
+                for (let page = 1; ; page += 1) {
+                  const { data } = await github.rest.issues.listForRepo({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    state: 'open',
+                    labels: 'sdd:dispatched',
+                    per_page: 100,
+                    page,
+                  });
+                  items.push(...data);
+                  if (data.length < 100) {
+                    break;
+                  }
+                }
+                return items;
+              }
+
+              async function trackerViaReverseLookup(closedNumber) {
+                let trackers = [];
+                try {
+                  trackers = await listDispatchedTrackersAll();
+                } catch (err) {
+                  core.info('Could not list sdd:dispatched trackers: '
+                    + err.message);
+                  return null;
+                }
+                for (const t of trackers) {
+                  // Skip pull requests; listForRepo returns both.
+                  if (t.pull_request) {
+                    continue;
+                  }
+                  let units = [];
+                  try {
+                    units = await listSubIssuesAll(t.number);
+                  } catch (err) {
+                    core.info('Could not list sub-issues of tracker #'
+                      + t.number + ': ' + err.message);
+                    continue;
+                  }
+                  for (const unit of units) {
+                    let tasks = [];
+                    try {
+                      tasks = await listSubIssuesAll(unit.number);
+                    } catch (err) {
+                      core.info('Could not list sub-issues of unit #'
+                        + unit.number + ': ' + err.message);
+                      continue;
+                    }
+                    if (tasks.some((c) => c.number === closedNumber)) {
+                      return t;
+                    }
+                  }
+                }
+                return null;
+              }
+
+              // Resolve the tracking issue. Primary: GraphQL walk seeded
+              // from the closed issue's node id. Fallback: reverse lookup
+              // across armed trackers. The success condition is unchanged
+              // — a task closure is exactly two hops up from the closed
+              // issue to a tracking issue carrying sdd:dispatched. A
+              // closed Unit (1 hop) or a closed tracking issue (0 hops)
+              // is not a task closure and is ignored.
+              let tracker = null;
+              let walked = 0;
+              const {
+                tracker: gqlTracker,
+                walked: gqlWalked,
+                stoppedBy: gqlStoppedBy,
+              } = await walkViaGraphql(closedIssue.node_id);
+              if (gqlTracker && gqlWalked === 2) {
+                tracker = gqlTracker;
+                walked = gqlWalked;
+              } else if (gqlStoppedBy === 'error') {
+                // A hop failed transiently. Treat the tracker as still
+                // unresolved and try the reverse lookup rather than
+                // misclassifying the closure as a Unit/tracker close.
+                const reverse = await trackerViaReverseLookup(
+                  closedIssue.number);
+                if (reverse) {
+                  const reverseLabels = (reverse.labels || []).map(
+                    (l) => l.name || l);
+                  tracker = {
+                    number: reverse.number,
+                    labels: reverseLabels,
+                  };
+                  walked = 2;
+                } else {
+                  // Reverse lookup also failed to place the closure;
+                  // preserve the partial-walk depth so the diagnostic
+                  // below reflects the GraphQL result.
+                  walked = gqlWalked;
+                }
+              } else if (gqlWalked > 0) {
+                // GraphQL produced a partial walk (e.g. one hop) and
+                // stopped at a parentless ancestor, which means the
+                // closed issue is a Unit or the tracker itself, not a
+                // task. Record the depth so the diagnostic below
+                // reflects the GraphQL result rather than implying a
+                // missing parent.
+                walked = gqlWalked;
+              } else {
+                // GraphQL returned no parent for the closed issue.
+                // Fall back to scanning armed trackers' sub-issue trees.
+                const reverse = await trackerViaReverseLookup(
+                  closedIssue.number);
+                if (reverse) {
+                  // Reverse lookup matched the closed issue under a
+                  // tracker's Unit, which is exactly the two-hop case.
+                  const reverseLabels = (reverse.labels || []).map(
+                    (l) => l.name || l);
+                  tracker = {
+                    number: reverse.number,
+                    labels: reverseLabels,
+                  };
+                  walked = 2;
+                }
+              }
+
+              if (tracker && walked === 2) {
+                const hasDispatched = (tracker.labels || []).some(
+                  (l) => (typeof l === 'string' ? l : l.name)
+                    === 'sdd:dispatched');
+                if (hasDispatched) {
+                  run = true;
+                  tracking = tracker.number;
+                  kind = 'cascade';
+                } else {
+                  core.info('Tracking issue #' + tracker.number
+                    + ' does not carry sdd:dispatched; cascade not armed.');
+                }
+              } else if (walked > 0 && walked < 2) {
+                // Reached a tracker root in fewer than two hops, so this
+                // is a Unit or tracking-issue closure, not a task closure.
+                // Cascade fires on task closures only.
+                core.info('Closed issue #' + closedIssue.number
+                  + ' is not a task sub-issue closure (walked ' + walked
+                  + ' hops); ignoring.');
+              } else {
+                core.info('Closed issue #' + closedIssue.number
+                  + ' has no resolvable tracking issue; ignoring.');
+              }
+            }
+
+            core.setOutput('should_run', run ? 'true' : 'false');
+            core.setOutput('tracking_issue', run ? String(tracking) : '');
+            core.setOutput('trigger_kind', run ? kind : '');

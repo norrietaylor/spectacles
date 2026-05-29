@@ -81,87 +81,9 @@ jobs:
     steps:
       - name: Decide whether to run and build aw_context
         id: decide
-        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        uses: norrietaylor/spectacles/.github/actions/sdd-route-validate@main
         with:
-          script: |
-            const event = context.eventName;
-            const payload = context.payload;
-            let run = false;
-            let ctx = {};
-
-            // A pull request was opened or synchronized on a suite branch. The
-            // agent resolves the boundary from the changed files. A draft pull
-            // request is still validated: validation is advisory and never
-            // blocks. The suite-branch check repeats the job-level if: gate as
-            // defense in depth — a non-suite head ref leaves run = false so the
-            // agent never comments on a PR the suite did not create.
-            if (event === 'pull_request') {
-              const action = payload.action;
-              const headRef = (payload.pull_request
-                && payload.pull_request.head
-                && payload.pull_request.head.ref) || '';
-              const isSuiteBranch = headRef.startsWith('spec/')
-                || headRef.startsWith('arch/')
-                || headRef.startsWith('sdd/');
-              if (!isSuiteBranch) {
-                core.info('PR #'
-                  + (payload.pull_request && payload.pull_request.number)
-                  + ' head ref "' + headRef + '" is not a suite branch'
-                  + ' (spec/, arch/, sdd/); not validating.');
-              } else if (action === 'opened' || action === 'synchronize') {
-                run = true;
-                ctx = {
-                  item_type: 'pull_request',
-                  item_number: payload.pull_request.number,
-                };
-              }
-            }
-
-            // A tracking issue gained sdd:ready: the triage boundary. This
-            // agent has no needs-human-removal resume, so an unlabeled event
-            // is not routed (see the header comment).
-            //
-            // sdd:ready is also applied by sdd-triage phase C to every
-            // unblocked task sub-issue, so the labelled item may be a task,
-            // not a tracking issue. The triage boundary is the tracking
-            // issue only: filter the event by the absence of a parent issue.
-            // A tracking issue has no parent; a Unit and a task each have
-            // one (their parent in the feature tree). The REST issue object
-            // exposes `parent_issue_url` for the sub-issues feature; a
-            // non-empty value means the labelled item is nested under
-            // another issue and is therefore not a tracking issue.
-            if (event === 'issues') {
-              const action = payload.action;
-              const label = payload.label && payload.label.name;
-              if (action === 'labeled' && label === 'sdd:ready') {
-                let parentUrl = '';
-                try {
-                  const { data } = await github.rest.issues.get({
-                    owner: context.repo.owner,
-                    repo: context.repo.repo,
-                    issue_number: payload.issue.number,
-                  });
-                  parentUrl = data.parent_issue_url || '';
-                } catch (err) {
-                  core.info('Could not fetch issue #'
-                    + payload.issue.number + ': ' + err.message);
-                }
-                if (parentUrl) {
-                  core.info('Issue #' + payload.issue.number
-                    + ' has a parent (' + parentUrl
-                    + '); not a tracking issue, ignoring.');
-                } else {
-                  run = true;
-                  ctx = {
-                    item_type: 'issue',
-                    item_number: payload.issue.number,
-                  };
-                }
-              }
-            }
-
-            core.setOutput('should_run', run ? 'true' : 'false');
-            core.setOutput('aw_context', run ? JSON.stringify(ctx) : '');
+          github-token: ${{ github.token }}
 
   sdd-validate:
     needs: route

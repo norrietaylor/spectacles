@@ -8,13 +8,13 @@ place and forgotten in another becomes a silent inconsistency: the workflow
 accepts the command, but the docs do not mention it, or vice-versa. This
 script asserts three sets are mutually consistent at PR time:
 
-- **W** — commands routed by `wrappers/*.yml`. The gh-aw `.md` sources do
-  not themselves filter slash commands; the routing layer is the
-  hand-written wrappers (`workflows/README.md` §"Why a wrapper, not the
-  gh-aw command: trigger"). The scanner parses `firstWord === '/<name>'`
-  literals — this is the idiom used in every wrapper that gates a slash
-  command (`wrappers/sdd-spec.yml`, `wrappers/sdd-triage.yml`,
-  `wrappers/sdd-execute-*.yml`).
+- **W** — commands routed by the hand-written routing layer: `wrappers/*.yml`
+  and the composite actions in `.github/actions/*/action.yml` they call. The
+  gh-aw `.md` sources do not themselves filter slash commands
+  (`workflows/README.md` §"Why a wrapper, not the gh-aw command: trigger").
+  Per ADR 0015 the decide logic moved out of the wrappers into composite
+  actions referenced cross-repo, so the `firstWord === '/<name>'` literals now
+  live in `.github/actions/sdd-route-*/action.yml`; both locations are scanned.
 - **T** — commands listed in the `shared/sdd-interaction.md` command table
   under "## Comment-command vocabulary". The table is the source of truth.
 - **P** — commands mentioned in prose, across the workflow `.md` sources,
@@ -50,6 +50,7 @@ import yaml
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 WRAPPERS_DIR = REPO_ROOT / "wrappers"
+ACTIONS_DIR = REPO_ROOT / ".github" / "actions"
 WORKFLOWS_DIR = REPO_ROOT / ".github" / "workflows"
 INTERACTION_FRAGMENT = REPO_ROOT / "shared" / "sdd-interaction.md"
 DOCS_INDEX = REPO_ROOT / "docs" / "sdd" / "index.md"
@@ -99,16 +100,22 @@ def load_exceptions() -> dict[str, list[str]]:
 
 
 def collect_wrapper_routes() -> dict[str, list[str]]:
-    """Return a map of `/command` -> list of wrapper files that route it.
-    Reports a list (not a set) so a duplicate routing across wrappers
-    is preserved for diagnostics (e.g. `/execute` routes from three
-    sdd-execute-* wrappers — by design, one per model tier)."""
+    """Return a map of `/command` -> list of routing files that route it.
+    Scans both `wrappers/*.yml` and the composite actions in
+    `.github/actions/*/action.yml` they call, since the decide logic moved
+    into the actions (ADR 0015). Reports a list (not a set) so a duplicate
+    routing across files is preserved for diagnostics (e.g. `/execute` is
+    routed once in sdd-route-execute, shared by three tier wrappers)."""
     routes: dict[str, list[str]] = {}
-    for path in sorted(WRAPPERS_DIR.glob("*.yml")):
+    paths = sorted(WRAPPERS_DIR.glob("*.yml")) + sorted(ACTIONS_DIR.glob("*/action.yml"))
+    for path in paths:
         text = path.read_text(encoding="utf-8")
+        # An action's file is always `action.yml`; label it by its dir so
+        # diagnostics name the action, not an ambiguous `action.yml`.
+        label = path.name if path.name != "action.yml" else f"{path.parent.name}/action.yml"
         for m in WRAPPER_ROUTE_RE.finditer(text):
             cmd = m.group(1)
-            routes.setdefault(cmd, []).append(path.name)
+            routes.setdefault(cmd, []).append(label)
     return routes
 
 

@@ -1,0 +1,110 @@
+name: sdd-auto-merge
+description: >
+  Enable GitHub auto-merge (squash, delete-branch) on a PR sdd-execute just
+  opened, when the repo allows it and the base branch protection defines at
+  least one required status check. Falls back to a direct squash merge when the
+  PR is UNSTABLE with every required check already green (issue #135). Shared by
+  the three sdd-execute wrapper variants. The caller mints the App token and
+  passes it as github-token; this action holds no secret. See ADR 0015.
+
+inputs:
+  github-token:
+    description: 'App-installation token with administration:read and pull-requests:write.'
+    required: true
+  pr-number:
+    description: 'The pull request number to enable auto-merge on.'
+    required: true
+  owner:
+    description: 'Repository owner.'
+    required: true
+  repo:
+    description: 'Repository name.'
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Enable auto-merge when protection requires a check
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.github-token }}
+        PR_NUMBER: ${{ inputs.pr-number }}
+        OWNER: ${{ inputs.owner }}
+        REPO: ${{ inputs.repo }}
+      run: |
+          set -euo pipefail
+          allow=$(gh api "repos/${OWNER}/${REPO}" --jq '.allow_auto_merge')
+          if [ "$allow" != "true" ]; then
+            echo "Repo does not allow auto-merge; skipping."
+            exit 0
+          fi
+          base=$(gh api "repos/${OWNER}/${REPO}/pulls/${PR_NUMBER}" \
+            --jq '.base.ref')
+          # URL-encode the base ref so a branch name containing `/` (e.g.
+          # release/2026.05) does not split the protection endpoint path.
+          base_encoded=$(printf '%s' "$base" | jq -sRr @uri)
+          # Read the required status checks on the base branch. The protection
+          # endpoint 404s when no protection is configured; treat that as
+          # "no required checks" and skip. `.checks[].context` (new) and
+          # `.contexts[]` (legacy) cover both shapes; an absent
+          # required_status_checks yields an empty list.
+          required_names=$(gh api \
+            "repos/${OWNER}/${REPO}/branches/${base_encoded}/protection" \
+            --jq '[(.required_status_checks.checks // [] | .[].context),
+              (.required_status_checks.contexts // [] | .[])] | unique | .[]' \
+            2>/dev/null || true)
+          if [ -z "${required_names}" ]; then
+            echo "Base branch ${base} has no required status checks;" \
+              "skipping auto-merge (would merge immediately)."
+            exit 0
+          fi
+          # Arm GitHub auto-merge. This succeeds for a CLEAN or BLOCKED PR and
+          # waits for the required checks to go green before merging.
+          if gh pr merge "${PR_NUMBER}" --auto --squash --delete-branch \
+            --repo "${OWNER}/${REPO}"; then
+            echo "Auto-merge (squash, delete-branch) enabled on PR" \
+              "#${PR_NUMBER}."
+            exit 0
+          fi
+          # Arming failed. The common cause is an UNSTABLE mergeStateStatus:
+          # cancelled sibling-tier check-runs and non-required `auto-merge`/
+          # `route` checks leave the PR UNSTABLE, which
+          # `enablePullRequestAutoMerge` refuses, even though branch
+          # protection gates only on the required checks (issue #135). Key off
+          # REQUIRED checks only: if the PR is UNSTABLE and every required
+          # check has already concluded SUCCESS, the non-required noise is the
+          # only thing blocking the GraphQL mutation, so merge directly — the
+          # same squash + delete-branch merge auto-merge would perform.
+          state=$(gh pr view "${PR_NUMBER}" --repo "${OWNER}/${REPO}" \
+            --json mergeStateStatus --jq '.mergeStateStatus' 2>/dev/null \
+            || echo UNKNOWN)
+          if [ "${state}" != "UNSTABLE" ]; then
+            echo "Auto-merge could not be armed and PR #${PR_NUMBER} is" \
+              "${state}, not UNSTABLE; leaving for human review." >&2
+            exit 1
+          fi
+          # Confirm every required check has concluded SUCCESS on this PR.
+          rollup=$(gh pr view "${PR_NUMBER}" --repo "${OWNER}/${REPO}" \
+            --json statusCheckRollup \
+            --jq '[.statusCheckRollup[]
+              | {name: (.name // .context),
+                 state: (.conclusion // .state // .status)}]')
+          all_green=true
+          while IFS= read -r name; do
+            [ -z "${name}" ] && continue
+            st=$(printf '%s' "${rollup}" | jq -r \
+              --arg n "${name}" \
+              'map(select(.name == $n)) | (last.state // "MISSING")')
+            if [ "${st}" != "SUCCESS" ]; then
+              echo "Required check '${name}' is '${st}', not SUCCESS;" \
+                "not merging PR #${PR_NUMBER}." >&2
+              all_green=false
+            fi
+          done <<< "${required_names}"
+          if [ "${all_green}" != "true" ]; then
+            exit 1
+          fi
+          gh pr merge "${PR_NUMBER}" --squash --delete-branch \
+            --repo "${OWNER}/${REPO}"
+          echo "PR #${PR_NUMBER} was UNSTABLE with all required checks green;" \
+            "merged directly (squash, delete-branch)."
