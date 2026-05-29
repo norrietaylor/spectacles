@@ -37,7 +37,6 @@ runs:
       with:
         github-token: ${{ inputs.github-token }}
         script: |
-          script: |
             const event = context.eventName;
             const payload = context.payload;
             let run = false;

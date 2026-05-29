@@ -25,7 +25,6 @@ runs:
       with:
         github-token: ${{ inputs.github-token }}
         script: |
-          script: |
             // The job-level if: gate already ensured SDD_MONITOR == '1';
             // if execution reaches this script the monitor is enabled.
 
