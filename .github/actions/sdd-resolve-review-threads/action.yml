@@ -1,0 +1,88 @@
+name: sdd-resolve-review-threads
+description: >
+  Resolve the SDD App bot's own unresolved review threads on an implementation
+  pull request so its advisory sdd-review findings do not deadlock GitHub
+  auto-merge on a base branch that enables required_conversation_resolution.
+  sdd-review is advisory by design (it never approves, requests changes, or
+  merges — see sdd-review.md), but every line-anchored review comment it posts
+  opens a review thread, and under required_conversation_resolution an
+  unresolved thread is a hard merge blocker. That turns the advisory agent into
+  a silent gate and deadlocks the auto-merge sdd-execute armed (mergeStateStatus
+  stays BLOCKED forever). This action resolves only threads whose first comment
+  is authored by the App bot; human and third-party (e.g. CodeRabbit) threads
+  are left intact so they still gate the merge. The caller mints the App token
+  and passes it as github-token; this action holds no secret. See ADR 0016.
+
+inputs:
+  github-token:
+    description: 'App-installation token with pull-requests:write.'
+    required: true
+  bot-login:
+    description: >
+      Login of the SDD App bot whose threads to resolve, e.g. the app slug
+      suffixed with "[bot]". Only threads whose first comment is authored by
+      this login are resolved.
+    required: true
+  pr-number:
+    description: 'The pull request number to resolve advisory threads on.'
+    required: true
+  owner:
+    description: 'Repository owner.'
+    required: true
+  repo:
+    description: 'Repository name.'
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Resolve App-bot advisory review threads
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.github-token }}
+        BOT_LOGIN: ${{ inputs.bot-login }}
+        PR_NUMBER: ${{ inputs.pr-number }}
+        OWNER: ${{ inputs.owner }}
+        REPO: ${{ inputs.repo }}
+      run: |
+          set -euo pipefail
+          # Collect unresolved review threads whose first comment is authored
+          # by the App bot. Thread resolution state is only exposed by GraphQL.
+          # The bot-login match keeps this scoped to sdd-review's own advisory
+          # threads: a human reviewer's thread, or a CodeRabbit
+          # CHANGES_REQUESTED thread, is left unresolved so it still gates the
+          # merge. jq reads the login through env to avoid shell interpolation
+          # into the filter.
+          thread_ids=$(gh api graphql -f query='
+            query($owner:String!,$repo:String!,$pr:Int!) {
+              repository(owner:$owner,name:$repo) {
+                pullRequest(number:$pr) {
+                  reviewThreads(first:100) {
+                    nodes {
+                      id
+                      isResolved
+                      comments(first:1) { nodes { author { login } } }
+                    }
+                  }
+                }
+              }
+            }' -F owner="${OWNER}" -F repo="${REPO}" -F pr="${PR_NUMBER}" \
+            --jq '.data.repository.pullRequest.reviewThreads.nodes[]
+              | select(.isResolved == false)
+              | select((.comments.nodes[0].author.login // "") == env.BOT_LOGIN)
+              | .id')
+          if [ -z "${thread_ids}" ]; then
+            echo "No unresolved ${BOT_LOGIN} review threads on PR" \
+              "#${PR_NUMBER}; nothing to resolve."
+            exit 0
+          fi
+          while IFS= read -r tid; do
+            [ -z "${tid}" ] && continue
+            gh api graphql -f query='
+              mutation($id:ID!) {
+                resolveReviewThread(input: {threadId: $id}) {
+                  thread { id isResolved }
+                }
+              }' -F id="${tid}" >/dev/null
+            echo "Resolved advisory review thread ${tid} on PR #${PR_NUMBER}."
+          done <<< "${thread_ids}"
