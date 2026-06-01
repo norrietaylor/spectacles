@@ -90,8 +90,10 @@ Without `--suite sdd` the installer only syncs the base labels, which is the
 Unit 1 behavior and is left intact.
 
 The installed wrappers call the hosted reusable workflows at a pinned
-spectacles ref. `--ref <ref>` sets that ref (default `main`); pass a release
-tag to pin the consumer to an immutable suite version.
+spectacles ref. By default the installer resolves that ref to the latest
+published spectacles release tag, so a consumer pins to an immutable suite
+version rather than floating on `main`; it falls back to `main` when no release
+exists yet. `--ref <ref>` overrides this to pin a specific tag, branch, or SHA.
 
 During a real run the installer also detects the target repository's primary
 language and, when a Serena language server is known for it, sets the
