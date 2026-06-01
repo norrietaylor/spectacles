@@ -1,0 +1,13 @@
+# Smoke fixture for issue #163. The src/lib.rs below holds an edition-2024
+# `let`-chain in deliberately non-canonical form; scripts/test-fmt-letchain.sh
+# asserts the stable rustfmt the sdd-execute host post-step relies on can parse
+# and normalize it to what a consumer's `cargo fmt --all -- --check` accepts.
+# Standalone (not a workspace member) so `cargo fmt` resolves it in isolation.
+[package]
+name = "fmt-letchain-fixture"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[lib]
+path = "src/lib.rs"
