@@ -177,3 +177,22 @@ jobs:
         run: pip install pyyaml
       - name: Assert container digests match snapshot
         run: python scripts/test-digest-snapshot.py
+
+  # Smoke-test the assumption the sdd-execute host post-step depends on: that
+  # the stable rustfmt it runs (`cargo fmt --all`) can parse and normalize an
+  # edition-2024 `let`-chain to what a consumer's `cargo fmt --all -- --check`
+  # accepts. An older host rustfmt that silently fails to format the let-chain
+  # is the #163 regression; this job turns that into a red PR check. Pinned to
+  # the same dtolnay/rust-toolchain ref the post-step installs.
+  fmt-letchain:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
+        with:
+          toolchain: stable
+          components: rustfmt
+      - name: Assert rustfmt normalizes an edition-2024 let-chain
+        run: bash scripts/test-fmt-letchain.sh

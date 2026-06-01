@@ -282,6 +282,25 @@ post-steps:
             --workspace --all-targets ) || \
           echo "::warning::cargo clippy --fix in ${root} exited non-zero (likely a non-machine-applicable lint or compile error); leaving those for consumer CI."
       done
+      # Self-verify against the consumer's exact fmt gate. The host `cargo fmt`
+      # above and the consumer CI both run stable rustfmt with the edition
+      # derived from Cargo.toml, so they normally agree — but when the host's
+      # stable rustfmt is older than the consumer's at run time and cannot
+      # format a construct the consumer's newer rustfmt rewrites (an
+      # edition-2024 `let`-chain is the observed case), the `cargo fmt` above
+      # exits non-zero, its guard swallows that, and unformatted code ships
+      # green and then fails the consumer's `cargo fmt --all -- --check`
+      # (#163). Re-run that exact check here so the divergence is a loud,
+      # actionable error in the run log instead of a silent green ship. This
+      # stays best-effort: a residual diff must not abort the post-step (that
+      # would block PR creation and lose the agent's work), so it surfaces as
+      # an ::error:: annotation, never a non-zero exit.
+      for root in "${ws_roots[@]}"; do
+        if ! fmt_check_out=$( cd "$root" && cargo fmt --all -- --check 2>&1 ); then
+          echo "::error::Host rustfmt left ${root} non-canonical for the consumer's 'cargo fmt --all -- --check' (likely a host/consumer stable-rustfmt version skew over edition-2024 let-chain formatting; #163). Consumer CI fmt-check will fail this PR."
+          printf '%s\n' "$fmt_check_out"
+        fi
+      done
       # Collect every tracked file the cleanup changed (refreshed locks,
       # reformatted sources/manifests, clippy-fixed sources) and stage them.
       mapfile -t changed_files < <( git diff --name-only | sort -u )
