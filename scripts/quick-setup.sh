@@ -39,8 +39,9 @@ Options:
                  and model:* labels, and the issue templates. Without
                  this flag only the base labels are synced.
   --ref <ref>    The spectacles ref the installed wrappers pin their hosted
-                 reusable workflows to. Default: main. Set this to a release
-                 tag to pin a consumer to an immutable suite version.
+                 reusable workflows to. Default: the latest published
+                 spectacles release tag, or main when no release exists yet.
+                 Set this to pin a consumer to a specific suite version.
   --direct       Write file artifacts straight to the target's default branch
                  instead of opening an installer PR. Fails on a repo whose
                  default branch is protected; use only on unprotected repos.
@@ -66,7 +67,12 @@ USAGE
 
 target_repo=""
 suite=""
-ref="main"
+# Empty until resolved: when --ref is not given the default is the latest
+# published spectacles release tag (resolved after arg parsing, issue #166),
+# falling back to main. ref_explicit records an operator-supplied --ref so the
+# resolution is skipped and the explicit value always wins.
+ref=""
+ref_explicit=0
 dry_run=0
 # PR mode is the default: file artifacts (workflows, issue templates,
 # .gitignore) land on a branch and an installer PR is opened, so a target
@@ -105,6 +111,7 @@ while [ $# -gt 0 ]; do
         exit 2
       fi
       ref="$2"
+      ref_explicit=1
       shift 2
       ;;
     --dry-run)
@@ -131,6 +138,24 @@ if [ -z "$target_repo" ]; then
   echo "error: --target-repo is required" >&2
   usage >&2
   exit 2
+fi
+
+# Default the pinned ref to the latest published spectacles release tag when
+# --ref was not supplied, so a consumer pins to an immutable suite version
+# instead of floating on main (issue #166). The ref only pins the wrappers a
+# --suite install writes, so the lookup is scoped to that. Falls back to main
+# when no release exists yet (before the first tag is cut) or the lookup fails
+# (no network / gh not authenticated) — the installer still works — and an
+# explicit --ref always wins.
+if [ -n "$suite" ] && [ "$ref_explicit" -eq 0 ]; then
+  ref="$(gh release view --repo norrietaylor/spectacles \
+    --json tagName --jq '.tagName' 2>/dev/null || true)"
+  if [ -n "$ref" ]; then
+    echo "quick-setup: no --ref given; pinning to latest spectacles release: $ref"
+  else
+    ref="main"
+    echo "quick-setup: no --ref given and no spectacles release found; pinning to main."
+  fi
 fi
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
