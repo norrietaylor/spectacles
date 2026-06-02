@@ -418,6 +418,12 @@ detect_serena_language_server() {
     --jq 'to_entries | sort_by(-.value) | .[0].key' 2>/dev/null || true)"
   echo "quick-setup: target languages: $langs"
   local server=""
+  # rust-analyzer needs the host pre-fetch in shared/sdd-mcp-serena.md (issue
+  # #159): the Serena image ships no Rust language server. typescript-language-
+  # server needs no such pre-fetch (issue #179): the Serena image ships Node and
+  # npm and Serena installs the TS server itself on first use over the
+  # container's host network. Setting the variable is all the install needs for
+  # the TypeScript/JavaScript stack.
   case "$primary" in
     Python) server="pyright" ;;
     TypeScript | JavaScript) server="typescript-language-server" ;;
