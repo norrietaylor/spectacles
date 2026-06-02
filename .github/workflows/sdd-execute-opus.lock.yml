@@ -1,4 +1,4 @@
-# gh-aw-metadata: {"schema_version":"v3","frontmatter_hash":"14f7cdf342aff386af81d92011253a800b77fedc7499b28ca6b17fee561d64a8","compiler_version":"v0.74.3","agent_id":"copilot","agent_model":"claude-opus-4.6"}
+# gh-aw-metadata: {"schema_version":"v3","frontmatter_hash":"0c36c51098d3acb4085560ea9fd8a75a51e2f6372d1bda08293d7458a074312a","compiler_version":"v0.74.3","agent_id":"copilot","agent_model":"claude-opus-4.6"}
 # gh-aw-manifest: {"version":1,"secrets":["APP_PRIVATE_KEY","COPILOT_GITHUB_TOKEN","GH_AW_CI_TRIGGER_TOKEN","GH_AW_GITHUB_MCP_SERVER_TOKEN","GH_AW_GITHUB_TOKEN","GITHUB_TOKEN"],"actions":[{"repo":"actions/checkout","sha":"de0fac2e4500dabe0009e67214ff5f5447ce83dd","version":"v6.0.2"},{"repo":"actions/create-github-app-token","sha":"bcd2ba49218906704ab6c1aa796996da409d3eb1","version":"v3.2.0"},{"repo":"actions/download-artifact","sha":"3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c","version":"v8.0.1"},{"repo":"actions/github-script","sha":"3a2844b7e9c422d3c10d287c895573f7108da1b3","version":"v9.0.0"},{"repo":"actions/setup-node","sha":"48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e","version":"v6.4.0"},{"repo":"actions/upload-artifact","sha":"043fb46d1a93c77aae656e7c1c64a875d1fc6a0a","version":"v7.0.1"},{"repo":"dtolnay/rust-toolchain","sha":"29eef336d9b2848a0b548edc03f92a220660cdb8","version":"29eef336d9b2848a0b548edc03f92a220660cdb8"},{"repo":"github/gh-aw-actions/setup","sha":"8a9a52673cb8f97ebb43b344618af2d6f2c9ac7f","version":"v0.74.3"}],"containers":[{"image":"ghcr.io/github/gh-aw-firewall/agent:0.25.46"},{"image":"ghcr.io/github/gh-aw-firewall/api-proxy:0.25.46"},{"image":"ghcr.io/github/gh-aw-firewall/squid:0.25.46"},{"image":"ghcr.io/github/gh-aw-mcpg:v0.3.9","digest":"sha256:64828b42a4482f58fab16509d7f8f495a6d97c972a98a68aff20543531ac0388","pinned_image":"ghcr.io/github/gh-aw-mcpg:v0.3.9@sha256:64828b42a4482f58fab16509d7f8f495a6d97c972a98a68aff20543531ac0388"},{"image":"ghcr.io/github/github-mcp-server:v1.0.4"},{"image":"ghcr.io/github/serena-mcp-server:latest","digest":"sha256:bf343399e3725c45528f531a230f3a04521d4cdef29f9a5af6282ff0d3c393c5","pinned_image":"ghcr.io/github/serena-mcp-server:latest@sha256:bf343399e3725c45528f531a230f3a04521d4cdef29f9a5af6282ff0d3c393c5"},{"image":"node:lts-alpine","digest":"sha256:d1b3b4da11eefd5941e7f0b9cf17783fc99d9c6fc34884a665f40a06dbdfc94f","pinned_image":"node:lts-alpine@sha256:d1b3b4da11eefd5941e7f0b9cf17783fc99d9c6fc34884a665f40a06dbdfc94f"}]}
 #    ___                   _   _      
 #   / _ \                 | | (_)     
@@ -31,6 +31,7 @@
 #     - norrietaylor/spectacles/shared/sdd-interaction.md@main
 #     - norrietaylor/spectacles/shared/sdd-mcp-serena.md@main
 #     - norrietaylor/spectacles/shared/sdd-proof-artifacts.md@main
+#     - norrietaylor/spectacles/shared/sdd-rust-cleanup.md@main
 #
 # inlined-imports: true
 #
@@ -233,24 +234,24 @@ jobs:
         run: |
           bash "${RUNNER_TEMP}/gh-aw/actions/create_prompt_first.sh"
           {
-          cat << 'GH_AW_PROMPT_c72cbd7f733339b6_EOF'
+          cat << 'GH_AW_PROMPT_6e99e6a09528af36_EOF'
           <system>
-          GH_AW_PROMPT_c72cbd7f733339b6_EOF
+          GH_AW_PROMPT_6e99e6a09528af36_EOF
           cat "${RUNNER_TEMP}/gh-aw/prompts/xpia.md"
           cat "${RUNNER_TEMP}/gh-aw/prompts/temp_folder_prompt.md"
           cat "${RUNNER_TEMP}/gh-aw/prompts/markdown.md"
           cat "${RUNNER_TEMP}/gh-aw/prompts/safe_outputs_prompt.md"
-          cat << 'GH_AW_PROMPT_c72cbd7f733339b6_EOF'
+          cat << 'GH_AW_PROMPT_6e99e6a09528af36_EOF'
           <safe-output-tools>
           Tools: add_comment, update_issue, create_pull_request, add_labels(max:2), remove_labels(max:2), push_to_pull_request_branch, missing_tool, missing_data, noop
-          GH_AW_PROMPT_c72cbd7f733339b6_EOF
+          GH_AW_PROMPT_6e99e6a09528af36_EOF
           cat "${RUNNER_TEMP}/gh-aw/prompts/safe_outputs_create_pull_request.md"
           cat "${RUNNER_TEMP}/gh-aw/prompts/safe_outputs_push_to_pr_branch.md"
-          cat << 'GH_AW_PROMPT_c72cbd7f733339b6_EOF'
+          cat << 'GH_AW_PROMPT_6e99e6a09528af36_EOF'
           </safe-output-tools>
-          GH_AW_PROMPT_c72cbd7f733339b6_EOF
+          GH_AW_PROMPT_6e99e6a09528af36_EOF
           cat "${RUNNER_TEMP}/gh-aw/prompts/mcp_cli_tools_prompt.md"
-          cat << 'GH_AW_PROMPT_c72cbd7f733339b6_EOF'
+          cat << 'GH_AW_PROMPT_6e99e6a09528af36_EOF'
           <github-context>
           The following GitHub context information is available for this workflow:
           {{#if github.actor}}
@@ -279,9 +280,9 @@ jobs:
           {{/if}}
           </github-context>
           
-          GH_AW_PROMPT_c72cbd7f733339b6_EOF
+          GH_AW_PROMPT_6e99e6a09528af36_EOF
           cat "${RUNNER_TEMP}/gh-aw/prompts/github_mcp_tools_with_safeoutputs_prompt.md"
-          cat << 'GH_AW_PROMPT_c72cbd7f733339b6_EOF'
+          cat << 'GH_AW_PROMPT_6e99e6a09528af36_EOF'
           </system>
           # Core principles
           
@@ -686,6 +687,42 @@ jobs:
           documented under the install docs), this guarantees Serena state never
           appears in any `create_pull_request` patch, even on consumers installed
           before the installer-side fix landed.
+          ## Host-side Rust cleanup post-step
+          
+          This fragment carries the post-agent, pre-PR host cleanup that lets `sdd-execute`
+          open implementation pull requests a Rust consumer's CI accepts without manual
+          fixup. The agent edits Rust from inside gh-aw's network-restricted container,
+          which has no crates.io egress and no Rust toolchain, so it cannot run
+          `cargo fmt`, `cargo clippy`, or `cargo update` to self-verify. The safe-output
+          patch therefore carries rustfmt-dirty, clippy-dirty code and a stale
+          `Cargo.lock`, which a consumer's `fmt --check`, `clippy -D warnings`, or
+          `cargo fetch --locked` gate rejects (issues #153, #158, #160).
+          
+          The `post-steps` run on the GitHub runner, outside the firewall sandbox, after
+          the agent and before `safe_outputs` materializes the PR. When the agent's patch
+          touches Rust (`*.rs` or `Cargo.toml`) they install the Rust toolchain, refresh
+          the lockfile when a manifest changed, run `cargo fmt --all` and
+          `cargo clippy --fix` (machine-applicable lints only), amend the agent's commit
+          with whatever changed, and re-emit the patch and bundle transport files. The
+          amend lands inside the agent's existing commit, so gh-aw's signed-commit push
+          re-attributes the cleanup to the App identity (ADR 0004).
+          
+          ### Fmt self-heal
+          
+          After formatting, the step re-runs the consumer's exact gate
+          (`cargo fmt --all -- --check`). When the host's stable rustfmt diverges from
+          the consumer's — the observed case is an edition-2024 `let`-chain a newer
+          rustfmt rewrites — it refreshes the toolchain to the current stable and
+          re-formats, so the PR opens already passing rather than failing the consumer's
+          fmt-check (issue #163). The whole block is best-effort: a genuine compile error
+          or non-machine-applicable lint is left untouched (not masked, #158) and never
+          aborts the post-step, which would block PR creation and lose the agent's work.
+          
+          ### Out of scope
+          
+          Dead-code suppression (#158 non-goal): `clippy --fix` never adds
+          `#[allow(dead_code)]` or gates a module. Test execution is the consumer CI's job
+          (#154). Non-Rust formatters are follow-ups.
           # sdd-execute (opus tier)
           
           `sdd-execute` is the implementation agent of the issue-native SDD pipeline. It
@@ -1151,7 +1188,7 @@ jobs:
             moves to `sdd:done` and gains `needs-human`, and the tracking issue is not
             closed by the agent.
           
-          GH_AW_PROMPT_c72cbd7f733339b6_EOF
+          GH_AW_PROMPT_6e99e6a09528af36_EOF
           } > "$GH_AW_PROMPT"
       - name: Interpolate variables and render templates
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
@@ -1364,9 +1401,9 @@ jobs:
           mkdir -p "${RUNNER_TEMP}/gh-aw/safeoutputs"
           mkdir -p /tmp/gh-aw/safeoutputs
           mkdir -p /tmp/gh-aw/mcp-logs/safeoutputs
-          cat > "${RUNNER_TEMP}/gh-aw/safeoutputs/config.json" << 'GH_AW_SAFE_OUTPUTS_CONFIG_399fe0a1fe832695_EOF'
+          cat > "${RUNNER_TEMP}/gh-aw/safeoutputs/config.json" << 'GH_AW_SAFE_OUTPUTS_CONFIG_466e16ace18fc413_EOF'
           {"add_comment":{"max":1},"add_labels":{"allowed":["sdd:in-progress","sdd:done","needs-human"],"max":2},"create_pull_request":{"draft":false,"max":1,"max_patch_files":100,"max_patch_size":1024,"protect_top_level_dot_folders":true,"protected_files":["package.json","bun.lockb","bunfig.toml","deno.json","deno.jsonc","deno.lock","global.json","NuGet.Config","Directory.Packages.props","mix.exs","mix.lock","go.mod","go.sum","stack.yaml","stack.yaml.lock","pom.xml","build.gradle","build.gradle.kts","settings.gradle","settings.gradle.kts","gradle.properties","package-lock.json","yarn.lock","pnpm-lock.yaml","npm-shrinkwrap.json","requirements.txt","Pipfile","Pipfile.lock","setup.py","setup.cfg","Gemfile","Gemfile.lock","uv.lock","CODEOWNERS","DESIGN.md","README.md","CONTRIBUTING.md","CHANGELOG.md","SECURITY.md","CODE_OF_CONDUCT.md","AGENTS.md","CLAUDE.md","GEMINI.md"],"protected_files_policy":"fallback-to-issue"},"create_report_incomplete_issue":{},"missing_data":{},"missing_tool":{},"noop":{"max":1,"report-as-issue":"true"},"push_to_pull_request_branch":{"if_no_changes":"warn","max":1,"max_patch_size":1024,"protect_top_level_dot_folders":true,"protected_files":["package.json","bun.lockb","bunfig.toml","deno.json","deno.jsonc","deno.lock","global.json","NuGet.Config","Directory.Packages.props","mix.exs","mix.lock","go.mod","go.sum","stack.yaml","stack.yaml.lock","pom.xml","build.gradle","build.gradle.kts","settings.gradle","settings.gradle.kts","gradle.properties","package-lock.json","yarn.lock","pnpm-lock.yaml","npm-shrinkwrap.json","requirements.txt","Pipfile","Pipfile.lock","setup.py","setup.cfg","Gemfile","Gemfile.lock","uv.lock","CODEOWNERS","DESIGN.md","README.md","CONTRIBUTING.md","CHANGELOG.md","SECURITY.md","CODE_OF_CONDUCT.md","AGENTS.md","CLAUDE.md","GEMINI.md"]},"remove_labels":{"allowed":["sdd:ready","sdd:review","sdd:fastpath","sdd:in-progress"],"max":2},"report_incomplete":{},"update_issue":{"allow_body":true,"allow_status":true,"max":1,"target":"*"}}
-          GH_AW_SAFE_OUTPUTS_CONFIG_399fe0a1fe832695_EOF
+          GH_AW_SAFE_OUTPUTS_CONFIG_466e16ace18fc413_EOF
       - name: Generate Safe Outputs Tools
         env:
           GH_AW_TOOLS_META_JSON: |
@@ -1718,7 +1755,7 @@ jobs:
           
           mkdir -p /home/runner/.copilot
           GH_AW_NODE=$(which node 2>/dev/null || command -v node 2>/dev/null || echo node)
-          cat << GH_AW_MCP_CONFIG_6cb1f51cc28156fe_EOF | "$GH_AW_NODE" "${RUNNER_TEMP}/gh-aw/actions/start_mcp_gateway.cjs"
+          cat << GH_AW_MCP_CONFIG_95ce581f04c81d86_EOF | "$GH_AW_NODE" "${RUNNER_TEMP}/gh-aw/actions/start_mcp_gateway.cjs"
           {
             "mcpServers": {
               "github": {
@@ -1797,7 +1834,7 @@ jobs:
               "payloadDir": "${MCP_GATEWAY_PAYLOAD_DIR}"
             }
           }
-          GH_AW_MCP_CONFIG_6cb1f51cc28156fe_EOF
+          GH_AW_MCP_CONFIG_95ce581f04c81d86_EOF
       - name: Mount MCP servers as CLIs
         id: mount-mcp-clis
         continue-on-error: true
@@ -2013,7 +2050,7 @@ jobs:
           CARGO_TOML_CHANGED: ${{ steps.cargo_detect.outputs.cargo_toml }}
         if: steps.cargo_detect.outputs.changed == 'true'
         name: Refresh Cargo.lock, format, and lint-fix the agent patch
-        run: "set -euo pipefail\n# Pick the base ref the patch was generated against. Mirror the\n# precedence gh-aw's generate_git_patch.cjs uses: GITHUB_BASE_REF on\n# PR events; otherwise the repository's default branch (gh-aw exports\n# DEFAULT_BRANCH at the agent job's env block, derived from\n# github.event.repository.default_branch). Hardcoding \"main\" would\n# break repos whose default branch is master/trunk/main-line/etc.\nbase_ref=\"${GITHUB_BASE_REF:-}\"\nif [ -z \"$base_ref\" ]; then\n  base_ref=\"$(git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null \\\n              | sed 's@^origin/@@' || true)\"\nfi\nif [ -z \"$base_ref\" ]; then\n  base_ref=\"${DEFAULT_BRANCH:-main}\"\nfi\ngit fetch --no-tags --depth=1 origin \"$base_ref\" || \\\n  git fetch --no-tags origin \"$base_ref\"\nbase_sha=$(git merge-base \"origin/${base_ref}\" \"$AGENT_BRANCH\")\necho \"Base ref: ${base_ref} (sha=${base_sha})\"\necho \"Agent branch: ${AGENT_BRANCH}\"\ngit checkout \"$AGENT_BRANCH\"\n# Enumerate the directories the agent touched that are cargo invocation\n# points: every changed Cargo.toml's dir, plus every changed *.rs file's\n# dir. cargo walks up to find the workspace root, so running it from any\n# member works. The empty-string-to-\".\" mapping covers a root-level path\n# whose diff entry has no directory prefix.\nmapfile -t touched_dirs < <(\n  git diff --name-only \"${base_sha}..HEAD\" \\\n    | awk '\n        /Cargo\\.toml$/ { sub(/\\/?Cargo\\.toml$/, \"\"); print ($0==\"\" ? \".\" : $0) }\n        /\\.rs$/         { sub(/\\/?[^\\/]+\\.rs$/, \"\"); print ($0==\"\" ? \".\" : $0) }\n      ' \\\n    | sort -u\n)\nif [ \"${#touched_dirs[@]}\" -eq 0 ]; then\n  echo \"No Rust paths in the diff after recheck; skipping cargo cleanup.\"\n  exit 0\nfi\n# Resolve each touched dir to its workspace root so fmt/clippy run once\n# per workspace, not once per touched member. Run `cargo locate-project\n# --workspace` from inside each touched dir: cargo's default discovery\n# walks up to the enclosing Cargo.toml and `--workspace` resolves it to\n# the workspace-root Cargo.toml; its dir is the invocation point. (The\n# `--manifest-path \"$dir/Cargo.toml\"` form would require that exact file\n# to exist, which it doesn't for a *.rs-derived dir like crates/foo/src.)\n# Skip dirs cargo can't resolve (e.g. a path outside any cargo project).\ndeclare -A seen_roots=()\nws_roots=()\nfor dir in \"${touched_dirs[@]}\"; do\n  [ -d \"$dir\" ] || continue\n  root_manifest=\"$(\n    cd \"$dir\" && cargo locate-project --workspace --message-format plain 2>/dev/null\n  )\" || true\n  [ -n \"$root_manifest\" ] || continue\n  root_dir=\"$(dirname \"$root_manifest\")\"\n  if [ -z \"${seen_roots[$root_dir]:-}\" ]; then\n    seen_roots[$root_dir]=1\n    ws_roots+=(\"$root_dir\")\n  fi\ndone\nif [ \"${#ws_roots[@]}\" -eq 0 ]; then\n  echo \"No resolvable cargo workspace from the touched dirs; skipping cleanup.\"\n  exit 0\nfi\necho \"Cargo workspace roots to clean up:\"\nprintf '  %s\\n' \"${ws_roots[@]}\"\n# Refresh the lockfile first (only when a manifest changed): a stale\n# Cargo.lock breaks `cargo fetch --locked` (#153). Run cargo update from\n# each touched manifest dir so workspace-root locks above a member crate\n# are caught too.\nif [ \"$CARGO_TOML_CHANGED\" = \"true\" ]; then\n  mapfile -t manifest_dirs < <(\n    git diff --name-only \"${base_sha}..HEAD\" \\\n      | awk '/Cargo\\.toml$/ { sub(/\\/?Cargo\\.toml$/, \"\"); print ($0==\"\" ? \".\" : $0) }' \\\n      | sort -u\n  )\n  for dir in \"${manifest_dirs[@]}\"; do\n    [ -d \"$dir\" ] || continue\n    ( cd \"$dir\" && cargo update --workspace )\n  done\nfi\n# Format and apply machine-applicable clippy fixes per workspace. fmt\n# rewrites whitespace/layout; `clippy --fix` rewrites only lints rustc\n# marks machine-applicable (collapsible_if, redundant clones, etc.).\n# Both operate on the whole workspace (`--all` / `--workspace`), so one\n# run per root covers every member. Both are best-effort: a genuine\n# compile error (or code rustfmt cannot parse) makes the tool exit\n# non-zero, but it leaves the source untouched (no false \"fixed\"), so the\n# dirty code still surfaces for the consumer CI / human rather than being\n# masked (#158). A tool failure must not abort the post-step — that would\n# block PR creation and lose the agent's work — so each is guarded.\nfor root in \"${ws_roots[@]}\"; do\n  ( cd \"$root\" && cargo fmt --all ) || \\\n    echo \"::warning::cargo fmt --all in ${root} exited non-zero (likely unparseable source); leaving formatting for consumer CI.\"\n  ( cd \"$root\" && cargo clippy --fix --allow-dirty --allow-staged \\\n      --workspace --all-targets ) || \\\n    echo \"::warning::cargo clippy --fix in ${root} exited non-zero (likely a non-machine-applicable lint or compile error); leaving those for consumer CI.\"\ndone\n# Self-verify against the consumer's exact fmt gate. The host `cargo fmt`\n# above and the consumer CI both run stable rustfmt with the edition\n# derived from Cargo.toml, so they normally agree — but when the host's\n# stable rustfmt is older than the consumer's at run time and cannot\n# format a construct the consumer's newer rustfmt rewrites (an\n# edition-2024 `let`-chain is the observed case), the `cargo fmt` above\n# exits non-zero, its guard swallows that, and unformatted code ships\n# green and then fails the consumer's `cargo fmt --all -- --check`\n# (#163). Re-run that exact check here so the divergence is a loud,\n# actionable error in the run log instead of a silent green ship. This\n# stays best-effort: a residual diff must not abort the post-step (that\n# would block PR creation and lose the agent's work), so it surfaces as\n# an ::error:: annotation, never a non-zero exit.\nfor root in \"${ws_roots[@]}\"; do\n  if ! fmt_check_out=$( cd \"$root\" && cargo fmt --all -- --check 2>&1 ); then\n    echo \"::error::Host rustfmt left ${root} non-canonical for the consumer's 'cargo fmt --all -- --check' (likely a host/consumer stable-rustfmt version skew over edition-2024 let-chain formatting; #163). Consumer CI fmt-check will fail this PR.\"\n    printf '%s\\n' \"$fmt_check_out\"\n  fi\ndone\n# Collect every tracked file the cleanup changed (refreshed locks,\n# reformatted sources/manifests, clippy-fixed sources) and stage them.\nmapfile -t changed_files < <( git diff --name-only | sort -u )\nif [ \"${#changed_files[@]}\" -eq 0 ]; then\n  echo \"cargo cleanup produced no change; nothing to amend.\"\n  exit 0\nfi\necho \"Files to stage:\"\nprintf '  %s\\n' \"${changed_files[@]}\"\ngit add -- \"${changed_files[@]}\"\n# Amend the agent's last commit so the cleanup travels with the agent's\n# change. gh-aw's signed-commit push (ADR 0004) re-attributes the\n# resulting commit to the App identity at PR-create time, so the cleanup\n# inherits agent-authored attribution.\ngit commit --amend --no-edit\n# Regenerate the format-patch transport so the safe_outputs job\n# replays the amended history. Match gh-aw's generate_git_patch.cjs:\n# full mode, --stdout to one file.\ngit format-patch --stdout \"${base_sha}..HEAD\" > \"$AGENT_PATCH\"\necho \"Rewrote ${AGENT_PATCH} ($(wc -c < \"$AGENT_PATCH\") bytes)\"\n# Regenerate the bundle when bundle transport is in use (gh-aw's\n# default patch-format). Mirror generate_git_bundle.cjs:\n#   git bundle create <bundle> <base>..<branch>\nif [ -n \"$AGENT_BUNDLE\" ]; then\n  git bundle create \"$AGENT_BUNDLE\" \"${base_sha}..${AGENT_BRANCH}\"\n  echo \"Rewrote ${AGENT_BUNDLE} ($(wc -c < \"$AGENT_BUNDLE\") bytes)\"\nfi\n"
+        run: "set -euo pipefail\n# Pick the base ref the patch was generated against. Mirror the\n# precedence gh-aw's generate_git_patch.cjs uses: GITHUB_BASE_REF on\n# PR events; otherwise the repository's default branch (gh-aw exports\n# DEFAULT_BRANCH at the agent job's env block, derived from\n# github.event.repository.default_branch). Hardcoding \"main\" would\n# break repos whose default branch is master/trunk/main-line/etc.\nbase_ref=\"${GITHUB_BASE_REF:-}\"\nif [ -z \"$base_ref\" ]; then\n  base_ref=\"$(git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null \\\n              | sed 's@^origin/@@' || true)\"\nfi\nif [ -z \"$base_ref\" ]; then\n  base_ref=\"${DEFAULT_BRANCH:-main}\"\nfi\ngit fetch --no-tags --depth=1 origin \"$base_ref\" || \\\n  git fetch --no-tags origin \"$base_ref\"\nbase_sha=$(git merge-base \"origin/${base_ref}\" \"$AGENT_BRANCH\")\necho \"Base ref: ${base_ref} (sha=${base_sha})\"\necho \"Agent branch: ${AGENT_BRANCH}\"\ngit checkout \"$AGENT_BRANCH\"\n# Enumerate the directories the agent touched that are cargo invocation\n# points: every changed Cargo.toml's dir, plus every changed *.rs file's\n# dir. cargo walks up to find the workspace root, so running it from any\n# member works. The empty-string-to-\".\" mapping covers a root-level path\n# whose diff entry has no directory prefix.\nmapfile -t touched_dirs < <(\n  git diff --name-only \"${base_sha}..HEAD\" \\\n    | awk '\n        /Cargo\\.toml$/ { sub(/\\/?Cargo\\.toml$/, \"\"); print ($0==\"\" ? \".\" : $0) }\n        /\\.rs$/         { sub(/\\/?[^\\/]+\\.rs$/, \"\"); print ($0==\"\" ? \".\" : $0) }\n      ' \\\n    | sort -u\n)\nif [ \"${#touched_dirs[@]}\" -eq 0 ]; then\n  echo \"No Rust paths in the diff after recheck; skipping cargo cleanup.\"\n  exit 0\nfi\n# Resolve each touched dir to its workspace root so fmt/clippy run once\n# per workspace, not once per touched member. Run `cargo locate-project\n# --workspace` from inside each touched dir: cargo's default discovery\n# walks up to the enclosing Cargo.toml and `--workspace` resolves it to\n# the workspace-root Cargo.toml; its dir is the invocation point. (The\n# `--manifest-path \"$dir/Cargo.toml\"` form would require that exact file\n# to exist, which it doesn't for a *.rs-derived dir like crates/foo/src.)\n# Skip dirs cargo can't resolve (e.g. a path outside any cargo project).\ndeclare -A seen_roots=()\nws_roots=()\nfor dir in \"${touched_dirs[@]}\"; do\n  [ -d \"$dir\" ] || continue\n  root_manifest=\"$(\n    cd \"$dir\" && cargo locate-project --workspace --message-format plain 2>/dev/null\n  )\" || true\n  [ -n \"$root_manifest\" ] || continue\n  root_dir=\"$(dirname \"$root_manifest\")\"\n  if [ -z \"${seen_roots[$root_dir]:-}\" ]; then\n    seen_roots[$root_dir]=1\n    ws_roots+=(\"$root_dir\")\n  fi\ndone\nif [ \"${#ws_roots[@]}\" -eq 0 ]; then\n  echo \"No resolvable cargo workspace from the touched dirs; skipping cleanup.\"\n  exit 0\nfi\necho \"Cargo workspace roots to clean up:\"\nprintf '  %s\\n' \"${ws_roots[@]}\"\n# Refresh the lockfile first (only when a manifest changed): a stale\n# Cargo.lock breaks `cargo fetch --locked` (#153). Run cargo update from\n# each touched manifest dir so workspace-root locks above a member crate\n# are caught too.\nif [ \"$CARGO_TOML_CHANGED\" = \"true\" ]; then\n  mapfile -t manifest_dirs < <(\n    git diff --name-only \"${base_sha}..HEAD\" \\\n      | awk '/Cargo\\.toml$/ { sub(/\\/?Cargo\\.toml$/, \"\"); print ($0==\"\" ? \".\" : $0) }' \\\n      | sort -u\n  )\n  for dir in \"${manifest_dirs[@]}\"; do\n    [ -d \"$dir\" ] || continue\n    ( cd \"$dir\" && cargo update --workspace )\n  done\nfi\n# Format and apply machine-applicable clippy fixes per workspace. fmt\n# rewrites whitespace/layout; `clippy --fix` rewrites only lints rustc\n# marks machine-applicable (collapsible_if, redundant clones, etc.).\n# Both operate on the whole workspace (`--all` / `--workspace`), so one\n# run per root covers every member. Both are best-effort: a genuine\n# compile error (or code rustfmt cannot parse) makes the tool exit\n# non-zero, but it leaves the source untouched (no false \"fixed\"), so the\n# dirty code still surfaces for the consumer CI / human rather than being\n# masked (#158). A tool failure must not abort the post-step — that would\n# block PR creation and lose the agent's work — so each is guarded.\nfor root in \"${ws_roots[@]}\"; do\n  ( cd \"$root\" && cargo fmt --all ) || \\\n    echo \"::warning::cargo fmt --all in ${root} exited non-zero (likely unparseable source); leaving formatting for consumer CI.\"\n  ( cd \"$root\" && cargo clippy --fix --allow-dirty --allow-staged \\\n      --workspace --all-targets ) || \\\n    echo \"::warning::cargo clippy --fix in ${root} exited non-zero (likely a non-machine-applicable lint or compile error); leaving those for consumer CI.\"\ndone\n# Self-verify against the consumer's exact fmt gate, and self-heal a\n# host/consumer rustfmt skew. The host `cargo fmt` above and the consumer\n# CI both run stable rustfmt with the edition derived from Cargo.toml, so\n# they normally agree — but when the host's stable rustfmt is older than\n# the consumer's at run time and cannot format a construct the consumer's\n# newer rustfmt rewrites (an edition-2024 `let`-chain is the observed\n# case), the `cargo fmt` above exits non-zero, its guard swallows that,\n# and unformatted code would ship green and then fail the consumer's\n# `cargo fmt --all -- --check` (#163). Detect that with the consumer's\n# exact check; on any divergence, refresh the toolchain to the current\n# stable (matching the fresh `dtolnay/rust-toolchain@stable` the consumer\n# CI installs) and re-format, so the PR opens already passing. A\n# still-residual diff after the refresh is surfaced as a loud ::error::,\n# never a non-zero exit (which would block PR creation and lose the\n# agent's work).\nneeds_heal=false\nfor root in \"${ws_roots[@]}\"; do\n  ( cd \"$root\" && cargo fmt --all -- --check ) >/dev/null 2>&1 || needs_heal=true\ndone\nif [ \"$needs_heal\" = \"true\" ]; then\n  echo \"::warning::Host rustfmt output diverges from 'cargo fmt --all -- --check' (likely a stale host stable rustfmt vs the consumer's edition-2024 let-chain formatting; #163). Refreshing the toolchain and re-formatting.\"\n  rustup update stable || \\\n    echo \"::warning::rustup update stable failed; re-formatting with the installed toolchain.\"\n  for root in \"${ws_roots[@]}\"; do\n    ( cd \"$root\" && cargo fmt --all ) || \\\n      echo \"::warning::cargo fmt --all in ${root} exited non-zero after the toolchain refresh; leaving formatting for consumer CI.\"\n  done\n  for root in \"${ws_roots[@]}\"; do\n    if ! fmt_check_out=$( cd \"$root\" && cargo fmt --all -- --check 2>&1 ); then\n      echo \"::error::Host rustfmt still leaves ${root} non-canonical after a toolchain refresh; the consumer's 'cargo fmt --all -- --check' will fail this PR (#163).\"\n      printf '%s\\n' \"$fmt_check_out\"\n    fi\n  done\nfi\n# Collect every tracked file the cleanup changed (refreshed locks,\n# reformatted sources/manifests, clippy-fixed sources) and stage them.\nmapfile -t changed_files < <( git diff --name-only | sort -u )\nif [ \"${#changed_files[@]}\" -eq 0 ]; then\n  echo \"cargo cleanup produced no change; nothing to amend.\"\n  exit 0\nfi\necho \"Files to stage:\"\nprintf '  %s\\n' \"${changed_files[@]}\"\ngit add -- \"${changed_files[@]}\"\n# Amend the agent's last commit so the cleanup travels with the agent's\n# change. gh-aw's signed-commit push (ADR 0004) re-attributes the\n# resulting commit to the App identity at PR-create time, so the cleanup\n# inherits agent-authored attribution.\ngit commit --amend --no-edit\n# Regenerate the format-patch transport so the safe_outputs job\n# replays the amended history. Match gh-aw's generate_git_patch.cjs:\n# full mode, --stdout to one file.\ngit format-patch --stdout \"${base_sha}..HEAD\" > \"$AGENT_PATCH\"\necho \"Rewrote ${AGENT_PATCH} ($(wc -c < \"$AGENT_PATCH\") bytes)\"\n# Regenerate the bundle when bundle transport is in use (gh-aw's\n# default patch-format). Mirror generate_git_bundle.cjs:\n#   git bundle create <bundle> <base>..<branch>\nif [ -n \"$AGENT_BUNDLE\" ]; then\n  git bundle create \"$AGENT_BUNDLE\" \"${base_sha}..${AGENT_BRANCH}\"\n  echo \"Rewrote ${AGENT_BUNDLE} ($(wc -c < \"$AGENT_BUNDLE\") bytes)\"\nfi\n"
         shell: bash
 
       - name: Upload agent artifacts
