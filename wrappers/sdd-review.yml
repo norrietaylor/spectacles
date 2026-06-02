@@ -75,3 +75,51 @@ jobs:
       contents: read
       issues: write
       pull-requests: write
+
+  # Resolve the App bot's own advisory review threads once sdd-review has
+  # posted them, so they do not deadlock the auto-merge sdd-execute armed
+  # (ADR 0016). sdd-review is advisory and never gates a merge, but each
+  # line-anchored finding opens a review thread, and a base branch with
+  # required_conversation_resolution turns every unresolved thread into a hard
+  # blocker — mergeStateStatus stays BLOCKED forever and the cascade stalls.
+  #
+  # Gated on SDD_AUTO_MERGE, the same switch that arms auto-merge in the
+  # sdd-execute tiers: only a repo that opted into hands-off merging
+  # auto-resolves advisory threads. When the switch is off a human owns the
+  # merge and the threads stay open for triage — behavior unchanged. Only the
+  # App bot's own threads are resolved; a human reviewer's thread or a
+  # CodeRabbit CHANGES_REQUESTED thread is left intact so it still gates.
+  #
+  # needs sdd-review so the reusable workflow's safe_outputs job has posted the
+  # inline comments before this job reads them. The PR number comes straight
+  # from the pull_request event payload this wrapper triggers on.
+  resolve-advisory-threads:
+    needs: [route, sdd-review]
+    if: |
+      needs.route.outputs.should_run == 'true'
+      && (vars.SDD_AUTO_MERGE == '1' || vars.SDD_AUTO_MERGE == 'true')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      # Mint the App token: resolving a review thread needs
+      # pull-requests:write, which the default GITHUB_TOKEN in this wrapper
+      # (contents: read) lacks. app-slug names the bot whose threads to
+      # resolve.
+      - name: Mint App token
+        id: app
+        uses: actions/create-github-app-token@v3
+        with:
+          app-id: ${{ vars.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
+          permission-pull-requests: write
+      - name: Resolve App-bot advisory review threads
+        uses: norrietaylor/spectacles/.github/actions/sdd-resolve-review-threads@main
+        with:
+          github-token: ${{ steps.app.outputs.token }}
+          bot-login: ${{ steps.app.outputs.app-slug }}[bot]
+          pr-number: ${{ github.event.pull_request.number }}
+          owner: ${{ github.repository_owner }}
+          repo: ${{ github.event.repository.name }}
