@@ -53,24 +53,50 @@ runs:
           # CHANGES_REQUESTED thread, is left unresolved so it still gates the
           # merge. jq reads the login through env to avoid shell interpolation
           # into the filter.
-          thread_ids=$(gh api graphql -f query='
-            query($owner:String!,$repo:String!,$pr:Int!) {
-              repository(owner:$owner,name:$repo) {
-                pullRequest(number:$pr) {
-                  reviewThreads(first:100) {
-                    nodes {
-                      id
-                      isResolved
-                      comments(first:1) { nodes { author { login } } }
+          # reviewThreads is paginated: walk every page so a bot thread beyond
+          # the first 100 review threads on the PR is not missed (an
+          # unpaginated query would leave it unresolved and still deadlock the
+          # merge). Follow pageInfo.endCursor until hasNextPage is false; the
+          # first page passes after:null. jq reads the login through env to
+          # avoid shell interpolation into the filter.
+          thread_ids=""
+          cursor=""
+          while : ; do
+            page_args=(-F owner="${OWNER}" -F repo="${REPO}" -F pr="${PR_NUMBER}")
+            if [ -n "${cursor}" ]; then
+              page_args+=(-f after="${cursor}")
+            else
+              page_args+=(-F after=null)
+            fi
+            page=$(gh api graphql -f query='
+              query($owner:String!,$repo:String!,$pr:Int!,$after:String) {
+                repository(owner:$owner,name:$repo) {
+                  pullRequest(number:$pr) {
+                    reviewThreads(first:100, after:$after) {
+                      pageInfo { hasNextPage endCursor }
+                      nodes {
+                        id
+                        isResolved
+                        comments(first:1) { nodes { author { login } } }
+                      }
                     }
                   }
                 }
-              }
-            }' -F owner="${OWNER}" -F repo="${REPO}" -F pr="${PR_NUMBER}" \
-            --jq '.data.repository.pullRequest.reviewThreads.nodes[]
-              | select(.isResolved == false)
-              | select((.comments.nodes[0].author.login // "") == env.BOT_LOGIN)
-              | .id')
+              }' "${page_args[@]}")
+            page_ids=$(printf '%s' "${page}" \
+              | jq -r '.data.repository.pullRequest.reviewThreads.nodes[]
+                  | select(.isResolved == false)
+                  | select((.comments.nodes[0].author.login // "") == env.BOT_LOGIN)
+                  | .id')
+            if [ -n "${page_ids}" ]; then
+              thread_ids+="${page_ids}"$'\n'
+            fi
+            has_next=$(printf '%s' "${page}" \
+              | jq -r '.data.repository.pullRequest.reviewThreads.pageInfo.hasNextPage')
+            [ "${has_next}" = "true" ] || break
+            cursor=$(printf '%s' "${page}" \
+              | jq -r '.data.repository.pullRequest.reviewThreads.pageInfo.endCursor')
+          done
           if [ -z "${thread_ids}" ]; then
             echo "No unresolved ${BOT_LOGIN} review threads on PR" \
               "#${PR_NUMBER}; nothing to resolve."
