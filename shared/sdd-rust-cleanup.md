@@ -235,9 +235,20 @@ post-steps:
           fi
         done
       fi
-      # Collect every tracked file the cleanup changed (refreshed locks,
-      # reformatted sources/manifests, clippy-fixed sources) and stage them.
-      mapfile -t changed_files < <( git diff --name-only | sort -u )
+      # Collect every file the cleanup changed (refreshed locks, reformatted
+      # sources/manifests, clippy-fixed sources) and stage them. git diff
+      # --name-only reports only tracked paths, so a Cargo.lock that
+      # `cargo update` created where none was committed (a new manifest or
+      # workspace member) would be left out of the amend and the regenerated
+      # patch, and a consumer `--locked` gate would still fail (#153). Merge in
+      # untracked, non-ignored Cargo.lock files; --exclude-standard skips locks
+      # a library intentionally gitignores.
+      mapfile -t changed_files < <(
+        {
+          git diff --name-only
+          git ls-files --others --exclude-standard | awk '/(^|\/)Cargo\.lock$/'
+        } | sort -u
+      )
       if [ "${#changed_files[@]}" -eq 0 ]; then
         echo "cargo cleanup produced no change; nothing to amend."
         exit 0
