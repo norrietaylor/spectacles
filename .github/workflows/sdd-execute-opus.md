@@ -332,7 +332,7 @@ post-steps:
 # of the Rust block above. The agent edits TS/JS from inside the firewalled
 # container (no npm-registry egress, no Node toolchain) so the safe-output
 # patch carries prettier-dirty, eslint-dirty code and a stale lockfile that a
-# Node consumer's `prettier --check`/`eslint`/frozen-lockfile install rejects
+# Node consumer's `prettier --check`/`eslint` and frozen-lockfile install rejects
 # (the Node analog of #160). These host post-steps detect a Node edit, install
 # Node, resolve each touched file to its package-manager root, detect the
 # package manager from the lockfile there, refresh the lockfile per-root, run
@@ -541,7 +541,7 @@ post-steps:
           const fs=require("fs");
           const p=process.argv[1], t=process.argv[2];
           try {
-            const j=JSON.parse(fs.readFileSync(p+"/package.json","utf8"));
+            const j=JSON.parse(fs.readFileSync(`${p}/package.json`,"utf8"));
             const d={...(j.dependencies||{}),...(j.devDependencies||{})};
             process.exit(d[t]?0:1);
           } catch(e){ process.exit(1); }
@@ -592,8 +592,19 @@ post-steps:
               ( cd "$root" && yarn install ) || \
                 echo "::warning::yarn install in ${root} exited non-zero; leaving the lockfile for consumer CI."
             else
-              ( cd "$root" && yarn install --immutable ) || \
-                echo "::warning::yarn install --immutable in ${root} exited non-zero; leaving deps and the lockfile for consumer CI."
+              # The lockfile-preserving install flag differs by Yarn major:
+              # Yarn Classic (1.x) uses --frozen-lockfile; Yarn Berry (2+) uses
+              # --immutable (--frozen-lockfile is only an alias there). Pick by
+              # the consumer's own yarn version so a 1.x repo is not failed by a
+              # flag it does not understand.
+              yarn_major="$( cd "$root" && yarn --version 2>/dev/null | cut -d. -f1 )"
+              if [ "${yarn_major:-1}" -ge 2 ] 2>/dev/null; then
+                yarn_frozen_flag="--immutable"
+              else
+                yarn_frozen_flag="--frozen-lockfile"
+              fi
+              ( cd "$root" && yarn install "$yarn_frozen_flag" ) || \
+                echo "::warning::yarn install ${yarn_frozen_flag} in ${root} exited non-zero; leaving deps and the lockfile for consumer CI."
             fi
             ;;
           npm)
