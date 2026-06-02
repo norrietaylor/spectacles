@@ -533,7 +533,7 @@ so the rest is handled by subsequent runs.
 
 ## Verification
 
-- `gh aw compile` compiles this workflow with the six imported shared
+- `gh aw compile` compiles this workflow with the seven imported shared
   fragments and the Serena MCP server declared, and reports zero errors.
 - This variant's frontmatter declares the `claude-haiku-4.5` engine model and
   selects only `model:haiku` tasks; the `sonnet` and `opus` variants differ
