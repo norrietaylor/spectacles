@@ -334,15 +334,16 @@ post-steps:
 # patch carries prettier-dirty, eslint-dirty code and a stale lockfile that a
 # Node consumer's `prettier --check`/`eslint`/frozen-lockfile install rejects
 # (the Node analog of #160). These host post-steps detect a Node edit, install
-# Node, detect the package manager from the lockfile present, refresh the
-# lockfile, run the consumer's own prettier/eslint fixers (only when declared),
-# amend the agent commit, and re-emit the patch + bundle. Best-effort +
-# self-heal posture mirrors the Rust block (#163): never abort the post-step,
-# surface a residual diff loudly. No-op on non-Node runs. This block is
-# duplicated across the three sdd-execute tier sources because a new `shared/`
-# fragment cannot be referenced from `@main` in the same PR that introduces it
-# (precedent: the Rust block above; #176). A follow-up extracts it to
-# `shared/sdd-node-cleanup.md` (added in this PR) once it lands on main.
+# Node, resolve each touched file to its package-manager root, detect the
+# package manager from the lockfile there, refresh the lockfile per-root, run
+# the consumer's own prettier/eslint fixers over the touched files (only when
+# declared), amend the agent commit, and re-emit the patch + bundle.
+# Best-effort + self-heal posture mirrors the Rust block (#163): never abort
+# the post-step, surface a residual diff loudly. No-op on non-Node runs. This
+# block is duplicated across the three sdd-execute tier sources because a new
+# `shared/` fragment cannot be referenced from `@main` in the same PR that
+# introduces it (precedent: the Rust block above; #176). A follow-up extracts
+# it to `shared/sdd-node-cleanup.md` (added in this PR) once it lands on main.
   - name: Detect Node edits in the agent's patch
     id: node_detect
     shell: bash
@@ -353,20 +354,17 @@ post-steps:
       # push_to_pull_request_branch in the same job; pick the patch that
       # touches Node). The trailing-boundary on the regex avoids substring
       # matches like `package.json.bak`; a source edit gates the fixers even
-      # when no manifest changed. `package_json` records whether package.json
-      # changed so the refresh step refreshes the lockfile only then.
+      # when no manifest changed. The refresh step recomputes which roots had a
+      # package.json change per-root from the diff, so this step only needs to
+      # decide whether the patch touches Node at all.
       shopt -s nullglob
       matched_patch=""
       matched_count=0
-      package_json=false
       node_glob='\.(ts|tsx|js|jsx|mjs|cjs)|package\.json'
       for f in "${tmpdir}/aw-"*.patch; do
         if grep -qE "^diff --git .*(${node_glob})([[:space:]]|$)" "$f"; then
           matched_patch="$f"
           matched_count=$((matched_count + 1))
-          if grep -qE '^diff --git .*package\.json([[:space:]]|$)' "$f"; then
-            package_json=true
-          fi
         fi
       done
       shopt -u nullglob
@@ -396,10 +394,9 @@ post-steps:
       bundle_stem=$(basename "$patch_file" .patch)
       bundle_file="${tmpdir}/${bundle_stem}.bundle"
       [ -f "$bundle_file" ] || bundle_file=""
-      echo "Agent patch ${patch_file} touches Node (package_json=${package_json}); will run node cleanup."
+      echo "Agent patch ${patch_file} touches Node; will run node cleanup."
       {
         echo "changed=true"
-        echo "package_json=${package_json}"
         echo "patch_file=${patch_file}"
         echo "bundle_file=${bundle_file}"
         echo "branch=${branch}"
@@ -416,7 +413,6 @@ post-steps:
       AGENT_BRANCH: ${{ steps.node_detect.outputs.branch }}
       AGENT_PATCH: ${{ steps.node_detect.outputs.patch_file }}
       AGENT_BUNDLE: ${{ steps.node_detect.outputs.bundle_file }}
-      PACKAGE_JSON_CHANGED: ${{ steps.node_detect.outputs.package_json }}
     run: |
       set -euo pipefail
       # Pick the base ref the patch was generated against. Mirror the precedence
@@ -438,11 +434,9 @@ post-steps:
       echo "Base ref: ${base_ref} (sha=${base_sha})"
       echo "Agent branch: ${AGENT_BRANCH}"
       git checkout "$AGENT_BRANCH"
-      # Enumerate the files the agent touched. Node fixers and the lockfile
-      # refresh resolve their config and package root by walking up from the
-      # repository, so the project root (where the lockfile + package.json live)
-      # is the invocation point. Find it by walking up from each touched file's
-      # directory to the nearest package.json.
+      # Enumerate the files the agent touched (fixer-relevant extensions plus
+      # any package.json). These are the only files the fixers may rewrite —
+      # the cleanup is scoped to the patch, never to the whole project tree.
       mapfile -t touched_files < <(
         git diff --name-only "${base_sha}..HEAD" \
           | grep -E '\.(ts|tsx|js|jsx|mjs|cjs)$|(^|/)package\.json$' \
@@ -452,19 +446,29 @@ post-steps:
         echo "No Node paths in the diff after recheck; skipping node cleanup."
         exit 0
       fi
-      # Resolve each touched file to the nearest enclosing package.json dir (the
-      # project root for fixer config + the package manager's lockfile). Dedup
-      # so each project is cleaned once.
+      # Resolve each touched file to its package-manager root: the nearest
+      # ancestor directory that holds a lockfile (where install, the pinned
+      # prettier/eslint, and their shared config live). A workspace member's
+      # touched file (e.g. apps/web/src/x.ts) must resolve to the repo-root
+      # lockfile, not apps/web/package.json — otherwise detect_pm finds no
+      # lockfile and the cleanup silently skips the monorepo case it exists to
+      # cover. Fall back to the nearest enclosing package.json only when no
+      # lockfile exists anywhere up the tree (a lockfile-less project gets the
+      # fixers but no lockfile refresh).
       find_project_root() {
-        local dir="$1"
-        while [ -n "$dir" ] && [ "$dir" != "." ]; do
-          if [ -f "${dir}/package.json" ]; then
+        local dir="$1" fallback=""
+        while :; do
+          if [ -f "${dir}/pnpm-lock.yaml" ] || [ -f "${dir}/yarn.lock" ] || \
+             [ -f "${dir}/package-lock.json" ] || [ -f "${dir}/npm-shrinkwrap.json" ]; then
             printf '%s\n' "$dir"
             return 0
           fi
+          [ -n "$fallback" ] || { [ -f "${dir}/package.json" ] && fallback="$dir"; }
+          [ "$dir" = "." ] && break
           dir="$(dirname "$dir")"
+          [ "$dir" = "/" ] && dir="."
         done
-        [ -f "package.json" ] && printf '.\n'
+        [ -n "$fallback" ] && printf '%s\n' "$fallback"
       }
       declare -A seen_roots=()
       project_roots=()
@@ -477,11 +481,24 @@ post-steps:
         fi
       done
       if [ "${#project_roots[@]}" -eq 0 ]; then
-        echo "No resolvable Node project (no enclosing package.json) from the touched files; skipping cleanup."
+        echo "No resolvable Node project (no enclosing lockfile or package.json) from the touched files; skipping cleanup."
         exit 0
       fi
       echo "Node project roots to clean up:"
       printf '  %s\n' "${project_roots[@]}"
+      # Record which roots actually had a package.json change in this patch, so
+      # the lockfile-refresh decision is per-root, not global: a monorepo where
+      # only one workspace's manifest changed must not force the lock-mutating
+      # path on every other root.
+      declare -A manifest_changed_roots=()
+      for f in "${touched_files[@]}"; do
+        case "$f" in
+          package.json|*/package.json)
+            r="$(find_project_root "$(dirname "$f")")" || true
+            [ -n "$r" ] && manifest_changed_roots["$r"]=1
+            ;;
+        esac
+      done
       # Detect the consumer's package manager from the lockfile present, never a
       # hardcoded default. Each manager has a distinct lockfile name; gate the
       # lockfile refresh and the fixer invocation on which one exists. A project
@@ -530,87 +547,118 @@ post-steps:
           } catch(e){ process.exit(1); }
         ' "$root" "$tool"
       }
+      # rel_touched prints the touched files that live under $root, made
+      # relative to $root, NUL-terminated — the exact set of files the fixers
+      # are allowed to rewrite for this root, so the cleanup never sweeps
+      # unrelated tracked files into the amend.
+      rel_touched() {
+        local root="$1" prefix f
+        prefix="${root#./}"
+        [ "$prefix" = "." ] && prefix=""
+        [ -n "$prefix" ] && prefix="${prefix%/}/"
+        for f in "${touched_files[@]}"; do
+          case "$f" in
+            "${prefix}"*) printf '%s\0' "${f#"$prefix"}" ;;
+          esac
+        done
+      }
       for root in "${project_roots[@]}"; do
         pm="$(detect_pm "$root")"
-        echo "Project ${root}: package manager = ${pm:-<none>}"
+        root_manifest_changed=false
+        [ -n "${manifest_changed_roots[$root]:-}" ] && root_manifest_changed=true
+        echo "Project ${root}: package manager = ${pm:-<none>}, manifest changed = ${root_manifest_changed}"
         # Install dependencies first so the consumer's pinned prettier/eslint
         # (and their plugins/configs) resolve. Best-effort: a failed install
-        # must not abort the post-step. When package.json changed, refresh the
-        # lockfile (a stale lockfile breaks the consumer's frozen install); when
-        # it did not, install against the existing lockfile without rewriting it.
+        # must not abort the post-step. When this root's package.json changed,
+        # refresh the lockfile (a stale lockfile breaks the consumer's frozen
+        # install). When it did not, install against the existing lockfile and,
+        # on a frozen-install failure, only warn — never fall back to a
+        # lock-mutating install that would rewrite a lockfile this patch did not
+        # touch.
         case "$pm" in
           pnpm)
             corepack enable >/dev/null 2>&1 || true
-            if [ "$PACKAGE_JSON_CHANGED" = "true" ]; then
+            if [ "$root_manifest_changed" = "true" ]; then
               ( cd "$root" && pnpm install --no-frozen-lockfile ) || \
                 echo "::warning::pnpm install in ${root} exited non-zero; leaving the lockfile for consumer CI."
             else
               ( cd "$root" && pnpm install --frozen-lockfile ) || \
-                ( cd "$root" && pnpm install --no-frozen-lockfile ) || \
-                echo "::warning::pnpm install in ${root} exited non-zero; leaving deps for consumer CI."
+                echo "::warning::pnpm install --frozen-lockfile in ${root} exited non-zero; leaving deps and the lockfile for consumer CI."
             fi
             ;;
           yarn)
             corepack enable >/dev/null 2>&1 || true
-            if [ "$PACKAGE_JSON_CHANGED" = "true" ]; then
+            if [ "$root_manifest_changed" = "true" ]; then
               ( cd "$root" && yarn install ) || \
                 echo "::warning::yarn install in ${root} exited non-zero; leaving the lockfile for consumer CI."
             else
               ( cd "$root" && yarn install --immutable ) || \
-                ( cd "$root" && yarn install ) || \
-                echo "::warning::yarn install in ${root} exited non-zero; leaving deps for consumer CI."
+                echo "::warning::yarn install --immutable in ${root} exited non-zero; leaving deps and the lockfile for consumer CI."
             fi
             ;;
           npm)
-            if [ "$PACKAGE_JSON_CHANGED" = "true" ]; then
+            if [ "$root_manifest_changed" = "true" ]; then
               ( cd "$root" && npm install --package-lock-only --no-audit --no-fund ) || \
                 echo "::warning::npm install --package-lock-only in ${root} exited non-zero; leaving the lockfile for consumer CI."
               ( cd "$root" && npm install --no-audit --no-fund ) || \
                 echo "::warning::npm install in ${root} exited non-zero; leaving deps for consumer CI."
             else
               ( cd "$root" && npm ci --no-audit --no-fund ) || \
-                ( cd "$root" && npm install --no-audit --no-fund ) || \
-                echo "::warning::npm ci/install in ${root} exited non-zero; leaving deps for consumer CI."
+                echo "::warning::npm ci in ${root} exited non-zero; leaving deps and the lockfile for consumer CI."
             fi
             ;;
           *)
             echo "Project ${root} has no recognized lockfile; skipping dependency install and lockfile refresh."
             ;;
         esac
+        # Build this root's relative touched-file list once; the fixers run only
+        # against these files, never the whole tree. Skip the fixers entirely
+        # when the root has no touched files (it was reached only via a child
+        # root's resolution).
+        mapfile -d '' -t root_files < <( rel_touched "$root" )
+        if [ "${#root_files[@]}" -eq 0 ]; then
+          echo "Project ${root}: no touched files under this root; skipping fixers."
+          continue
+        fi
         # Format with the consumer's prettier (only when the consumer declares
-        # it). Best-effort: a parse error or config problem makes prettier exit
-        # non-zero but it leaves the source untouched (no false "fixed"), so the
-        # dirty code still surfaces for consumer CI rather than being masked.
+        # it), scoped to the touched files. Best-effort: a parse error or config
+        # problem makes prettier exit non-zero but it leaves the source
+        # untouched (no false "fixed"), so the dirty code still surfaces for
+        # consumer CI rather than being masked.
         if has_tool "$root" prettier; then
-          echo "Project ${root}: running prettier --write"
-          run_tool "$pm" "$root" prettier --write . || \
+          echo "Project ${root}: running prettier --write on ${#root_files[@]} file(s)"
+          run_tool "$pm" "$root" prettier --write -- "${root_files[@]}" || \
             echo "::warning::prettier --write in ${root} exited non-zero (likely a parse/config error); leaving formatting for consumer CI."
         else
           echo "Project ${root}: no prettier declared; skipping formatter."
         fi
         # Apply the consumer's eslint auto-fixes (only when the consumer
-        # declares it). `--fix` rewrites only fixable rules; unfixable lint
-        # errors are left for consumer CI (not masked). Best-effort guard:
-        # eslint exits non-zero when unfixable problems remain, which must not
-        # abort the post-step.
+        # declares it), scoped to the touched files. `--fix` rewrites only
+        # fixable rules; unfixable lint errors are left for consumer CI (not
+        # masked). Best-effort guard: eslint exits non-zero when unfixable
+        # problems remain, which must not abort the post-step. `--no-error-on-
+        # unmatched-pattern` keeps eslint from failing when none of the touched
+        # files match its configured patterns.
         if has_tool "$root" eslint; then
-          echo "Project ${root}: running eslint --fix"
-          run_tool "$pm" "$root" eslint --fix . || \
+          echo "Project ${root}: running eslint --fix on ${#root_files[@]} file(s)"
+          run_tool "$pm" "$root" eslint --fix --no-error-on-unmatched-pattern -- "${root_files[@]}" || \
             echo "::warning::eslint --fix in ${root} exited non-zero (unfixable lint or config error); leaving those for consumer CI."
         else
           echo "Project ${root}: no eslint declared; skipping linter."
         fi
       done
-      # Self-verify against the consumer's own prettier check and self-heal a
-      # residual diff. Mirrors the Rust fmt self-heal (#163): after the fixers
-      # run, re-run prettier --check; a still-non-canonical file is surfaced as
-      # a loud ::error::, never a non-zero exit (which would block PR creation
-      # and lose the agent's work). node_modules is never committed: it is
-      # de-staged below.
+      # Self-verify against the consumer's own prettier check (scoped to the
+      # touched files) and surface a residual diff. Mirrors the Rust fmt
+      # self-heal (#163): a still-non-canonical file is surfaced as a loud
+      # ::error::, never a non-zero exit (which would block PR creation and lose
+      # the agent's work). node_modules is never committed: it is de-staged
+      # below.
       for root in "${project_roots[@]}"; do
         if has_tool "$root" prettier; then
+          mapfile -d '' -t root_files < <( rel_touched "$root" )
+          [ "${#root_files[@]}" -eq 0 ] && continue
           pm="$(detect_pm "$root")"
-          if ! check_out=$( run_tool "$pm" "$root" prettier --check . 2>&1 ); then
+          if ! check_out=$( run_tool "$pm" "$root" prettier --check -- "${root_files[@]}" 2>&1 ); then
             echo "::error::prettier --check still reports non-canonical files in ${root}; the consumer's prettier gate will fail this PR."
             printf '%s\n' "$check_out"
           fi
