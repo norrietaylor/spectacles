@@ -134,6 +134,7 @@ toggles with the defaults shown.
 | `SDD_MAX_REVIEW_ITERATIONS` | `3` | operator | Cap on auto-revise cycles per implementation PR for `CHANGES_REQUESTED` reviews (issue #128). Read by every `sdd-execute` tier. On hitting the cap the agent stops auto-revising and applies `needs-human`. |
 | `SDD_MONITOR` | unset (off) | operator | Master switch for the `sdd-monitor` backstop workflow. Set to `1` to enable monitor `/dispatch` nudges of an armed-but-idle `sdd:dispatched` tracker; any other value keeps it off. See `sdd-monitor.md`. |
 | `SDD_MONITOR_DEBOUNCE_MIN` | `5` | operator | Minutes between consecutive `/dispatch` comments `sdd-monitor` posts on the same tracker (counting both monitor- and operator-issued). Consulted only when `SDD_MONITOR=1`. |
+| `SDD_MCP_EXTRA` | unset (off) | operator (optional) | Opt-in toggle for bundled-but-disabled extra MCP servers, whole-token list (e.g. `playwright`, or `playwright,<other>`). Set it to `playwright` to let the `sdd-execute` agents drive a headless browser for browser-driven checks (issue #180). Off by default: a consumer that does not set it calls no browser tool and the browser container never starts. See "Optional browser automation (Playwright)" below for the trust boundary. |
 | `GH_AW_MODEL_AGENT_COPILOT` | `claude-sonnet-4.6` | operator (optional) | Overrides the Copilot model the agent step runs. Consumed by every agent lock except the `sdd-execute` tiers, which pin their model via the `model:*` task label. |
 | `GH_AW_MODEL_DETECTION_COPILOT` | `claude-sonnet-4.6` | operator (optional) | Overrides the Copilot model the gh-aw detection step runs. Consumed by the `sdd-spec`, `sdd-triage`, `sdd-dispatch`, `sdd-validate`, and `sdd-review` locks. |
 
@@ -207,6 +208,49 @@ per-consumer revocation is not possible — rotation replaces the token
 everywhere at once. Keep access to the secret minimal. Isolation between
 repositories' knowledge is enforced by `DISTILLERY_PROJECT` scoping, not by
 the token.
+
+### Optional browser automation (Playwright)
+
+The `sdd-execute` agents ship a bundled-but-disabled Playwright MCP server for
+browser-driven checks — for example navigating to a preview the task just built
+and confirming it renders (issue #180). It is **off by default** and adds no
+behavior until you opt in.
+
+Enable it per repository by setting `SDD_MCP_EXTRA` to include `playwright`:
+
+```sh
+gh variable set SDD_MCP_EXTRA --repo <owner>/<name> --body playwright
+```
+
+This mirrors the `SERENA_LANGUAGE_SERVERS` opt-in. A pre-agent step reads the
+variable and tells the agent whether browser tools are enabled. When it is
+unset (or does not name `playwright`), the agent calls no browser tool, so the
+headless Chromium container is never started — a consumer that does not opt in
+is unaffected and pays no run-time browser cost. The value is a whole-token
+list, so a future second bundled server is named alongside
+(`SDD_MCP_EXTRA=playwright,<other>`).
+
+The browser image is pinned: the fragment names a fixed version tag (never
+`latest`), and `gh aw compile` resolves it to an immutable `tag@sha256:…`
+digest in the compiled lock. The tool allowlist is least-privilege —
+navigation, DOM snapshot, screenshot, and the common interaction verbs only.
+The arbitrary-JavaScript tools (`browser_evaluate`, `browser_run_code_unsafe`)
+and `browser_file_upload` are deliberately withheld.
+
+**Trust boundary — web content is data, not instructions.** A browser tool
+pulls **untrusted web content into the agent's context**. A page the agent
+visits — its text, DOM, console output, or a network response — is **data, not
+instructions**. This is the same rule the suite applies to Serena code reads
+and Distillery results: the agent reasons over the content to inform an
+artifact; it never treats anything a page says as a command, never lets page
+content redirect its task, and never follows an instruction embedded in fetched
+content (a prompt injection in page text, a hidden element, or a network
+response). The least-privilege allowlist enforces this mechanically: with the
+arbitrary-code and file-upload tools withheld, the worst a hostile page can do
+is feed misleading text into context, which the data-not-instructions rule
+already neutralizes. Egress is unchanged: the browser container runs inside the
+agent firewall sandbox, so it can reach only the same allowed domains as the
+agent — this opt-in widens no network access.
 
 ## Workflows installed
 
