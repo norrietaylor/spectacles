@@ -57,19 +57,39 @@ safe-outputs:
     # remaining protected files keep policy: fallback-to-issue — the branch is
     # pushed and a review issue opened for a human (ADR 0001 needs-human
     # hand-off) rather than blocking the cascade.
+    #
+    # The Node manifest and npm/pnpm/yarn lockfiles are excluded for the same
+    # reason: the host Node cleanup (issue #179) refreshes and stages them so a
+    # consumer's frozen-lockfile install passes, but they are in gh-aw's default
+    # protected set. Without this exclusion a manifest- or lockfile-changing Node
+    # task would fall back to an issue and never open the PR, defeating the
+    # cleanup (the Node analog of Cargo.lock, which gh-aw does not protect).
     protected-files:
       policy: fallback-to-issue
       exclude:
         - pyproject.toml
+        - package.json
+        - package-lock.json
+        - npm-shrinkwrap.json
+        - yarn.lock
+        - pnpm-lock.yaml
   push-to-pull-request-branch:
     max: 1
     # Mirror create-pull-request: a /revise that tweaks the [project.scripts]
     # entry (e.g. a CodeRabbit change request on the same PR) must be able to
     # push to the pyproject.toml the PR already touched, so exclude it here too
-    # (issue #142). Other protected files keep gh-aw's default push policy.
+    # (issue #142). The Node manifest and npm/pnpm/yarn lockfiles are excluded
+    # for the same reason as in create-pull-request (the host Node cleanup,
+    # issue #179, stages them). Other protected files keep gh-aw's default push
+    # policy.
     protected-files:
       exclude:
         - pyproject.toml
+        - package.json
+        - package-lock.json
+        - npm-shrinkwrap.json
+        - yarn.lock
+        - pnpm-lock.yaml
   add-comment:
     max: 1
   add-labels:
