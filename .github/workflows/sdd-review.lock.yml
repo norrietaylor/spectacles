@@ -453,6 +453,28 @@ jobs:
           the pinned tag and its checksum in the step's `env` block; no `latest` tag is
           ever used.
           
+          ### typescript-language-server for Node/TypeScript consumers
+          
+          No host pre-fetch is needed for the TypeScript/JavaScript stack, in contrast to
+          rust-analyzer (issue #179). Two upstream facts make the in-container path work:
+          
+          - The Serena MCP image ships Node and npm (its Dockerfile installs Node via
+            nvm), so the runtime prerequisites for the TypeScript language server are
+            already present in the container.
+          - Serena does not expect `typescript-language-server` on `PATH`; it installs
+            the pinned `typescript` + `typescript-language-server` npm packages into its
+            own resources directory on first use.
+          
+          The Serena container runs with `--network host`, so that first-use npm install
+          reaches the registry over the runner's unrestricted network — the agent's
+          firewall sandbox is a separate container and is never widened. A Serena symbol
+          query (`find_symbol`) therefore resolves on a TS/JS consumer without any
+          provisioning step. The installer's `detect_serena_language_server`
+          (`scripts/quick-setup.sh`) already maps `TypeScript`/`JavaScript` to
+          `typescript-language-server`, which is what enables the language server for the
+          install. If a future Serena image were to drop the bundled Node toolchain, the
+          rust-analyzer host pre-fetch above is the pattern to mirror.
+          
           ### Read and write scope
           
           Serena is granted read and write to the checked-out working tree only. It is
