@@ -62,8 +62,6 @@ mcp-servers:
       - "--init"
       - "--network"
       - "host"
-      - "--security-opt"
-      - "seccomp=unconfined"
       - "--ipc=host"
     entrypointArgs:
       - "--output-dir"
