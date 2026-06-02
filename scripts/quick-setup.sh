@@ -46,6 +46,9 @@ Options:
                  instead of opening an installer PR. Fails on a repo whose
                  default branch is protected; use only on unprotected repos.
   --dry-run      Print planned actions without applying them.
+  --no-backfill  Do not kick an initial distillery-sync run after install. The
+                 first sync (next merged spec/ADR, or the daily schedule) still
+                 backfills the store; this only suppresses the immediate kick.
   -h, --help     Show this help.
 
 By default the file artifacts (workflow wrappers, issue templates, .gitignore)
@@ -81,6 +84,10 @@ dry_run=0
 # variables, and secrets are never branch-scoped and apply directly in both
 # modes.
 direct=0
+# When 1, skip the post-install kick of distillery-sync. The first sync run
+# backfills pre-existing docs into the store on its own (it detects an empty
+# project store); this flag only suppresses the immediate kick.
+no_backfill=0
 install_branch="spectacles/install"
 pr_base=""
 while [ $# -gt 0 ]; do
@@ -120,6 +127,10 @@ while [ $# -gt 0 ]; do
       ;;
     --direct)
       direct=1
+      shift
+      ;;
+    --no-backfill)
+      no_backfill=1
       shift
       ;;
     -h | --help)
@@ -481,6 +492,38 @@ provision_distillery_config() {
   fi
 }
 
+# Kick an initial distillery-sync run so the store backfills now instead of on
+# the next daily tick. The sync agent detects an empty project store and ingests
+# pre-existing docs (specs, decisions, README, docs/**, ARCHITECTURE.md, adr/**),
+# so a repo that never followed the SDD process still brings its knowledge in.
+# In --direct mode the wrapper is already on the default branch and can be
+# dispatched; in PR mode it lands only when the install PR merges, so the kick
+# is printed for the operator to run post-merge.
+dispatch_initial_backfill() {
+  if [ "$no_backfill" -eq 1 ]; then
+    echo "quick-setup: --no-backfill; skipping the initial distillery-sync kick."
+    return 0
+  fi
+  local cmd="gh workflow run distillery-sync.yml --repo $target_repo"
+  if [ "$direct" -ne 1 ]; then
+    echo "quick-setup: after the install PR merges, kick the first sync:"
+    echo "             $cmd"
+    return 0
+  fi
+  if [ "$dry_run" -eq 1 ]; then
+    echo "quick-setup: would kick initial distillery-sync: $cmd"
+    return 0
+  fi
+  # Best-effort: the workflow may take a moment to register after the file lands.
+  if $cmd 2>/dev/null; then
+    echo "quick-setup: kicked initial distillery-sync (backfill on empty store)."
+  else
+    echo "quick-setup: could not dispatch distillery-sync yet (it may still be"
+    echo "             registering). Kick it by hand once it appears:"
+    echo "             $cmd"
+  fi
+}
+
 # Report the remaining configuration the operator must supply by hand. The
 # Distillery values are provisioned by provision_distillery_config above; the
 # GitHub App identity and the Copilot engine token stay operator-supplied.
@@ -587,6 +630,7 @@ if [ "$suite" = "sdd" ]; then
   if [ "$direct" -ne 1 ]; then
     open_install_pr
   fi
+  dispatch_initial_backfill
   echo "quick-setup: --suite sdd install complete."
   echo "quick-setup: next, supply the configuration listed above, then run"
   echo "             the smoke test in docs/sdd/install.md."

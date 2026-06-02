@@ -225,7 +225,7 @@ pinned ref (ADR 0004).
 | `sdd-execute-opus` | `workflow_dispatch`, `issue_comment`, `issues`, `pull_request` | High-complexity tier. |
 | `sdd-validate` | `pull_request`, `issues` | Posts advisory findings at each phase boundary. |
 | `sdd-review` | `pull_request` | Posts code-review comments on the implementation PR. |
-| `distillery-sync` | `schedule` (daily), `workflow_dispatch` | Ingests specs, ADRs, issues, and PRs into the Distillery store. The only Distillery writer. |
+| `distillery-sync` | `push` (merged `docs/specs/**`, `decisions/**`), `schedule` (daily), `workflow_dispatch` | Ingests specs, architecture records, ADRs, issues, and PRs into the Distillery store, keyed deterministically by file path so re-runs update in place. Writes `supersedes`/`citation` provenance relations. The first run against an empty store backfills pre-existing docs. The only Distillery writer. |
 | `sdd-pr-sanitize` | `pull_request` | Neutralizes a stray issue-closing keyword in a spec/architecture PR body and adds `Closes #<sub-issue>` (ADR 0005, ADR 0006). |
 | `sdd-triage-dedupe-tasks` | `issues` | Closes a duplicate phase-C task sub-issue (ADR 0008). |
 | `sdd-triage-promote-ready` | `issues` | Applies `sdd:ready` to a task when its last `blocked by` blocker closes (ADR 0009, ADR 0013). |
@@ -305,10 +305,15 @@ history, not only a greenfield one. Before and after the install, confirm:
       adding any toolchain registry to the agent's network. The download is
       gated on `SERENA_LANGUAGE_SERVERS` naming `rust-analyzer`, so non-Rust
       consumers are unaffected. See `shared/sdd-mcp-serena.md`.
-- [ ] `distillery-sync` has run at least once (it is daily; dispatch it
-      manually for the first run) so the knowledge store holds this
-      repository's specs, decisions, issues, and pull requests before the
-      first `sdd-spec` run.
+- [ ] `distillery-sync` has run at least once so the knowledge store holds this
+      repository's specs, decisions, issues, and pull requests before the first
+      `sdd-spec` run. The installer kicks this run automatically unless
+      `--no-backfill` was passed; in installer-PR mode it prints the
+      `gh workflow run distillery-sync.yml` command to run after the PR merges.
+      On its first run the store is empty, so the agent backfills pre-existing
+      documentation (README, `docs/**`, `ARCHITECTURE.md`, `adr/**`) in addition
+      to any `docs/specs/` and `decisions/` files — installing onto a repo that
+      never followed the SDD process still brings its existing knowledge in.
 - [ ] The repository's branch protection, if any, does not require a status
       check that the agents cannot satisfy. The SDD agents never merge; merge
       authority stays with humans and the consumer's own CI.

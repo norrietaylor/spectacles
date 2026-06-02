@@ -7,6 +7,10 @@
   "MD033": false,
   // Fragments and partial documents need not open with a top-level heading.
   "MD041": false,
+  // Spec/ADR frontmatter carries a `title:` field for the memory layer; the
+  // body still opens with its own H1. Do not treat the frontmatter title as a
+  // second top-level heading.
+  "MD025": { "front_matter_title": "" },
   // Table pipe spacing and alignment are cosmetic; not worth gating CI on.
   "MD060": false
 }

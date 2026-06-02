@@ -1,4 +1,4 @@
-# gh-aw-metadata: {"schema_version":"v3","frontmatter_hash":"8be4ec415bd4f059962157e5441113cf8c8fdd6f102fc82fbcdb1df26ee887a3","compiler_version":"v0.74.3","agent_id":"copilot"}
+# gh-aw-metadata: {"schema_version":"v3","frontmatter_hash":"921deafe82ef837633a2d5af0699134d454698da863a72af7fb24cf0f0bc864a","compiler_version":"v0.74.3","agent_id":"copilot"}
 # gh-aw-manifest: {"version":1,"secrets":["APP_PRIVATE_KEY","COPILOT_GITHUB_TOKEN","DISTILLERY_OAUTH_TOKEN","GH_AW_CI_TRIGGER_TOKEN","GH_AW_GITHUB_MCP_SERVER_TOKEN","GH_AW_GITHUB_TOKEN","GITHUB_TOKEN"],"actions":[{"repo":"actions/checkout","sha":"de0fac2e4500dabe0009e67214ff5f5447ce83dd","version":"v6.0.2"},{"repo":"actions/create-github-app-token","sha":"bcd2ba49218906704ab6c1aa796996da409d3eb1","version":"v3.2.0"},{"repo":"actions/download-artifact","sha":"3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c","version":"v8.0.1"},{"repo":"actions/github-script","sha":"3a2844b7e9c422d3c10d287c895573f7108da1b3","version":"v9.0.0"},{"repo":"actions/setup-node","sha":"48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e","version":"v6.4.0"},{"repo":"actions/upload-artifact","sha":"043fb46d1a93c77aae656e7c1c64a875d1fc6a0a","version":"v7.0.1"},{"repo":"github/gh-aw-actions/setup","sha":"8a9a52673cb8f97ebb43b344618af2d6f2c9ac7f","version":"v0.74.3"}],"containers":[{"image":"ghcr.io/github/gh-aw-firewall/agent:0.25.46"},{"image":"ghcr.io/github/gh-aw-firewall/api-proxy:0.25.46"},{"image":"ghcr.io/github/gh-aw-firewall/squid:0.25.46"},{"image":"ghcr.io/github/gh-aw-mcpg:v0.3.9","digest":"sha256:64828b42a4482f58fab16509d7f8f495a6d97c972a98a68aff20543531ac0388","pinned_image":"ghcr.io/github/gh-aw-mcpg:v0.3.9@sha256:64828b42a4482f58fab16509d7f8f495a6d97c972a98a68aff20543531ac0388"},{"image":"ghcr.io/github/github-mcp-server:v1.0.4"},{"image":"ghcr.io/github/serena-mcp-server:latest","digest":"sha256:bf343399e3725c45528f531a230f3a04521d4cdef29f9a5af6282ff0d3c393c5","pinned_image":"ghcr.io/github/serena-mcp-server:latest@sha256:bf343399e3725c45528f531a230f3a04521d4cdef29f9a5af6282ff0d3c393c5"},{"image":"node:lts-alpine","digest":"sha256:d1b3b4da11eefd5941e7f0b9cf17783fc99d9c6fc34884a665f40a06dbdfc94f","pinned_image":"node:lts-alpine@sha256:d1b3b4da11eefd5941e7f0b9cf17783fc99d9c6fc34884a665f40a06dbdfc94f"}]}
 #    ___                   _   _      
 #   / _ \                 | | (_)     
@@ -247,24 +247,24 @@ jobs:
         run: |
           bash "${RUNNER_TEMP}/gh-aw/actions/create_prompt_first.sh"
           {
-          cat << 'GH_AW_PROMPT_5da0403b0d30d6c2_EOF'
+          cat << 'GH_AW_PROMPT_c891bed5fd3221e2_EOF'
           <system>
-          GH_AW_PROMPT_5da0403b0d30d6c2_EOF
+          GH_AW_PROMPT_c891bed5fd3221e2_EOF
           cat "${RUNNER_TEMP}/gh-aw/prompts/xpia.md"
           cat "${RUNNER_TEMP}/gh-aw/prompts/temp_folder_prompt.md"
           cat "${RUNNER_TEMP}/gh-aw/prompts/markdown.md"
           cat "${RUNNER_TEMP}/gh-aw/prompts/safe_outputs_prompt.md"
-          cat << 'GH_AW_PROMPT_5da0403b0d30d6c2_EOF'
+          cat << 'GH_AW_PROMPT_c891bed5fd3221e2_EOF'
           <safe-output-tools>
           Tools: add_comment, create_issue(max:30), close_issue(max:30), create_pull_request, add_labels(max:20), remove_labels(max:2), push_to_pull_request_branch, hide_comment(max:30), missing_tool, missing_data, noop
-          GH_AW_PROMPT_5da0403b0d30d6c2_EOF
+          GH_AW_PROMPT_c891bed5fd3221e2_EOF
           cat "${RUNNER_TEMP}/gh-aw/prompts/safe_outputs_create_pull_request.md"
           cat "${RUNNER_TEMP}/gh-aw/prompts/safe_outputs_push_to_pr_branch.md"
-          cat << 'GH_AW_PROMPT_5da0403b0d30d6c2_EOF'
+          cat << 'GH_AW_PROMPT_c891bed5fd3221e2_EOF'
           </safe-output-tools>
-          GH_AW_PROMPT_5da0403b0d30d6c2_EOF
+          GH_AW_PROMPT_c891bed5fd3221e2_EOF
           cat "${RUNNER_TEMP}/gh-aw/prompts/mcp_cli_tools_prompt.md"
-          cat << 'GH_AW_PROMPT_5da0403b0d30d6c2_EOF'
+          cat << 'GH_AW_PROMPT_c891bed5fd3221e2_EOF'
           <github-context>
           The following GitHub context information is available for this workflow:
           {{#if github.actor}}
@@ -293,9 +293,9 @@ jobs:
           {{/if}}
           </github-context>
           
-          GH_AW_PROMPT_5da0403b0d30d6c2_EOF
+          GH_AW_PROMPT_c891bed5fd3221e2_EOF
           cat "${RUNNER_TEMP}/gh-aw/prompts/github_mcp_tools_with_safeoutputs_prompt.md"
-          cat << 'GH_AW_PROMPT_5da0403b0d30d6c2_EOF'
+          cat << 'GH_AW_PROMPT_c891bed5fd3221e2_EOF'
           </system>
           # Core principles
           
@@ -855,9 +855,30 @@ jobs:
           inline in the architecture record as `(informed by #N)` for an issue or pull
           request or `(informed by ADR-0001)` for a decision record.
           
+          Then run the **knowledge-gap pass** from the imported Distillery fragment
+          (seed search → relation traverse → `exclude_linked` similar). It surfaces prior
+          decisions that constrain this design, referenced-but-missing artifacts,
+          contradictions with prior architecture, and thin areas with no precedent.
+          Record the surfaced gaps, cited and scoped, in a short **Knowledge gaps**
+          subsection of the architecture record. A contradiction with a prior decision
+          record is a genuine fork: handle it with the `needs-human` hand-off below rather
+          than overriding the prior decision silently.
+          
           **Always** produce a per-feature architecture record. Write it to
           `docs/specs/NN-spec-<slug>/architecture.md`, alongside the spec file, where
-          `NN` and `<slug>` match the spec directory. The record captures:
+          `NN` and `<slug>` match the spec directory. Open it with YAML frontmatter so the
+          memory layer can index it with a stable identity and lifecycle:
+          
+          ```yaml
+          ---
+          id: arch-<slug>
+          title: <the feature title> — architecture
+          kind: architecture
+          status: planned
+          ---
+          ```
+          
+          The record captures:
           
           - The chosen approach and the rationale for it.
           - The data and interface changes the feature introduces.
@@ -901,9 +922,25 @@ jobs:
           When the architecture decision is genuinely **cross-cutting**, that is, it
           constrains work beyond this one feature, the same pull request shall also add a
           numbered decision record at `decisions/NNNN-<slug>.md`, where `NNNN` is the
-          next four-digit number not already used under `decisions/`. Follow the
-          structure of the existing decision records: Status, Date, Context, Decision,
-          Reasoning, Verification, Consequences. A decision that only affects this
+          next four-digit number not already used under `decisions/`. Follow the skeleton
+          in `decisions/TEMPLATE.md`: open with the YAML frontmatter
+          
+          ```yaml
+          ---
+          id: adr-NNNN
+          title: <decision title>
+          kind: adr
+          status: proposed
+          supersedes:            # set to the id of an ADR this one replaces, when any
+          superseded-by:
+          ---
+          ```
+          
+          and keep the existing body structure: the `- Status:` and `- Date:` lines, then
+          Context, Decision, Reasoning, Verification, Consequences. When this ADR replaces
+          a prior one, set `supersedes` here and add `superseded-by: adr-NNNN` to the
+          prior ADR's frontmatter in the same pull request; `distillery-sync` reads these
+          to write a `supersedes` provenance relation. A decision that only affects this
           feature stays in the architecture record and does not become an ADR.
           
           ### 4. Phase A: open the architecture sub-issue and pull request
@@ -1325,7 +1362,7 @@ jobs:
             comment is not edited, the tree is not changed, and `needs-human` is not
             applied.
           
-          GH_AW_PROMPT_5da0403b0d30d6c2_EOF
+          GH_AW_PROMPT_c891bed5fd3221e2_EOF
           } > "$GH_AW_PROMPT"
       - name: Interpolate variables and render templates
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
@@ -1543,9 +1580,9 @@ jobs:
           mkdir -p "${RUNNER_TEMP}/gh-aw/safeoutputs"
           mkdir -p /tmp/gh-aw/safeoutputs
           mkdir -p /tmp/gh-aw/mcp-logs/safeoutputs
-          cat > "${RUNNER_TEMP}/gh-aw/safeoutputs/config.json" << 'GH_AW_SAFE_OUTPUTS_CONFIG_e7e3132b753a47c0_EOF'
+          cat > "${RUNNER_TEMP}/gh-aw/safeoutputs/config.json" << 'GH_AW_SAFE_OUTPUTS_CONFIG_95445d50a584d13f_EOF'
           {"add_comment":{"max":1},"add_labels":{"allowed":["sdd:ready","needs-human"],"max":20},"close_issue":{"max":30,"target":"*"},"create_issue":{"max":30},"create_pull_request":{"draft":false,"max":1,"max_patch_files":100,"max_patch_size":1024,"protect_top_level_dot_folders":true,"protected_files":["package.json","bun.lockb","bunfig.toml","deno.json","deno.jsonc","deno.lock","global.json","NuGet.Config","Directory.Packages.props","mix.exs","mix.lock","go.mod","go.sum","stack.yaml","stack.yaml.lock","pom.xml","build.gradle","build.gradle.kts","settings.gradle","settings.gradle.kts","gradle.properties","package-lock.json","yarn.lock","pnpm-lock.yaml","npm-shrinkwrap.json","requirements.txt","Pipfile","Pipfile.lock","pyproject.toml","setup.py","setup.cfg","Gemfile","Gemfile.lock","uv.lock","CODEOWNERS","DESIGN.md","README.md","CONTRIBUTING.md","CHANGELOG.md","SECURITY.md","CODE_OF_CONDUCT.md","AGENTS.md","CLAUDE.md","GEMINI.md"],"title_prefix":"arch"},"create_report_incomplete_issue":{},"hide_comment":{"max":30},"missing_data":{},"missing_tool":{},"noop":{"max":1,"report-as-issue":"true"},"push_to_pull_request_branch":{"if_no_changes":"warn","max":1,"max_patch_size":1024,"protect_top_level_dot_folders":true,"protected_files":["package.json","bun.lockb","bunfig.toml","deno.json","deno.jsonc","deno.lock","global.json","NuGet.Config","Directory.Packages.props","mix.exs","mix.lock","go.mod","go.sum","stack.yaml","stack.yaml.lock","pom.xml","build.gradle","build.gradle.kts","settings.gradle","settings.gradle.kts","gradle.properties","package-lock.json","yarn.lock","pnpm-lock.yaml","npm-shrinkwrap.json","requirements.txt","Pipfile","Pipfile.lock","pyproject.toml","setup.py","setup.cfg","Gemfile","Gemfile.lock","uv.lock","CODEOWNERS","DESIGN.md","README.md","CONTRIBUTING.md","CHANGELOG.md","SECURITY.md","CODE_OF_CONDUCT.md","AGENTS.md","CLAUDE.md","GEMINI.md"]},"remove_labels":{"allowed":["sdd:triage","plan:provided"],"max":2},"report_incomplete":{}}
-          GH_AW_SAFE_OUTPUTS_CONFIG_e7e3132b753a47c0_EOF
+          GH_AW_SAFE_OUTPUTS_CONFIG_95445d50a584d13f_EOF
       - name: Generate Safe Outputs Tools
         env:
           GH_AW_TOOLS_META_JSON: |
@@ -1924,7 +1961,7 @@ jobs:
           
           mkdir -p /home/runner/.copilot
           GH_AW_NODE=$(which node 2>/dev/null || command -v node 2>/dev/null || echo node)
-          cat << GH_AW_MCP_CONFIG_ce7516917c72e70e_EOF | "$GH_AW_NODE" "${RUNNER_TEMP}/gh-aw/actions/start_mcp_gateway.cjs"
+          cat << GH_AW_MCP_CONFIG_f0e75b6b4b46711f_EOF | "$GH_AW_NODE" "${RUNNER_TEMP}/gh-aw/actions/start_mcp_gateway.cjs"
           {
             "mcpServers": {
               "distillery": {
@@ -2026,7 +2063,7 @@ jobs:
               "payloadDir": "${MCP_GATEWAY_PAYLOAD_DIR}"
             }
           }
-          GH_AW_MCP_CONFIG_ce7516917c72e70e_EOF
+          GH_AW_MCP_CONFIG_f0e75b6b4b46711f_EOF
       - name: Mount MCP servers as CLIs
         id: mount-mcp-clis
         continue-on-error: true
