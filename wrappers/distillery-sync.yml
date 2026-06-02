@@ -5,10 +5,10 @@ name: distillery-sync
 # The agent itself is the reusable workflow
 # .github/workflows/distillery-sync.lock.yml in the spectacles repository,
 # compiled from distillery-sync.md (which declares on: workflow_call). This
-# wrapper carries the real triggers — a daily schedule and manual dispatch —
-# and calls the hosted reusable workflow by pinned ref. A consumer repository
-# installs this wrapper unchanged; scripts/quick-setup.sh rewrites the @ref
-# when --ref is supplied.
+# wrapper carries the real triggers — a push on merged specs/ADRs, a daily
+# schedule, and manual dispatch — and calls the hosted reusable workflow by
+# pinned ref. A consumer repository installs this wrapper unchanged;
+# scripts/quick-setup.sh rewrites the @ref when --ref is supplied.
 #
 # distillery-sync had no wrapper before the uses: distribution model (ADR
 # 0004): it was a standalone scheduled workflow whose compiled lock the
@@ -18,9 +18,21 @@ name: distillery-sync
 # event triggers.
 
 on:
-  # Daily, off the top of the hour to avoid GitHub scheduler congestion.
+  # A merged spec or ADR lands in the store immediately, not on the next daily
+  # tick. Push (not pull_request) so it fires on the default branch after merge.
+  push:
+    # main and master cover the common default branches; a spec/ADR feature
+    # branch (spec/*, arch/*) does not match, so this fires only on merge.
+    branches: [main, master]
+    paths:
+      - "docs/specs/**"
+      - "decisions/**"
+  # Daily, off the top of the hour to avoid GitHub scheduler congestion. Also
+  # the safety net that recovers a missed push and refreshes issues/PRs.
   schedule:
     - cron: "17 7 * * *"
+  # Manual full sync. The first run against an empty project store backfills
+  # pre-existing docs (see distillery-sync.md); no input is needed.
   workflow_dispatch:
 
 permissions:

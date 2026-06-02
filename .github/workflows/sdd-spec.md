@@ -209,6 +209,15 @@ inline in the spec text as `(informed by #N)` for an issue or pull request or
 `(informed by ADR-0001)` for a decision record. A result that does not change
 the spec is not cited.
 
+Then run the **knowledge-gap pass** from the imported Distillery fragment
+(seed search → relation traverse → `exclude_linked` similar). It surfaces prior
+constraints, referenced-but-missing artifacts, contradictions with the proposed
+direction, and thin areas with no precedent. Record each surfaced gap, cited and
+scoped, in the spec's **Open Questions** section (step 5). A contradiction
+between prior work and this feature's direction is a `needs-human` signal, not
+something the spec resolves unilaterally — note it and, when it blocks authoring,
+hand off per the interaction contract.
+
 ### 3a. Classify for fast-path
 
 Before authoring anything, classify the work against the six fast-path
@@ -338,11 +347,28 @@ When confidence is at or above 80% and scope is right, author the spec.
 
 Place it at `docs/specs/NN-spec-<slug>/NN-spec-<slug>.md`, where `<slug>` is a
 short hyphenated slug derived from the issue title and `NN` is the next
-two-digit number not already used under `docs/specs/`. Follow the section
-structure of the existing spec under `docs/specs/`: Context,
-Introduction/Overview, Goals, User Stories, Demoable Units of Work,
-Non-Goals, Design Considerations, Repository Standards, Verification,
-Technical Considerations, Security Considerations.
+two-digit number not already used under `docs/specs/`. Follow the skeleton in
+`docs/specs/TEMPLATE.md`: the section structure (Context, Introduction/Overview,
+Goals, User Stories, Demoable Units of Work, Non-Goals, Design Considerations,
+Repository Standards, Open Questions, Technical Considerations, Security
+Considerations, Verification) and the YAML frontmatter.
+
+Open the spec with the YAML frontmatter from the template:
+
+```yaml
+---
+id: spec-<slug>
+title: <the feature title>
+kind: spec
+status: planned
+supersedes:            # set only when this spec replaces a prior one, by its id
+---
+```
+
+`status: planned` records the lifecycle state at authoring; `distillery-sync`
+mirrors it into the knowledge store so SDD progress is queryable per repo. Do
+not omit the frontmatter — it is the stable identity and lifecycle source for
+the memory layer.
 
 The spec must:
 
