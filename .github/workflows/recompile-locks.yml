@@ -1,0 +1,82 @@
+name: recompile-locks
+
+# Auto-heal lock drift on main caused by the gh-aw self-import ordering
+# constraint (ADR 0018). gh-aw resolves a pinned-ref import
+# (`shared/<f>.md@main`) from the REMOTE main branch, never the working tree, so
+# an agent lock can only inline the fragment version that is already on main. A
+# PR that edits a `shared/` fragment AND the locks that import it therefore
+# compiles those locks against the pre-merge fragment; the moment the PR merges,
+# main's `@main` fragment advances and the committed locks are stale, reddening
+# the `compile` drift gate in lint.yml for that push and for every downstream
+# PR. The edit and the matching recompile cannot land in the same PR.
+#
+# This workflow closes that window: when a fragment or agent source reaches
+# main, it recompiles and commits the regenerated locks straight back to main.
+# It is loop-safe — the heal commit touches only `*.lock.yml`, which is not in
+# the `paths` filter below, so it never re-triggers this workflow; the `compile`
+# gate does re-run on the heal commit and passes (recompile is idempotent),
+# leaving main green.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/*.md" # agent sources
+      - "shared/**" # imported fragments
+
+permissions:
+  contents: read # the push uses the App token below, not GITHUB_TOKEN
+
+concurrency:
+  group: recompile-locks-main
+  cancel-in-progress: false # never abandon a heal mid-push
+
+jobs:
+  recompile:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Mint App token
+        id: app
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          app-id: ${{ vars.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          token: ${{ steps.app.outputs.token }}
+          fetch-depth: 0
+      - name: Install gh-aw
+        env:
+          GH_TOKEN: ${{ steps.app.outputs.token }}
+        run: gh extension install github/gh-aw --pin v0.74.3
+      - name: Recompile and commit any lock drift
+        env:
+          GH_TOKEN: ${{ steps.app.outputs.token }}
+          APP_SLUG: ${{ steps.app.outputs.app-slug }}
+        run: |
+          set -euo pipefail
+          # Force fresh @main fragment fetches; a cached copy would mask drift.
+          rm -rf .github/aw/imports/*/ 2>/dev/null || true
+          gh aw compile --no-check-update
+          drift=$(git status --porcelain -- '.github/workflows' | grep '\.lock\.yml' || true)
+          if [ -z "$drift" ]; then
+            echo "Locks already current; nothing to recompile."
+            exit 0
+          fi
+          echo "Recompiling drifted locks:"
+          echo "$drift"
+          # Attribute the commit to the App identity, resolved at run time so no
+          # private App slug is ever written into the repo (the App identity is
+          # configuration, never a literal — see CLAUDE.md, ADR 0004).
+          bot="${APP_SLUG}[bot]"
+          uid=$(gh api "/users/${bot}" --jq '.id')
+          git config user.name "$bot"
+          git config user.email "${uid}+${bot}@users.noreply.github.com"
+          git add -- '.github/workflows/*.lock.yml'
+          git commit -m "build: recompile drifted locks after fragment merge"
+          # Re-sync in case main advanced while compiling, then push. A rejected
+          # push (a concurrent merge raced us) just fails the run; the next push
+          # to a lock-affecting path heals it.
+          git pull --rebase --autostash origin main
+          git push origin HEAD:main
