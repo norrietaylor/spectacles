@@ -50,10 +50,6 @@ safe-outputs:
   add-comment:
     target: "*"
     max: 1
-  # The agent may legitimately perform no issue action on a given run (e.g. the
-  # store is unreachable and it exits early); noop satisfies the safe-output
-  # harness without forcing a write.
-  noop:
 ---
 
 # Distillery sync
