@@ -32,7 +32,7 @@ safe-outputs:
   create-pull-request:
     max: 1
     draft: false
-    title-prefix: "spec"
+    title-prefix: "docs"
     # Force every pull request this agent opens onto a spec/* head branch.
     # gh-aw prepends this prefix to whatever branch name the agent supplies,
     # so the head ref is always `spec/<agent-supplied>` and a stray
@@ -442,9 +442,12 @@ exists — reuse it, do not create a second.
 
 Then open exactly one pull request adding the spec file, via the
 `create-pull-request` safe-output. The pull request is not a draft. Its title
-is `spec(<slug>): <issue title>`; the `spec` title prefix is applied
-automatically, so write the title as `(<slug>): <issue title>` with no leading
-space. The branch follows the `spec/<slug>` convention from the imported
+is `docs(spec-<slug>): <issue title>`; the `docs` title prefix is applied
+automatically, so write the title as `(spec-<slug>): <issue title>` with no
+leading space. `docs` is a conventional-commit type — the head ref still carries
+the `spec/` routing prefix, but the commit subject must use a type the target
+repo's commit linter accepts (`spec` is not one). The branch follows the
+`spec/<slug>` convention from the imported
 repository-conventions fragment; the `spec/` branch prefix is applied
 automatically by the safe-output, so supply only `<slug>` as the branch name
 and the head ref becomes `spec/<slug>`. The pull request body summarizes the
@@ -469,7 +472,7 @@ without an explicit hand-off comment the human has no signal in the tracker
 that work is waiting on them. The comment must:
 
 - Name the spec pull request by its **title**, e.g.
-  `Spec PR opened: spec(<slug>): <issue title>.`. Do **not** write a `#`
+  `Spec PR opened: docs(spec-<slug>): <issue title>.`. Do **not** write a `#`
   placeholder for the pull request number. The number is unknown while this
   agent runs: `create-pull-request` is a deferred safe-output that creates the
   pull request after the agent turn ends, and the only same-run handle —
@@ -506,7 +509,10 @@ pull request in place:
   comment is on the spec pull request, so this safe-output updates that pull
   request in place from the triggering-PR context — it lands the commit on
   that pull request's branch, never on a new one. Supply a concrete commit
-  `message` that names the `/revise` change.
+  `message` in the conventional-commit form `docs(spec-<slug>): <summary>` that
+  names the `/revise` change; `title-prefix` does not apply to
+  `push-to-pull-request-branch`, so the type must be in the message itself or
+  the target repo's commit linter rejects it.
 
 A `/revise` that posts only an `add-comment` and pushes no commit is the
 defect this path exists to prevent: the comment would assert a change the
@@ -574,7 +580,7 @@ sub-steps below note where plan-lift mode differs.
    exists — reuse it, do not create a second.
 
 3. **Open the stub spec PR.** Emit one `create-pull-request` with the
-   same `spec/` branch prefix and `spec(<slug>): <issue title>` title
+   same `spec/` branch prefix and `docs(spec-<slug>): <issue title>` title
    conventions as step 7. The PR body summarizes the stub, names the
    single demoable unit, and states the next step in exact terms:
    merging this stub spec PR returns the tracking issue to
