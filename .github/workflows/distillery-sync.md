@@ -137,6 +137,19 @@ brittle and is not used to decide create-vs-update here. Look the key up with
    repository (`owner/repo`, derived from the workflow context, not a file
    path) and the resolved project. `distillery_gh_sync` fetches the
    repository's issues and pull requests and stores them as `github` entries.
+   - **A cold backfill can exceed the MCP client request timeout and fail with
+     `-32001` even though the server-side sync completed.** A `-32001` (or any
+     client timeout) on this call is **not** a confirmed failure. Do **not**
+     retry with `background=true`: that parameter is rejected by the
+     HTTP-transport deployment this workflow uses (`INVALID_PARAMS`) and wastes
+     the turn. Do **not** re-call `distillery_gh_sync` synchronously to "get a
+     count" either — a second call dedups and returns `0/0`, which is the dedup
+     result, **not** the real ingest count, and must never be reported as one
+     (step 6). Instead let step 3's `distillery_list` probe stand as the
+     confirmation of whether entries landed, and record the issue/PR result for
+     the summary as "sync dispatched; result unconfirmed (client timeout)"
+     qualified by that probe (store non-empty vs empty). At most one such probe;
+     do not poll (step 8's no-loop rule).
 3. **Decide the document set.** Probe the store with
    `distillery_list(project=<slug>, limit=1)`. If it returns no entries for
    this project, this is a **backfill** run (step 3a). Otherwise it is an
@@ -205,6 +218,12 @@ brittle and is not used to decide create-vs-update here. Look the key up with
    many supersedes and citation relations were written; the resolved project
    slug; a UTC timestamp; and every path dropped by the backfill cap. Log it to
    the run, and reuse it as the status-issue payload in step 7.
+   - **When step 2 hit a client timeout,** report the issue/PR line as
+     "dispatched; result unconfirmed (client timeout); store <empty|non-empty>"
+     using the step-3 probe result — **never** `0 ingested`. A `0/0` from a
+     synchronous dedup retry is not the ingest count and must not appear in the
+     summary; an unconfirmed timeout over a server-side success is not a
+     failure.
 7. **Upsert the persistent status issue.** Maintain exactly one status issue per
    repository, identified by the `distillery-sync` label plus the stable title
    marker `[distillery-sync] Status` (gh-aw prefixes `create-issue` titles with
@@ -233,9 +252,16 @@ brittle and is not used to decide create-vs-update here. Look the key up with
 
 - `gh aw compile` compiles this workflow with the Distillery MCP server
   declared and reports zero errors.
-- A run logs both mechanisms: a non-zero count of issues and pull requests
-  ingested by `distillery_gh_sync`, and a non-zero count of documents created,
-  updated, or skipped by the deterministic source-path pass.
+- A run logs both mechanisms. The document pass logs a non-zero count of
+  documents created, updated, or skipped. The `distillery_gh_sync` pass logs
+  either a count of issues and pull requests ingested or refreshed, **or**, when
+  the call hit a client timeout, "dispatched; result unconfirmed" qualified by
+  the store probe — an unconfirmed timeout over a server-side success is not a
+  failure and is not reported as `0 ingested`.
+- A cold backfill whose `distillery_gh_sync` call times out (`-32001`) emits no
+  `background=true` retry and no synchronous `0/0` dedup retry, and its summary
+  reports "dispatched; result unconfirmed (client timeout)" with the store-probe
+  result, never `0 ingested`.
 - A second run with no source changes logs every document as **skipped** and
   creates no duplicate entry (idempotence). Each document's `srcpath/<slug>` tag
   stores successfully (the validator accepts it) and is recomputed identically,
