@@ -32,7 +32,7 @@ safe-outputs:
   create-pull-request:
     max: 1
     draft: false
-    title-prefix: "arch"
+    title-prefix: "docs"
   push-to-pull-request-branch:
     max: 1
   create-issue:
@@ -266,9 +266,12 @@ already exists — reuse it, do not create a second.
 
 Then open exactly one pull request via the `create-pull-request` safe-output,
 adding `architecture.md` and, when applicable, the numbered ADR. The pull
-request is not a draft. Its title is `arch(<slug>): <issue title>`; the `arch`
-title prefix is applied automatically, so write the title as
-`(<slug>): <issue title>` with no leading space. The branch follows the
+request is not a draft. Its title is `docs(arch-<slug>): <issue title>`; the
+`docs` title prefix is applied automatically, so write the title as
+`(arch-<slug>): <issue title>` with no leading space. `docs` is a
+conventional-commit type — the head ref still carries the `arch/` routing
+prefix, but the commit subject must use a type the target repo's commit linter
+accepts (`arch` is not one). The branch follows the
 `arch/<slug>` convention from the imported repository-conventions fragment.
 The pull request body summarizes the chosen approach, notes whether an ADR was
 promoted, and states the next step for a human reader: merging this pull
@@ -292,7 +295,7 @@ without an explicit hand-off comment the human has no signal in the tracker
 that work is waiting on them. The comment must:
 
 - Name the architecture pull request by its **title**, e.g.
-  `Architecture PR opened: arch(<slug>): <issue title>.`. Do **not** write a
+  `Architecture PR opened: docs(arch-<slug>): <issue title>.`. Do **not** write a
   `#` placeholder for the pull request number. The number is unknown while this
   agent runs: `create-pull-request` is a deferred safe-output that creates the
   pull request after the agent turn ends, and the only same-run handle —
@@ -340,9 +343,12 @@ the same feature. Instead, for a `/revise` trigger on an architecture pull
 request, make the real edit to `architecture.md` (and the ADR, when one
 applies) that the `/revise` note asks for, then emit one
 `push-to-pull-request-branch` safe-output to commit that edit onto the existing
-architecture pull request's branch. Apply only the change the note asks for; do
-not rewrite untouched sections, and do not create the architecture sub-issue
-again. The triggering `/revise` comment is on the architecture pull request, so
+architecture pull request's branch. Give the commit a `message` in the
+conventional-commit form `docs(arch-<slug>): <summary>`; `title-prefix` does not
+apply to `push-to-pull-request-branch`, so the type must be in the message or
+the target repo's commit linter rejects it. Apply only the change the note asks
+for; do not rewrite untouched sections, and do not create the architecture
+sub-issue again. The triggering `/revise` comment is on the architecture pull request, so
 the safe-output pushes to that pull request's own branch and the same pull
 request updates in place.
 
@@ -618,7 +624,7 @@ the tracking issue stays at `sdd:ready`.
   fragments and the Distillery and Serena MCP servers declared, and reports
   zero errors.
 - Commenting `/triage` on a tracking issue whose spec pull request is merged
-  produces an `arch(<slug>)` pull request adding
+  produces a `docs(arch-<slug>)` pull request adding
   `docs/specs/NN-spec-*/architecture.md`.
 - Commenting `/revise <note>` on that architecture pull request pushes a
   follow-up commit to its existing branch, updating the same pull request, and
