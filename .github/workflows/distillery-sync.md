@@ -24,6 +24,36 @@ mcp-servers:
 tools:
   github:
     toolsets: [default]
+safe-outputs:
+  github-app:
+    client-id: ${{ vars.APP_ID }}
+    private-key: ${{ secrets.APP_PRIVATE_KEY }}
+    # Scope the minted token to the repository the workflow runs in. Without an
+    # explicit repositories value the compiler emits a reference to an
+    # activation output that strict: false does not produce, leaving the token
+    # scoped to every repository the App can reach. See ADR 0004.
+    owner: ${{ github.repository_owner }}
+    repositories:
+      - ${{ github.event.repository.name }}
+  # One persistent status issue per repo, maintained by upsert. The first run
+  # (or a run after the prior status issue was deleted) creates it; every later
+  # run updates the existing issue and adds a run-summary comment. target: "*"
+  # lets update-issue/add-comment address the status issue by number on a
+  # scheduled or push run that has no triggering issue.
+  create-issue:
+    max: 1
+  update-issue:
+    title:
+    body:
+    target: "*"
+    max: 1
+  add-comment:
+    target: "*"
+    max: 1
+  # The agent may legitimately perform no issue action on a given run (e.g. the
+  # store is unreachable and it exits early); noop satisfies the safe-output
+  # harness without forcing a write.
+  noop:
 ---
 
 # Distillery sync
@@ -61,11 +91,14 @@ content. Later `sdd-*` agents retrieve both.
    that never followed the SDD process and still bring its existing knowledge
    into the store.
 
-The run is read-only with respect to GitHub: it adds no comment, opens no
-issue, and opens no pull request. Both passes are idempotent: `distillery_gh_sync`
-is incremental on the GitHub side, and the document pass is made incremental by
-the per-file source-path key described in the procedure below — re-running never
-creates a duplicate.
+The run opens no pull request. It maintains exactly **one persistent status
+issue** per repository by upsert: the first run (or a run after the prior status
+issue was deleted) creates it; every later run updates that same issue in place
+and adds a run-summary comment, never opening a second issue (step 7). Both
+Distillery passes are idempotent: `distillery_gh_sync` is incremental on the
+GitHub side, and the document pass is made incremental by the per-file
+source-path key described in the procedure below — re-running never creates a
+duplicate.
 
 ## Project scoping
 
@@ -77,18 +110,33 @@ project. It never ingests, reads, or writes another project's content.
 ## Deterministic per-file identity
 
 Each document maps to exactly one knowledge entry, keyed by a stable
-**source-path tag**: `srcpath/<path>`, where `<path>` is the file's
-repository-relative path with every `/` replaced by `__` (for example
-`docs/specs/01-spec-foo/01-spec-foo.md` becomes
-`srcpath/docs__specs__01-spec-foo__01-spec-foo.md`). The source-path tag is the
-dedup key, not a fuzzy content match: `distillery_find_similar` content
-similarity is brittle and is not used to decide create-vs-update here. Look the
-key up with `distillery_list` filtered by `project` and that one tag.
+**source-path tag**: `srcpath/<slug>`. Distillery's tag validator requires every
+tag segment to match `[a-z0-9][a-z0-9-]*` (lowercase alphanumeric and hyphens
+only, no leading hyphen), so the file path is canonicalized to `<slug>` by this
+exact, deterministic algorithm — any run, any model, computes the same slug for
+the same path:
+
+1. Take the file's repository-relative path and **strip its extension**
+   (`.md`).
+2. **Lowercase** it.
+3. Replace every maximal run of characters outside `[a-z0-9]` (including `/`,
+   `_`, `.`, and spaces) with a **single** `-`.
+4. **Strip** any leading or trailing `-`.
+
+For example `docs/specs/01-spec-foo/01-spec-foo.md` becomes
+`srcpath/docs-specs-01-spec-foo-01-spec-foo`. The source-path tag is the dedup
+key, not a fuzzy content match: `distillery_find_similar` content similarity is
+brittle and is not used to decide create-vs-update here. Look the key up with
+`distillery_list` filtered by `project` and that one tag.
 
 ## Procedure
 
 1. Determine the repository from the workflow context. Resolve the project
-   slug from `vars.DISTILLERY_PROJECT`; every entry is filed under it.
+   slug: use `vars.DISTILLERY_PROJECT` when it is set; otherwise fall back to
+   the repository **name** (the segment after `/` in `owner/repo`), which is the
+   value the installer provisions. Resolve it once and deterministically so the
+   fallback never files this run's content under a different project than a
+   provisioned run; every entry is filed under the resolved slug.
 2. **Sync issues and pull requests.** Call `distillery_gh_sync` with this
    repository (`owner/repo`, derived from the workflow context, not a file
    path) and the resolved project. `distillery_gh_sync` fetches the
@@ -111,23 +159,31 @@ key up with `distillery_list` filtered by `project` and that one tag.
      and any file whose basename starts with `_`. These are skeletons, not
      knowledge.
 4. **Store, update, or skip each file.** For each file in the set, read its
-   contents, compute its source-path tag, classify its `kind`
+   contents, compute its source-path tag (the `srcpath/<slug>` canonicalization
+   above), classify its `doctype`
    (`spec`/`architecture` for `docs/specs/**`, `adr` for `decisions/**`,
    `doc` for a backfilled location), and read its frontmatter when present
    (`id`, `title`, `status`, `supersedes`, `superseded-by`). The workflow runs
    unattended in CI: it cannot prompt a human, so it acts deterministically.
+   Every tag segment must satisfy the validator's `[a-z0-9][a-z0-9-]*` rule, so
+   the project slug and any status value are lowercased and have non-alphanumeric
+   runs collapsed to a single `-` (the same canonicalization as the source-path
+   slug) before they appear in a tag.
    - Look the entry up: `distillery_list(project=<slug>,
-     tags=["srcpath/<path>"], output_mode="ids", include_archived=true)`.
+     tags=["srcpath/<slug>"], output_mode="ids", include_archived=true)`.
    - **No match → create.** Call `distillery_store` with the file contents,
-     the resolved `DISTILLERY_PROJECT`, `entry_type: reference`,
+     the resolved project slug, `entry_type: reference`,
      `source: documentation` (Distillery has no `spec`, `decision`, or
      `document` entry type; a stored document is a `reference` entry), tags
      `project/<slug>/<specs|architecture|decisions|imported>`,
-     `kind/<spec|architecture|adr|doc>`, `state/<status>` (from frontmatter
-     `status`, or for an ADR without frontmatter the body `- Status:` value,
-     lowercased; omit when no status is declared), and `srcpath/<path>`, and
-     metadata `{ title, kind, lifecycle: <status>, source_path: <path>,
-     id: <frontmatter id> }`.
+     `doctype/<spec|architecture|adr|doc>` (the `kind/` prefix is reserved by
+     Distillery, so document kind is carried under `doctype/`),
+     `state/<status>` (from frontmatter `status`, or for an ADR without
+     frontmatter the body `- Status:` value, lowercased and canonicalized; omit
+     when no status is declared), and `srcpath/<slug>`, and metadata
+     `{ title, doctype, lifecycle: <status>, source_path: <path>,
+     id: <frontmatter id> }` (metadata values are free-form and carry the
+     original, un-canonicalized path).
    - **Match → compare and update.** `distillery_get` the entry. If its stored
      content equals the file contents, **skip** (no write, no version churn).
      Otherwise call `distillery_update` on that entry id with the new content,
@@ -147,14 +203,35 @@ key up with `distillery_list` filtered by `project` and that one tag.
      file, resolve the referenced ADR's entry and add a `citation` relation
      from this entry to it. Skip a reference whose target is not yet in the
      store.
-6. Log a short summary: how many issues and pull requests `distillery_gh_sync`
-   ingested or refreshed; whether this was a backfill or incremental run; how
-   many documents were created, updated, or skipped; how many supersedes and
-   citation relations were written; and every path dropped by the backfill cap.
-7. If the Distillery store cannot be reached on either mechanism, log the
-   failure and exit. Do not retry in a loop and do not open an issue: a missed
-   sync is recovered by the next merge, the next scheduled run, or a manual
-   dispatch.
+6. **Compose the run summary.** Capture: how many issues and pull requests
+   `distillery_gh_sync` ingested or refreshed; whether this was a backfill or
+   incremental run; how many documents were created, updated, or skipped; how
+   many supersedes and citation relations were written; the resolved project
+   slug; a UTC timestamp; and every path dropped by the backfill cap. Log it to
+   the run, and reuse it as the status-issue payload in step 7.
+7. **Upsert the persistent status issue.** Maintain exactly one status issue per
+   repository, identified by the `distillery-sync` label plus the stable title
+   marker `[distillery-sync] Status` (gh-aw prefixes `create-issue` titles with
+   `[distillery-sync]`, so a created issue carries that prefix). The date and
+   run type go in the rest of the title, never in the marker, so the find step
+   is reliable across runs.
+   - **Find it.** Search this repository's issues for an **open** issue carrying
+     the `distillery-sync` label whose title begins with the
+     `[distillery-sync] Status` marker (use the `github` toolset:
+     `search_issues` / `list_issues`).
+   - **None found → create.** Emit one `create-issue` (label `distillery-sync`,
+     title `Status — <run type>, <UTC date>`, body = the step 6 summary). This
+     is the first run, or the prior status issue was deleted or closed and is
+     gone.
+   - **Found → update and comment.** Emit one `update-issue` targeting that
+     issue number to refresh its title (`[distillery-sync] Status — <run type>,
+     <UTC date>`) and its body to the step 6 summary, and one `add-comment` on
+     the same issue number carrying this run's summary. Do **not** emit a
+     `create-issue` — never open a second status issue.
+8. If the Distillery store cannot be reached on either mechanism, log the
+   failure, upsert the status issue (step 7) recording the failure in the
+   summary, and exit. Do not retry in a loop: a missed sync is recovered by the
+   next merge, the next scheduled run, or a manual dispatch.
 
 ## Verification
 
@@ -164,7 +241,12 @@ key up with `distillery_list` filtered by `project` and that one tag.
   ingested by `distillery_gh_sync`, and a non-zero count of documents created,
   updated, or skipped by the deterministic source-path pass.
 - A second run with no source changes logs every document as **skipped** and
-  creates no duplicate entry (idempotence).
+  creates no duplicate entry (idempotence). Each document's `srcpath/<slug>` tag
+  stores successfully (the validator accepts it) and is recomputed identically,
+  so the dedup lookup hits.
+- A second run does **not** open a new status issue: it updates the existing
+  `[distillery-sync] Status` issue and adds one comment. Only the first run (or
+  one after the prior status issue was deleted) emits a `create-issue`.
 - A follow-up `distillery_search` from an `sdd-*` agent, scoped to this
   repository's project, returns a non-empty result for both an issue or pull
   request and a spec or ADR this sync ingested.
