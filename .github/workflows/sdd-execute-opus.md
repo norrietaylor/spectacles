@@ -459,9 +459,10 @@ for that task. On the **fast-path** `/approve` run (situation 1a), where the
 work-item is the **tracking issue** itself, do **not** close it: the tracking
 issue stays open until a human does the final close (ADR 0001). Instead post the
 same evidence `add-comment` on the tracking issue, then hand off with the
-fast-path completion transition — remove `sdd:in-progress` and add `sdd:done`
-(`remove-labels` / `add-labels`), or apply `needs-human` (`add-labels`) when a
-human must verify the already-satisfied claim — and **never** emit `update-issue`
+fast-path completion transition — always remove `sdd:in-progress` and add
+`sdd:done` (`remove-labels` / `add-labels`), and additionally apply
+`needs-human` (`add-labels`) for a human to verify the already-satisfied claim
+(matching step 8's fast-path completion) — and **never** emit `update-issue`
 with status closed on the tracking issue, and never `create-pull-request`. On
 either path do not also open a pull request. If the diff is empty for any other
 reason — the implementation never ran, or the edits were lost — treat it as a
