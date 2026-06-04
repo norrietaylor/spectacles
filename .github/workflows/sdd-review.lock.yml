@@ -527,8 +527,16 @@ jobs:
           Unless `CLAUDE.md` says otherwise:
           
           - Branch names: `spec/<slug>` for spec PRs, `arch/<slug>` for architecture
-            PRs, `sdd/<task-id>-<slug>` for implementation PRs.
+            PRs, `sdd/<task-id>-<slug>` for implementation PRs. The branch prefix carries
+            the pipeline routing signal; it is independent of the commit subject.
           - Commit subjects: imperative mood, present tense, 72 characters or fewer.
+            Use a conventional-commit type from the standard enum (`feat`, `fix`, `docs`,
+            `style`, `refactor`, `perf`, `test`, `build`, `ci`, `chore`, `revert`); a
+            target repo may lint commit subjects and reject anything else. The pipeline
+            phase is **not** the commit type — encode it in the scope instead:
+            `docs(spec-<slug>)`, `docs(arch-<slug>)`, and `<type>(<scope>)` mapped from
+            the task's `kind:*` for implementation PRs (`kind:feature` → `feat`,
+            `kind:bug` → `fix`, `kind:chore` → `chore`).
           - A fix PR closes its issue with `Closes #N` in the description.
           - Never force-push a branch that has an open PR.
           

@@ -27,6 +27,7 @@ imports:
   - norrietaylor/spectacles/shared/sdd-interaction.md@main
   - norrietaylor/spectacles/shared/sdd-proof-artifacts.md@main
   - norrietaylor/spectacles/shared/sdd-mcp-serena.md@main
+  - norrietaylor/spectacles/shared/sdd-mcp-playwright.md@main
   - norrietaylor/spectacles/shared/sdd-rust-cleanup.md@main
   - norrietaylor/spectacles/shared/sdd-node-cleanup.md@main
 tools:
@@ -420,7 +421,11 @@ agent to resume (situation 4 above).
 When the implementation is complete and every proof artifact passes, open
 exactly one pull request via the `create-pull-request` safe-output. The pull
 request is not a draft. Its title is `<type>(<scope>): <task title>`, where
-`<type>` and `<scope>` follow the task's `kind:*` and subject. The branch
+`<scope>` follows the task subject and `<type>` is the conventional-commit type
+mapped from the task's `kind:*` label: `kind:feature` → `feat`, `kind:bug` →
+`fix`, `kind:chore` → `chore`. Use only conventional-commit types — a target
+repo may lint commit subjects against the conventional enum, which has no
+`feature` or `bug`. The branch
 follows the `sdd/<task-id>-<slug>` convention from the imported
 repository-conventions fragment. The pull request body **must** contain:
 
@@ -482,7 +487,11 @@ always opens a fresh branch and a fresh pull request, which would leave two
 pull requests racing to close the same task. `create-pull-request` belongs to
 step 6, the initial implementation pull request, alone. The pull request
 already carries `Closes #<task>`; the follow-up commits land on its existing
-branch, and that single pull request stays the one that closes the task.
+branch, and that single pull request stays the one that closes the task. Each
+follow-up commit subject uses the same conventional-commit form as step 6 —
+`<type>(<scope>): <summary>` with `<type>` from the `kind:*` map — since
+`title-prefix` does not apply to `push-to-pull-request-branch` and a target
+repo may lint commit subjects.
 
 For a `/revise` trigger (situation 5) there is no anchored diff: treat the
 text after `/revise` in the triggering comment as the instruction, edit the
