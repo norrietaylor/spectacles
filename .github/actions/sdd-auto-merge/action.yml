@@ -3,13 +3,16 @@ description: >
   Enable GitHub auto-merge (squash, delete-branch) on a PR sdd-execute just
   opened, when the repo allows it and the base branch protection defines at
   least one required status check. Falls back to a direct squash merge when the
-  PR is UNSTABLE with every required check already green (issue #135). Shared by
-  the three sdd-execute wrapper variants. The caller mints the App token and
-  passes it as github-token; this action holds no secret. See ADR 0015.
+  PR is UNSTABLE with every required check already green (issue #135). Before
+  arming, applies a deterministic empty-PR guard: a 0-diff PR (the work already
+  exists on the base branch) can never merge, so it is closed and escalated
+  needs-human rather than left BLOCKED (issue #204). Shared by the three
+  sdd-execute wrapper variants. The caller mints the App token and passes it as
+  github-token; this action holds no secret. See ADR 0015.
 
 inputs:
   github-token:
-    description: 'App-installation token with administration:read and pull-requests:write.'
+    description: 'App-installation token with administration:read, pull-requests:write and issues:write (the empty-PR guard labels and comments via the issues endpoint).'
     required: true
   pr-number:
     description: 'The pull request number to enable auto-merge on.'
@@ -24,7 +27,61 @@ inputs:
 runs:
   using: composite
   steps:
+    # Deterministic empty-PR guard (issue #204). An sdd-execute impl run can
+    # open a PR whose commit changes 0 files / 0 additions / 0 deletions because
+    # the work already exists on the base branch. Such a PR can never merge
+    # (path-gated CI does not run on an empty diff; commitlint is the only check
+    # and it blocks), so it sits BLOCKED and consumes a review cycle while the
+    # run still reports success. Detect the 0-diff PR here — the one place that
+    # already holds the new PR number and a pull-requests-write token — and
+    # resolve it deterministically instead of arming auto-merge: close the PR
+    # and escalate it `needs-human` so a human closes the task as
+    # already-satisfied (the action cannot prove the artifacts exist on its
+    # own). The guard short-circuits before the auto-merge logic; a normal
+    # non-empty PR falls through unchanged.
+    - name: Auto-close an empty-diff PR and escalate instead of arming merge
+      id: empty_guard
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.github-token }}
+        PR_NUMBER: ${{ inputs.pr-number }}
+        OWNER: ${{ inputs.owner }}
+        REPO: ${{ inputs.repo }}
+      run: |
+          set -euo pipefail
+          # GitHub reports the aggregate diff of the PR's head against its base.
+          # additions + deletions == 0 means a 0-line diff; changed_files == 0
+          # means a 0-file diff. Either is an empty PR. Read all three so the
+          # condition is robust to a rename-only or mode-only edge case.
+          read -r changed adds dels < <(gh api \
+            "repos/${OWNER}/${REPO}/pulls/${PR_NUMBER}" \
+            --jq '[.changed_files, .additions, .deletions] | @tsv')
+          echo "PR #${PR_NUMBER}: changed_files=${changed}" \
+            "additions=${adds} deletions=${dels}."
+          if [ "${changed}" -ne 0 ] || [ "${adds}" -ne 0 ] \
+            || [ "${dels}" -ne 0 ]; then
+            echo "empty=false" >> "$GITHUB_OUTPUT"
+            echo "PR #${PR_NUMBER} has a non-empty diff; proceeding to" \
+              "auto-merge."
+            exit 0
+          fi
+          echo "empty=true" >> "$GITHUB_OUTPUT"
+          echo "PR #${PR_NUMBER} has an empty (0-diff) diff; the work already" \
+            "exists on the base branch. Closing it and escalating" \
+            "needs-human instead of arming auto-merge (issue #204)."
+          gh pr comment "${PR_NUMBER}" --repo "${OWNER}/${REPO}" --body \
+            "Auto-closed by sdd-auto-merge: this PR's diff is empty (0 files, 0 additions, 0 deletions), so the work it would land already exists on the base branch. An empty PR can never merge (no diff for path-gated CI; commitlint blocks). Escalating \`needs-human\` so a maintainer can close the linked task as already-satisfied after confirming the artifacts are present, or re-open this work if a real diff was expected. See issue #204."
+          # Applying a label to a PR goes through the issues endpoint; the minted
+          # token carries issues:write for this. Tolerate a missing label so the
+          # close still runs in a repo that has not defined needs-human yet.
+          gh pr edit "${PR_NUMBER}" --repo "${OWNER}/${REPO}" \
+            --add-label needs-human \
+            || echo "Could not add needs-human label (missing label?);" \
+              "closing anyway." >&2
+          gh pr close "${PR_NUMBER}" --repo "${OWNER}/${REPO}"
+          echo "PR #${PR_NUMBER} closed and escalated needs-human."
     - name: Enable auto-merge when protection requires a check
+      if: steps.empty_guard.outputs.empty != 'true'
       shell: bash
       env:
         GH_TOKEN: ${{ inputs.github-token }}

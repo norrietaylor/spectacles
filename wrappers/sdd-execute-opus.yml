@@ -220,6 +220,9 @@ jobs:
       # Mint the App token: reading branch protection needs administration:
       # read (the gh-aw locks request it too), which the default GITHUB_TOKEN
       # lacks, and enabling auto-merge needs pull-requests + contents write.
+      # issues: write is needed by the empty-PR guard (issue #204): it labels
+      # a 0-diff PR needs-human, and a label on a PR is written through the
+      # issues endpoint.
       - name: Mint App token
         id: app
         uses: actions/create-github-app-token@v3
@@ -231,6 +234,7 @@ jobs:
           permission-administration: read
           permission-contents: write
           permission-pull-requests: write
+          permission-issues: write
       # Arm auto-merge (squash, delete-branch) only when the repo allows it
       # and the base branch protection requires at least one status check;
       # otherwise skip (issue #127). Falls back to a direct squash merge when

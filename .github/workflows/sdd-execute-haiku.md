@@ -417,6 +417,32 @@ The task keeps its `sdd:in-progress` lifecycle label from step 2; `needs-human`
 excludes it from re-selection until a human clears it, which re-triggers this
 agent to resume (situation 4 above).
 
+**Terminal-outcome contract.** An impl run must end in exactly one of two
+terminal states: a pull request whose diff is **non-empty**, or an explicit,
+logged **no-op verdict** that closes the task as already-satisfied. Producing
+neither — no pull request, or a pull request with an empty (0-file, 0-line)
+diff — is a failure, not a success. Before emitting `create-pull-request`,
+verify the working tree carries a non-empty diff against the base branch (for
+example `git status --porcelain` is non-empty, or `git diff --stat` against the
+base shows changed files). Do **not** open a pull request whose diff is empty:
+an empty PR can never merge (path-gated CI does not run on a 0-line diff and
+`commitlint` blocks), so it sits BLOCKED and consumes a review cycle while still
+reporting success.
+
+If the diff is empty because the task's work **already exists** on the base
+branch, record the no-op verdict instead of opening a pull request: post exactly
+one comment (`add-comment`) stating the task is already satisfied and citing the
+evidence — name each in-scope file and the symbol or line that already carries
+the required behavior, per the imported evidence-rigor standard — then close the
+task as done with an `update-issue` safe-output that sets its status to closed
+(this is the one case where the agent closes a task sub-issue directly, since no
+pull request will merge to close it). This no-op close is the terminal state for
+that task; do not also open a pull request. If the diff is empty for any other
+reason — the implementation never ran, or the edits were lost — treat it as a
+failure: apply `needs-human` to the task (`add-labels`) and post one comment
+with the failing evidence, exactly as the proof-artifact hand-off above. Never
+let an empty-diff run reach `create-pull-request`.
+
 When the implementation is complete and every proof artifact passes, open
 exactly one pull request via the `create-pull-request` safe-output. The pull
 request is not a draft. Its title is `<type>(<scope>): <task title>`, where
