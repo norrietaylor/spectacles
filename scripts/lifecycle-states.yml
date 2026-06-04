@@ -80,21 +80,33 @@ transitions:
   sdd:in-progress: [sdd:review, sdd:done]
   sdd:review: [sdd:done]
 
-# Writer assignment. Exactly one workflow is the authoritative writer
-# of each lifecycle label. The validator collects, for each lifecycle
-# label X, the set of workflow stems whose frontmatter
-# `safe-outputs.add-labels.allowed` includes X, and asserts the set
-# matches the writer named here.
+# Writer assignment. Each lifecycle label has an authoritative writer
+# (or, where a deterministic wrapper co-writes the same transition, a
+# small set of authorized writers). The validator collects, for each
+# lifecycle label X, the set of workflow stems whose frontmatter
+# `safe-outputs.add-labels.allowed` includes X, and asserts that set is
+# a subset of the writer(s) named here (and non-empty). A value may be a
+# single stem (string) or a list of authorized stems.
 #
 # The three `sdd-execute-{haiku,sonnet,opus}` variants are compiled
 # from a single source and treated as aliases of the logical writer
 # `sdd-execute`. The validator collapses them at compare time.
+#
+# `sdd:in-progress` has two authorized writers. `sdd-execute` owns the
+# agent-side move when a run boots; `sdd-dispatch` co-writes it at
+# claim time, marking each dispatched task `sdd:in-progress` (and
+# removing `sdd:ready`) the moment it fans `/execute` out, so a
+# dispatched-but-not-yet-booted task is visibly in flight (#200). The
+# `sdd-dispatch` write is a deterministic wrapper action
+# (`wrappers/sdd-dispatch.yml`), not a safe-output, so it does not
+# appear in the frontmatter-derived actual set; it is declared here to
+# keep this source-of-truth honest about who advances the label.
 writers:
   sdd:triage: sdd-spec
   sdd:ready: sdd-triage
   sdd:fastpath: sdd-spec
   sdd:fastpath-review: sdd-spec
-  sdd:in-progress: sdd-execute
+  sdd:in-progress: [sdd-execute, sdd-dispatch]
   sdd:review: sdd-validate
   sdd:done: sdd-execute
 
