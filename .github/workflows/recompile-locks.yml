@@ -1,0 +1,99 @@
+# Recompile agent locks after a lock-affecting source merges to main, and push
+# the regenerated .lock.yml files (and the digest snapshot) straight back to
+# main. This closes the ADR 0018 two-step: a fragment edit no longer needs a
+# manual follow-up recompile commit.
+#
+# Why this can push to protected main: main is guarded by ruleset 16496590,
+# whose bypass actors include the `spectacles-bot` App (actor_type Integration).
+# The push below carries that App's installation token, so it bypasses the
+# pull_request rule. The default GITHUB_TOKEN's github-actions[bot] is not a
+# bypass actor and would be rejected. See ADR 0019.
+#
+# Loop guard: the only paths this workflow pushes are .github/workflows/*.lock.yml
+# and scripts/digest-snapshot.yml. Neither matches the `paths:` trigger below
+# (shared/** and .github/workflows/*.md), so the bot's own push never re-fires
+# this workflow.
+name: recompile-locks
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - shared/**
+      - .github/workflows/*.md
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: recompile-locks
+  cancel-in-progress: false
+
+jobs:
+  recompile:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Mint App token
+        id: app-token
+        uses: actions/create-github-app-token@v3
+        with:
+          app-id: ${{ vars.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
+          permission-contents: write
+          permission-workflows: write
+
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          token: ${{ steps.app-token.outputs.token }}
+          fetch-depth: 0
+
+      - name: Install gh-aw
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh extension install github/gh-aw --pin v0.74.3
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install PyYAML
+        run: pip install pyyaml
+
+      - name: Recompile locks and refresh digest snapshot
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh aw compile --no-check-update
+          python scripts/test-digest-snapshot.py --write
+
+      - name: Push if locks drifted
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          BOT_SLUG: ${{ steps.app-token.outputs.app-slug }}
+        run: |
+          # --porcelain reports modified tracked locks and untracked new ones,
+          # so a freshly generated but uncommitted .lock.yml is caught too.
+          drift="$(git status --porcelain -- '.github/workflows/*.lock.yml' scripts/digest-snapshot.yml)"
+          if [ -z "$drift" ]; then
+            echo "Locks already in sync with sources; nothing to push."
+            exit 0
+          fi
+          echo "Drift detected:"
+          echo "$drift"
+
+          bot_user_id="$(gh api "/users/${BOT_SLUG}[bot]" --jq .id)"
+          git config user.name "${BOT_SLUG}[bot]"
+          git config user.email "${bot_user_id}+${BOT_SLUG}[bot]@users.noreply.github.com"
+
+          git add '.github/workflows/*.lock.yml' scripts/digest-snapshot.yml
+          git commit -m "build: recompile locks after fragment merge [skip ci]"
+
+          # A second fragment merge may have landed while this run compiled;
+          # rebase the generated-only commit onto current main before pushing.
+          git pull --rebase origin main
+          git push origin HEAD:main
