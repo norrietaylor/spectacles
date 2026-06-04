@@ -3,8 +3,9 @@ description: >
   Decision logic shared by the three sdd-execute model-tier wrapper variants.
   Resolves which trigger fired, gates /execute and /revise on real repository
   permission (or the configured App identity), enforces the model:<tier> gate,
-  handles the CHANGES_REQUESTED auto-revise loop with its iteration cap, and
-  emits should_run plus the aw_context JSON the hosted lock consumes. Extracted
+  handles the CHANGES_REQUESTED and failed-required-check auto-revise loops with
+  their iteration cap, and emits should_run plus the aw_context JSON the hosted
+  lock consumes. Extracted
   verbatim from the wrappers so the routing logic lives in one place; the only
   per-variant difference is the tier input. See ADR 0004 and ADR 0015.
 
@@ -61,6 +62,11 @@ runs:
             // mutate PR state (they would otherwise inflate the cap count).
             let reviewAutoRevise = false;
             let reviewPrNumber = 0;
+            // Hidden marker that tracks the auto-revise cap. Defaults to the
+            // CHANGES_REQUESTED marker (issue #128); the failed-required-check
+            // revise path (issue #203) overrides it so the two remediation
+            // loops carry independent retry budgets.
+            let reviseMarker = '<!-- sdd-execute:auto-revise -->';
 
             // The model tier is supplied by the wrapper as the tier
             // input; the tier gate below skips a task another tier owns.
@@ -329,6 +335,125 @@ runs:
                   item_type: 'pull_request',
                   item_number: payload.pull_request.number,
                 };
+              }
+            }
+
+            // A required CI check failed on an open sdd/ PR (issue #203). A
+            // post-approval (or pre-approval) red required check leaves the PR
+            // BLOCKED with no remediation: the CHANGES_REQUESTED auto-revise
+            // path above fires only on a review verdict, never on a red check.
+            // Treat a check_suite that completed with a failure conclusion on
+            // an sdd/ head branch as an implicit /revise, mirroring that path:
+            // the directive names the failing check(s) and points at the run
+            // logs, and the same iteration cap (post-tier-gate block below)
+            // bounds the retries before escalating with needs-human. The agent
+            // confirms ownership (sdd/ head ref + body marker) at step 7
+            // exactly as it does for a CHANGES_REQUESTED review.
+            if (event === 'check_suite' && payload.action === 'completed') {
+              const suite = payload.check_suite || {};
+              const conclusion = (suite.conclusion || '').toLowerCase();
+              const headBranch = suite.head_branch || '';
+              // Only a terminal failure conclusion is actionable; a green or
+              // still-pending suite (success/neutral/skipped/null) is ignored.
+              const isFailure = conclusion === 'failure'
+                || conclusion === 'timed_out'
+                || conclusion === 'cancelled'
+                || conclusion === 'action_required';
+              if (isFailure && headBranch.startsWith('sdd/')) {
+                // A check_suite payload lists the PR(s) it belongs to. SDD
+                // implementation PRs are same-repo branches, so the array is
+                // populated. Pick the first open PR on this head branch.
+                const suitePrs = (suite.pull_requests || []).filter(
+                  (p) => p && p.number);
+                let prNumber = 0;
+                for (const p of suitePrs) {
+                  try {
+                    const { data } = await github.rest.pulls.get({
+                      owner: context.repo.owner,
+                      repo: context.repo.repo,
+                      pull_number: p.number,
+                    });
+                    if (data.state === 'open'
+                        && data.head && data.head.ref === headBranch) {
+                      prNumber = p.number;
+                      break;
+                    }
+                  } catch (err) {
+                    core.info('Could not fetch PR #' + p.number
+                      + ' from check_suite: ' + err.message);
+                  }
+                }
+                // Fallback when the payload's pull_requests array is empty
+                // (it can be for some suite payloads): resolve the open PR by
+                // head branch directly.
+                if (!prNumber) {
+                  try {
+                    const { data } = await github.rest.pulls.list({
+                      owner: context.repo.owner,
+                      repo: context.repo.repo,
+                      state: 'open',
+                      head: context.repo.owner + ':' + headBranch,
+                      per_page: 1,
+                    });
+                    if (data && data[0] && data[0].number) {
+                      prNumber = data[0].number;
+                    }
+                  } catch (err) {
+                    core.info('Could not resolve open PR for ' + headBranch
+                      + ': ' + err.message);
+                  }
+                }
+                if (!prNumber) {
+                  core.info('check_suite failure on ' + headBranch
+                    + ' has no open PR; ignoring.');
+                } else {
+                  // Name the failing check runs so the revise directive is
+                  // actionable, and point at the suite's run logs. A failed
+                  // run's `html_url` is the per-run logs page.
+                  const failed = [];
+                  try {
+                    const runs = await github.paginate(
+                      github.rest.checks.listForSuite, {
+                        owner: context.repo.owner,
+                        repo: context.repo.repo,
+                        check_suite_id: suite.id,
+                        per_page: 100,
+                      });
+                    for (const r of runs) {
+                      const c = (r.conclusion || '').toLowerCase();
+                      if (c === 'failure' || c === 'timed_out'
+                          || c === 'cancelled' || c === 'action_required') {
+                        failed.push({ name: r.name, url: r.html_url });
+                      }
+                    }
+                  } catch (err) {
+                    core.info('Could not list check runs for suite '
+                      + suite.id + ': ' + err.message);
+                  }
+                  const lines = ['A required CI check failed on this pull'
+                    + ' request. Fix the cause and push to the same branch.'];
+                  if (failed.length) {
+                    lines.push('Failing checks:');
+                    for (const f of failed) {
+                      lines.push('- ' + f.name
+                        + (f.url ? (' (' + f.url + ')') : ''));
+                    }
+                  } else {
+                    lines.push('The check suite (conclusion: ' + conclusion
+                      + ') failed; see the PR Checks tab for details.');
+                  }
+                  const directive = lines.join('\n');
+                  run = true;
+                  reviewAutoRevise = true;
+                  reviewPrNumber = prNumber;
+                  reviseMarker = '<!-- sdd-execute:auto-revise-check -->';
+                  ctx = {
+                    trigger: 'revise',
+                    item_type: 'pull_request',
+                    item_number: prNumber,
+                    directive,
+                  };
+                }
               }
             }
 
@@ -602,15 +727,17 @@ runs:
               }
             }
 
-            // Auto-revise loop bound (issue #128). Only the owning tier
-            // reaches here with run still true (the tier gate above cleared
-            // run for the two non-owning variants), so the cap count and its
-            // side effects happen exactly once per CHANGES_REQUESTED review.
-            // Cap is tracked by a hidden marker comment so no extra label is
-            // needed. On cap, apply needs-human and stop;
-            // SDD_MAX_REVIEW_ITERATIONS defaults to 3.
+            // Auto-revise loop bound (issue #128, extended for the failed
+            // required-check path in issue #203). Only the owning tier reaches
+            // here with run still true (the tier gate above cleared run for the
+            // two non-owning variants), so the cap count and its side effects
+            // happen exactly once per remediation trigger. Each remediation
+            // path carries its own hidden marker (reviseMarker) so the
+            // CHANGES_REQUESTED and failed-check budgets are independent. On
+            // cap, apply needs-human and stop; SDD_MAX_REVIEW_ITERATIONS
+            // defaults to 3.
             if (run && reviewAutoRevise && reviewPrNumber) {
-              const MARKER = '<!-- sdd-execute:auto-revise -->';
+              const MARKER = reviseMarker;
               const parsedMaxIters = parseInt(
                 process.env.SDD_MAX_REVIEW_ITERATIONS || '3', 10);
               // Guard a non-numeric repo variable: a NaN cap would make
@@ -670,8 +797,7 @@ runs:
                     repo: context.repo.repo,
                     issue_number: reviewPrNumber,
                     body: MARKER + '\nAuto-revise ' + (priorIters + 1)
-                      + ' of ' + maxIters
-                      + ' from a CHANGES_REQUESTED review.',
+                      + ' of ' + maxIters + '.',
                   });
                 } catch (err) {
                   core.info('Could not post auto-revise marker on PR #'
