@@ -298,8 +298,9 @@ jobs:
                   labels: ['sdd:dispatched'],
                 });
               } catch (err) {
-                core.info('Could not add sdd:dispatched to #' + tracking
+                core.setFailed('Could not add sdd:dispatched to #' + tracking
                   + ': ' + err.message);
+                throw err;
               }
             }
 
