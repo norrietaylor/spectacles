@@ -380,25 +380,54 @@ def main() -> int:
                 f"`writers:` mapping"
             )
             continue
-        expected = writers_decl[label]
+        # A writer declaration is a single stem (string) or a list of
+        # authorized stems. The list form covers a deterministic wrapper
+        # that co-writes a transition outside the safe-output path
+        # (e.g. sdd-dispatch claiming a task `sdd:in-progress` at
+        # dispatch time, #200): such a writer has no frontmatter
+        # allowlist entry, so it never appears in the actual set, but it
+        # is named here to keep the source-of-truth honest. The actual,
+        # frontmatter-derived writer set must therefore be a non-empty
+        # subset of the declared set — a frontmatter writer that is not
+        # declared is the real failure mode (a silent second owner).
+        declared = writers_decl[label]
+        expected = {declared} if isinstance(declared, str) else set(declared)
         if not actual:
             failures.append(
                 f"`{label}` has no writer: no sdd-*.md workflow declares it in "
                 f"safe-outputs.add-labels.allowed"
             )
             continue
-        if len(actual) > 1:
+        undeclared = actual - expected
+        if undeclared:
             failures.append(
-                f"`{label}` has two writers: {', '.join(sorted(actual))} "
-                f"(expected exactly one)"
+                f"`{label}` writer mismatch: declared {sorted(expected)!r} in "
+                f"scripts/lifecycle-states.yml, but {sorted(undeclared)!r} also "
+                f"declares it in safe-outputs.add-labels.allowed"
             )
-            continue
-        only = next(iter(actual))
-        if only != expected:
-            failures.append(
-                f"`{label}` writer mismatch: declared {expected!r} in "
-                f"scripts/lifecycle-states.yml, actual writer is {only!r}"
-            )
+
+    # Invariant 6: claim-time co-writer (#200). `sdd-dispatch` claims each
+    # dispatched task by writing `sdd:in-progress` (and removing
+    # `sdd:ready`) the moment it fans `/execute` out, so a
+    # dispatched-but-not-yet-booted task is never indistinguishable from an
+    # un-dispatched `sdd:ready` task. That write lives in the deterministic
+    # wrapper (`wrappers/sdd-dispatch.yml`), not a safe-output, so it is not
+    # frontmatter-visible; the `writers:` declaration is the only static
+    # record of it. Assert the declaration names `sdd-dispatch` as a
+    # co-writer of `sdd:in-progress`, so a revert of that ownership is a
+    # PR-time failure rather than a silent drift.
+    in_progress_decl = writers_decl.get("sdd:in-progress")
+    in_progress_writers = (
+        {in_progress_decl}
+        if isinstance(in_progress_decl, str)
+        else set(in_progress_decl or [])
+    )
+    if "sdd-dispatch" not in in_progress_writers:
+        failures.append(
+            "`sdd:in-progress` must list `sdd-dispatch` as a co-writer in "
+            "scripts/lifecycle-states.yml `writers:` (it claims each "
+            "dispatched task at fan-out time, #200)"
+        )
 
     if failures:
         print("Lifecycle state-machine invariants: FAIL")

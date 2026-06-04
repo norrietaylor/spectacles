@@ -189,7 +189,7 @@ jobs:
               core.setFailed('Failed to post /execute on task #' + task
                 + ': ' + err.message);
             }
-      - name: Apply sdd:ready hint to dispatched task #${{ matrix.task }}
+      - name: Claim dispatched task #${{ matrix.task }} as sdd:in-progress
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         env:
           APP_TOKEN: ${{ steps.app.outputs.token }}
@@ -198,16 +198,37 @@ jobs:
           github-token: ${{ env.APP_TOKEN }}
           script: |
             const task = parseInt(process.env.TASK, 10);
+            // Claim the task deterministically at dispatch time: mark it
+            // sdd:in-progress and drop sdd:ready, mirroring the
+            // tracking-issue move in the lifecycle job. Done here (not in
+            // the agent run) so a dispatched-but-not-yet-booted task is
+            // visibly in flight, never indistinguishable from an
+            // un-dispatched sdd:ready task (#200). The write uses the App
+            // token; #143's trigger guard makes execute ignore issues
+            // label events (except `unlabeled needs-human`), so this does
+            // not re-fire or cancel the execute run.
             try {
               await github.rest.issues.addLabels({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
                 issue_number: task,
-                labels: ['sdd:ready'],
+                labels: ['sdd:in-progress'],
               });
             } catch (err) {
               // A 422 here means the label is already present; ignore.
-              core.info('Could not add sdd:ready to #' + task + ': '
+              core.info('Could not add sdd:in-progress to #' + task + ': '
+                + err.message);
+            }
+            try {
+              await github.rest.issues.removeLabel({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: task,
+                name: 'sdd:ready',
+              });
+            } catch (err) {
+              // A 404 here means sdd:ready was not present; ignore.
+              core.info('Could not remove sdd:ready from #' + task + ': '
                 + err.message);
             }
 

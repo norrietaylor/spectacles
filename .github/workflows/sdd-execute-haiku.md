@@ -288,10 +288,15 @@ A task is **eligible** only when all of these hold:
   carrying `model:sonnet` or `model:opus` is not this variant's task; emit
   `noop` (the wrapper's tier gate normally catches this earlier, but check
   it here as a defence in depth).
-- It is **not already in flight**: it does not already carry
-  `sdd:in-progress`, and no open implementation pull request already
-  claims the task (head branch matching `sdd/<task-id>-<slug>` for this
-  task, or body carrying `Closes #<task>`). The wrapper's
+- It is **not already in flight**: no open implementation pull request
+  already claims the task (head branch matching `sdd/<task-id>-<slug>`
+  for this task, or body carrying `Closes #<task>`). `sdd:in-progress`
+  on its own is **not** proof of a live run: `sdd-dispatch` claims a
+  dispatched task by writing `sdd:in-progress` at fan-out time (#200),
+  so the task this `/execute` is claiming normally already carries it.
+  Treat an open PR / `Closes #<task>` link — not the label — as the
+  authoritative in-flight signal (mirrors `sdd-dispatch-compute`,
+  #211). The wrapper's
   `cancel-in-progress: true` concurrency group collapses concurrent
   runs, but once a run finishes with an open PR awaiting review the
   group no longer guards against a fresh `/execute` opening a second
@@ -318,10 +323,15 @@ double-trigger (a stale `sdd-dispatch` cell racing with a manual
 `cancel-in-progress: true`, so the later trigger supersedes the earlier
 in-progress cell.
 
-Having selected a task, move it to `sdd:in-progress`: remove its `sdd:ready`
-label (`remove-labels`) and add `sdd:in-progress` (`add-labels`). Exactly one
-lifecycle label is present at a time, so the removal and the addition are a
-single move.
+Having selected a task, ensure it is at `sdd:in-progress`: remove its
+`sdd:ready` label (`remove-labels`) and add `sdd:in-progress`
+(`add-labels`). Exactly one lifecycle label is present at a time, so the
+removal and the addition are a single move. This move is **idempotent**:
+on the cascade path `sdd-dispatch` has already claimed the task at fan-out
+time (#200), so `sdd:ready` is normally already absent and
+`sdd:in-progress` already present — do not treat a missing `sdd:ready` (or
+an already-present `sdd:in-progress`) as an error; the post-condition is
+simply that the task carries `sdd:in-progress` and not `sdd:ready`.
 
 The feature tracking issue's `sdd:ready → sdd:in-progress` transition is
 **not** this agent's concern. Per ADR 0011, `sdd-dispatch` owns that move

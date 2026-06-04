@@ -82,13 +82,16 @@ wrapper to match this document.
 Selection is **graph-driven**, not label-driven. At each fire, the
 dispatcher computes the ready set from the dependency graph: every open
 task sub-issue under the tracking issue whose `blocked by` set is empty
-(every referenced blocker is closed). The `sdd:ready` label is a
-downstream artifact applied to whatever the dispatcher dispatches, kept as
-a hint for humans browsing the tree, not the source of truth for
-eligibility. A task that was born blocked and is now structurally
-unblocked is ready even if nobody has flipped its `sdd:ready` label yet;
-a task that carries `sdd:ready` but has gained a new open blocker is not
-ready. The graph wins.
+(every referenced blocker is closed). When the dispatcher fans a task
+out it **claims** it: immediately after posting `/execute` it adds
+`sdd:in-progress` and removes `sdd:ready` on the task, so a
+dispatched-but-not-yet-booted task is visibly in flight rather than
+indistinguishable from an un-dispatched `sdd:ready` task (#200). The
+claim is a deterministic dispatch-time write, not the eligibility gate:
+a task that was born blocked and is now structurally unblocked is ready
+even if nobody has flipped its lifecycle label yet; a task that carries
+`sdd:ready` but has gained a new open blocker is not ready. The graph
+wins.
 
 The two triggers the dispatcher handles:
 
@@ -228,10 +231,13 @@ anything not already in flight.
   the App-minted installation token per ADR 0004, scoped to the running
   repository.
 - The dispatcher never opens or closes a pull request, never closes the
-  tracking issue, and never closes a task sub-issue. The `sdd:dispatched`
-  on-arm and off-disarm transitions on the tracking issue are the only
-  lifecycle effects on the cascade path; the `sdd:ready →
-  sdd:in-progress` move happens once, on the first `/dispatch`.
+  tracking issue, and never closes a task sub-issue. On the tracking
+  issue the `sdd:dispatched` on-arm and off-disarm transitions are the
+  only lifecycle effects on the cascade path, and the `sdd:ready →
+  sdd:in-progress` move happens once, on the first `/dispatch`. On each
+  **dispatched task** the dispatcher writes the claim-time `sdd:ready →
+  sdd:in-progress` move (#200); `sdd-execute` then re-asserts that move
+  idempotently when its run boots.
 - The dispatcher never removes `needs-human`.
 - The dispatcher runs no Distillery or Serena query. It declares no MCP
   server. The imports it carries (`principles`, `repo-conventions`,
