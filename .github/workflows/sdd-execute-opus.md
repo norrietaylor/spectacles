@@ -445,14 +445,27 @@ failure, fix the code and re-run until every command is green. A `cargo fmt`
 or lint diff that one command would fix is never a reason to ship — fix it,
 do not open the PR with it.
 
+This in-sandbox verification requirement **supersedes** any older imported
+guidance that assumes Rust verification cannot run in the firewalled sandbox
+(for example `shared/sdd-rust-cleanup.md`, whose header predates the
+`index.crates.io`/`static.crates.io` egress added for this gate): with both
+crates.io hosts admitted you **can** run cargo here, so you must. The host-side
+post-cleanup that runs after this gate (`shared/sdd-rust-cleanup.md`,
+`shared/sdd-node-cleanup.md`) is limited to the same deterministic formatters
+and lock refresh the gate already enforces green (`cargo fmt --all`,
+`cargo clippy --fix` machine-applicable lints, `cargo update --workspace`), so a
+properly-gated tree and the final PR tree converge; never rely on that
+post-cleanup to fix a gate failure.
+
 If you **cannot run** the gate — a required toolchain is missing, or the
 firewall blocks a host the toolchain must reach (a "Firewall blocked … domain"
 notice naming a registry/CDN such as `index.crates.io` or `static.crates.io`) —
 treat that as a **hard failure**, not a soft warning: you cannot verify the
 change, so do **not** open or update the pull request. Apply `needs-human` to
-the task sub-issue and post exactly one comment naming the blocked domain or
-missing tool and the gate it prevented, per the imported evidence-rigor
-standard. The task keeps its `sdd:in-progress` label; `needs-human` excludes it
+the task sub-issue — or, on the fast-path `/approve` flow where there is no task
+sub-issue, to the tracking issue — and post exactly one comment there naming the
+blocked domain or missing tool and the gate it prevented, per the imported
+evidence-rigor standard. The task keeps its `sdd:in-progress` label; `needs-human` excludes it
 from re-selection until a human clears it (situation 4 above). Shipping
 unverified code that fails the consumer's first CI run is never acceptable.
 
@@ -520,7 +533,10 @@ For a pull request this agent owns, read the review comment and the diff it
 anchors to. Address every **actionable** review comment by editing the
 in-scope files at the symbol level, then push the follow-up commits to the
 pull request's **existing branch** with the `push-to-pull-request-branch`
-safe-output. Do not emit `create-pull-request` on this path: that safe-output
+safe-output. Before that push, rerun the same discovered Pre-PR CI gate against
+the updated tree and require it green, with the identical hard-failure handling
+— the gate guards every PR open **and** update, so an update path must not push
+an unverified tree. Do not emit `create-pull-request` on this path: that safe-output
 always opens a fresh branch and a fresh pull request, which would leave two
 pull requests racing to close the same task. `create-pull-request` belongs to
 step 6, the initial implementation pull request, alone. The pull request
