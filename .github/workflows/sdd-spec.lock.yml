@@ -606,6 +606,28 @@ jobs:
           - `distillery_get`: retrieve a stored entry by its identifier when an earlier
             query already named it.
           
+          ### When to use during planning (required)
+          
+          The tools above document *what* Distillery retrieves; this section is the
+          *when*. During the spec and triage stages, a **baseline-against-repo pass is a
+          required phase before any task is created** — planning must be grounded in what
+          the repository has already delivered, not driven by the requirement list alone.
+          A requirement a prior merged pull request or decision already satisfied must
+          not become an implementation task; it is a common source of redundant,
+          no-diff execute runs.
+          
+          For each requirement under consideration, run `distillery_search` and
+          `distillery_find_similar` (scoped to `project`, per *Project scoping* below)
+          for prior decisions, components, or merged pull requests that already delivered
+          it. A merged PR that landed the artifact, or a decision record that settled the
+          behavior, is evidence the requirement is **already satisfied**: record it as
+          `(informed by #N)` / `(informed by ADR-0001)` and keep it out of the
+          implementation task list (mark it done, or scope a verification-only task).
+          This complements the Serena symbol-level baseline: Serena confirms the code is
+          in-tree, Distillery confirms the decision and the merged work behind it. When
+          the store is unreachable, skip the pass and note the omission per the outage
+          rule below; the baseline never blocks the run.
+          
           ### Project scoping (required)
           
           The Distillery store may be shared and may hold knowledge unrelated to this
@@ -712,6 +734,27 @@ jobs:
           - `get_project_structure`: a structural map of the repository.
           - `replace_symbol_body`, `insert_after_symbol`, `insert_before_symbol`:
             symbol-level edits, so a change touches only the symbol it must.
+          
+          ### When to use during planning (required)
+          
+          The tools above document *how* to navigate code by symbol; this section is the
+          *when*. During the spec and triage stages, a **baseline-against-repo pass is a
+          required phase before any task is created** — planning must be grounded in what
+          the repository already implements, not driven by the requirement list alone. A
+          requirement the codebase already satisfies must not become an implementation
+          task; it is the most common source of empty, no-diff, or "already complete"
+          execute runs.
+          
+          For each requirement under consideration, `find_symbol` for the types,
+          functions, or files the requirement would add, and `find_referencing_symbols`
+          on any match to confirm it is wired in rather than a dead stub. A present,
+          referenced symbol that does what the requirement describes is evidence the
+          requirement is **already satisfied**: record the file/symbol as evidence and
+          keep it out of the implementation task list (mark it done, or scope a
+          verification-only task). A requirement with no matching symbol is genuinely
+          missing and proceeds to a task. When no language server is available, degrade
+          to text-level search and prefer treating a requirement as missing over
+          satisfied when the signal is weak.
           
           ### Graceful degradation
           
