@@ -186,22 +186,30 @@ runs:
             }
 
             // A formal review with state CHANGES_REQUESTED on an sdd/ PR is
-            // treated as an implicit /revise (issue #128). The directive is
-            // the review body plus the unresolved review-comment threads, so
-            // one revise run addresses the whole verdict; the individual
+            // treated as an implicit /revise (issue #128). A COMMENTED review
+            // on an sdd/ PR that carries actionable content (a non-empty body
+            // or unresolved review threads) is treated the same way (issue
+            // #202): COMMENTED neither satisfies the merge gate (needs
+            // APPROVED) nor triggers #128, so without this it strands the PR.
+            // A content-free / automated-summary COMMENTED review (empty body
+            // and no unresolved threads) is NOT actionable and is skipped, to
+            // avoid spurious revise loops. The directive is the review body
+            // plus the unresolved review-comment threads, so one revise run
+            // addresses the whole verdict; the individual
             // pull_request_review_comment events that co-arrive collapse into
             // this run at the per-PR-per-tier concurrency group (the existing
-            // dedupe mechanism). A COMMENTED or APPROVED review does not match
-            // and never triggers a revise. The manual /revise path above is
-            // untouched. The agent confirms ownership (sdd/ head ref + body
-            // marker) at step 7 exactly as it does for a review comment.
+            // dedupe mechanism). An APPROVED review does not match and never
+            // triggers a revise. The manual /revise path above is untouched.
+            // The agent confirms ownership (sdd/ head ref + body marker) at
+            // step 7 exactly as it does for a review comment.
             if (event === 'pull_request_review'
                 && payload.action === 'submitted') {
               const review = payload.review || {};
               const state = (review.state || '').toLowerCase();
               const pr = payload.pull_request || {};
               const headRef = (pr.head && pr.head.ref) || '';
-              if (state === 'changes_requested'
+              const isCommented = state === 'commented';
+              if ((state === 'changes_requested' || isCommented)
                   && headRef.startsWith('sdd/')) {
                 // Author scope: accept CodeRabbit's bot review or a review by
                 // an author with repository write access, mirroring the
@@ -231,7 +239,7 @@ runs:
                     || permission === 'admin';
                 }
                 if (!reviewerCanWrite) {
-                  core.info('CHANGES_REQUESTED review by a non-allowed'
+                  core.info('Review (' + state + ') by a non-allowed'
                     + ' reviewer (' + reviewer + '); ignoring.');
                 } else {
                   const prNumber = pr.number;
@@ -285,17 +293,28 @@ runs:
                     core.info('Could not read review threads on PR #'
                       + prNumber + ': ' + err.message);
                   }
-                  const directive = parts.join('\n').trim()
-                    || 'Address the requested changes.';
-                  run = true;
-                  reviewAutoRevise = true;
-                  reviewPrNumber = prNumber;
-                  ctx = {
-                    trigger: 'revise',
-                    item_type: 'pull_request',
-                    item_number: prNumber,
-                    directive,
-                  };
+                  // A COMMENTED review is only actionable when it carries a
+                  // body or at least one unresolved thread (i.e. `parts` is
+                  // non-empty). A content-free / automated-summary COMMENTED
+                  // review is skipped so it cannot spin up a spurious revise
+                  // loop. CHANGES_REQUESTED is always actionable and keeps the
+                  // generic fallback directive.
+                  if (isCommented && parts.length === 0) {
+                    core.info('Content-free COMMENTED review on PR #'
+                      + prNumber + '; not actionable, skipping revise.');
+                  } else {
+                    const directive = parts.join('\n').trim()
+                      || 'Address the requested changes.';
+                    run = true;
+                    reviewAutoRevise = true;
+                    reviewPrNumber = prNumber;
+                    ctx = {
+                      trigger: 'revise',
+                      item_type: 'pull_request',
+                      item_number: prNumber,
+                      directive,
+                    };
+                  }
                 }
               }
             }
