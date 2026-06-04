@@ -18,6 +18,21 @@ permissions:
 engine:
   id: copilot
   model: claude-opus-4.6
+# Agent-firewall egress allow-list. `defaults` keeps gh-aw's baseline host set
+# (GitHub APIs, the Copilot proxy, the npm registry, the Ubuntu/Microsoft
+# package mirrors); the two crates.io hosts let a Rust consumer's toolchain
+# resolve and fetch dependencies from inside the sandbox so the pre-PR CI gate
+# (step 6) can run `cargo fmt`/`cargo build`/`cargo clippy`/`cargo test`. Cargo
+# needs BOTH the sparse index host `index.crates.io` (dependency resolution)
+# AND the crate-download CDN `static.crates.io` (tarball fetch); the index
+# alone cannot fetch a crate. Without both, cargo cannot build and the agent
+# cannot self-verify, which (per step 6) is treated as "cannot verify → do not
+# open a PR" rather than shipping unverified code (issue #205).
+network:
+  allowed:
+    - defaults
+    - "index.crates.io"
+    - "static.crates.io"
 inlined-imports: true
 strict: false
 imports:
@@ -416,6 +431,30 @@ when the task is too underspecified to implement at 80% confidence or higher.
 The task keeps its `sdd:in-progress` lifecycle label from step 2; `needs-human`
 excludes it from re-selection until a human clears it, which re-triggers this
 agent to resume (situation 4 above).
+
+**Pre-PR CI gate (issue #205).** Before opening or updating the pull request,
+run the target repository's own declared CI/validation commands and require them
+green — never open a PR you have not locally verified. Discover those commands
+from the repository's CI configuration (`.github/workflows/*`), then `CLAUDE.md`,
+then a `Makefile` / `justfile` / `package.json` scripts, in that order; for a
+Rust consumer this is at minimum `cargo fmt --all -- --check`, `cargo build`,
+`cargo clippy --all-targets -- -D warnings`, and `cargo test`. Run them from
+inside the sandbox (the `network.allowed` block above admits `index.crates.io`
+and `static.crates.io` so cargo can resolve and fetch dependencies). On a
+failure, fix the code and re-run until every command is green. A `cargo fmt`
+or lint diff that one command would fix is never a reason to ship — fix it,
+do not open the PR with it.
+
+If you **cannot run** the gate — a required toolchain is missing, or the
+firewall blocks a host the toolchain must reach (a "Firewall blocked … domain"
+notice naming a registry/CDN such as `index.crates.io` or `static.crates.io`) —
+treat that as a **hard failure**, not a soft warning: you cannot verify the
+change, so do **not** open or update the pull request. Apply `needs-human` to
+the task sub-issue and post exactly one comment naming the blocked domain or
+missing tool and the gate it prevented, per the imported evidence-rigor
+standard. The task keeps its `sdd:in-progress` label; `needs-human` excludes it
+from re-selection until a human clears it (situation 4 above). Shipping
+unverified code that fails the consumer's first CI run is never acceptable.
 
 When the implementation is complete and every proof artifact passes, open
 exactly one pull request via the `create-pull-request` safe-output. The pull
