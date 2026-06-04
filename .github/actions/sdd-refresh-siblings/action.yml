@@ -83,28 +83,58 @@ runs:
               return;
             }
 
+            // GitHub computes mergeability asynchronously, so the first
+            // pulls.get right after a sibling merge frequently returns
+            // mergeable:null / mergeable_state:'unknown'. Poll with backoff
+            // until GitHub settles it; otherwise a behind/conflicting PR
+            // falls through to 'no refresh needed' and silently strands,
+            // defeating issue #207. Bounded so the sweep can never hang.
+            const MERGEABILITY_POLLS = 6;
+            const MERGEABILITY_DELAY_MS = 2000;
+            const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
             for (const pr of siblings) {
               const prNumber = pr.number;
-              // mergeable / mergeable_state are computed asynchronously by
-              // GitHub. The list payload can report them stale (null /
-              // 'unknown') right after a sibling merge, so re-fetch the PR to
-              // force a fresh mergeability computation before deciding.
-              let mergeable = pr.mergeable;
-              let mergeState = pr.mergeable_state;
-              try {
-                const { data } = await github.rest.pulls.get({
-                  owner,
-                  repo,
-                  pull_number: prNumber,
-                });
+              // Re-fetch the PR to force a fresh mergeability computation,
+              // retrying while it is still null/'unknown'.
+              let mergeable = null;
+              let mergeState = null;
+              let fetchFailed = false;
+              for (let attempt = 0; attempt < MERGEABILITY_POLLS; attempt++) {
+                let data;
+                try {
+                  ({ data } = await github.rest.pulls.get({
+                    owner,
+                    repo,
+                    pull_number: prNumber,
+                  }));
+                } catch (err) {
+                  core.info('Could not fetch PR #' + prNumber + ': '
+                    + err.message);
+                  fetchFailed = true;
+                  break;
+                }
                 mergeable = data.mergeable;
                 mergeState = data.mergeable_state;
-              } catch (err) {
-                core.info('Could not fetch PR #' + prNumber + ': '
-                  + err.message);
+                // mergeable===null is GitHub's "still computing" signal; the
+                // 'unknown' state corroborates it. Anything else is settled.
+                const settled = mergeable !== null
+                  && (mergeState || '').toLowerCase() !== 'unknown';
+                if (settled || attempt === MERGEABILITY_POLLS - 1) {
+                  break;
+                }
+                await sleep(MERGEABILITY_DELAY_MS);
+              }
+              if (fetchFailed) {
                 continue;
               }
               const state = (mergeState || '').toLowerCase();
+              if (mergeable === null || state === 'unknown' || state === '') {
+                core.info('PR #' + prNumber + ' mergeability still unresolved'
+                  + ' after ' + MERGEABILITY_POLLS + ' polls (mergeable='
+                  + mergeable + ', state=' + state + '); skipping this sweep.');
+                continue;
+              }
 
               // CONFLICTING: a textual merge conflict with base. Update-branch
               // cannot resolve it, so hand it to sdd-execute as an implicit
