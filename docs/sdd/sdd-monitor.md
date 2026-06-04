@@ -5,9 +5,12 @@
 for transient GitHub races and run cancellations, not a replacement for fixing
 the underlying dispatch bugs.
 
-This page describes **Tier 1** of the design in issue #148. Tier 2 (healing
-known-safe stalls) and Tier 3 (escalating unrecoverable stalls to
-`needs-human`) are deferred to follow-up pull requests.
+This page describes **Tier 1** of the design in issue #148, plus the
+stranded-task recovery tier added for issue #201 (re-dispatch a
+silently-dropped task, then escalate to `needs-human` after a bounded
+number of attempts). The remaining Tier 2 healing cases (merging
+UNSTABLE PRs, advancing `sdd:review` to `sdd:done`) are deferred to
+follow-up pull requests.
 
 ## What it does
 
@@ -27,11 +30,14 @@ On every firing, `sdd-monitor`:
       tracker (a layer is already in flight on the pull-request side of
       the cascade).
     - Walks the tracker's sub-issue tree (tracker → Unit → task), counts
-      open tasks whose every `blocked by #<N>` dependency is closed.
-    - If at least one task is ready, posts one comment whose body begins
-      with `/dispatch` and carries an `sdd-monitor:` audit line. The
-      dispatch wrapper picks up the `/dispatch` and fans out to the
-      ready set.
+      open tasks whose every `blocked by #<N>` dependency is closed, and
+      flags any deps-closed open task that already carries `sdd:ready` or
+      `sdd:in-progress` but has no open `sdd/` PR as **stranded**.
+    - If at least one task is stranded, runs the stranded-task recovery
+      tier (below). Otherwise, if at least one task is ready, posts one
+      comment whose body begins with `/dispatch` and carries an
+      `sdd-monitor:` audit line. The dispatch wrapper picks up the
+      `/dispatch` and fans out to the ready set.
 
 The audit comment looks like this:
 
@@ -43,6 +49,51 @@ sdd-monitor: armed-but-idle on #201 with 2 tasks ready; dispatching.
 
 Operators reading the tracker timeline see exactly which monitor pass
 nudged the cascade and how many tasks were eligible.
+
+## Stranded-task recovery (pre-agent execute failures)
+
+An `sdd-execute` run can die **before its agent job** — cancelled by the
+per-issue concurrency group, or failing in the `activation` stage — and
+that failure is silent: `report-failure-as-issue` only fires on an
+agent-stage engine failure, so a pre-agent death files no failure issue,
+leaves the task at `sdd:ready` / `sdd:in-progress` with no PR and no run,
+and nothing retries it (issue #201).
+
+The monitor closes that gap. Because the repository-wide in-flight gate
+above has already proved no `sdd-execute-*` run is `in_progress` or
+`queued`, any deps-closed open task that still carries `sdd:ready` or
+`sdd:in-progress` **and** has no open `sdd/` implementation PR has been
+silently dropped. The monitor treats it as stranded and:
+
+1. **Re-dispatches it (bounded).** It posts one `/dispatch` comment whose
+   audit line names the stranded task(s) and records the attempt number.
+   The dispatch wrapper recomputes the ready set and re-fires `/execute`
+   on the stranded task, the same lever an operator would pull manually.
+
+   ```text
+   /dispatch
+
+   sdd-monitor: re-dispatching stranded task #324 on #201
+   (no PR, no in-flight run; attempt 1 of 3).
+   ```
+
+2. **Escalates after N attempts.** The re-dispatch audit lines on the
+   tracker are the durable attempt counter — they survive across monitor
+   passes and are visible to operators. After three re-dispatch attempts
+   the monitor stops re-dispatching, applies the `needs-human` marker
+   label to the tracker, and posts a digest comment so an operator can
+   intervene instead of the monitor looping forever.
+
+   ```text
+   sdd-monitor: stranded task #324 on #201 did not recover after
+   3 re-dispatch attempts; applying needs-human for operator review.
+   ```
+
+Both outcomes are observable on the tracker timeline, so a cancelled or
+activation-failed run no longer leaves a task sitting indefinitely at
+`sdd:ready` with no run and no signal. The debounce window applies to the
+re-dispatch the same way it applies to the armed-but-idle nudge, which
+spaces the bounded retries out across monitor passes.
 
 ## How to enable it
 
@@ -112,9 +163,9 @@ Out of scope for this Tier 1 release; tracked as follow-ups on issue #148:
   orphaned branch back to `sdd:ready`. Advancing `sdd:review` to
   `sdd:done` when every task sub-issue is closed (issue #147).
 - **Tier 3 (escalation).** Posting a digest comment and applying
-  `needs-human` on a tracker that cannot self-heal (a pull request red
-  on a real failure, a task that has failed N times, a malformed
-  sub-issue tree).
+  `needs-human` on a tracker that cannot self-heal beyond the
+  stranded-task case already covered above — a pull request red on a real
+  failure, or a malformed sub-issue tree.
 
 Each tier ships in its own pull request so the change set is small enough
 to review against `shared/rigor.md`.
@@ -136,7 +187,10 @@ The `/dispatch` comment itself is posted with an App installation token
 fan-out in `sdd-dispatch`). The dispatch wrapper's App-author carve-out
 admits the comment past the human-permission gate; the default
 `GITHUB_TOKEN`'s `github-actions[bot]` is not a repository collaborator
-and would be rejected.
+and would be rejected. The stranded-task recovery tier writes its
+re-dispatch comment, its escalation comment, and the `needs-human` label
+with the same App token, which carries `issues: write` through the App
+installation (the workflow's own `GITHUB_TOKEN` is `issues: read` only).
 
 ## Verification
 
@@ -153,6 +207,12 @@ Once enabled in a consumer repository:
 - Confirm a second scheduled firing within `SDD_MONITOR_DEBOUNCE_MIN`
   minutes logs `< Nm debounce; skipping.` and does not post a second
   comment.
+- Confirm that a task left at `sdd:ready` / `sdd:in-progress` with no
+  open `sdd/` PR and no in-flight run (a cancelled or activation-failed
+  execute) draws a `sdd-monitor: re-dispatching stranded task #<N>`
+  comment whose first non-blank line is `/dispatch`, and that after three
+  such attempts the next pass applies `needs-human` and posts the
+  `did not recover after 3 re-dispatch attempts` digest instead.
 
 ## References
 
