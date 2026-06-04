@@ -207,6 +207,11 @@ jobs:
             // token; #143's trigger guard makes execute ignore issues
             // label events (except `unlabeled needs-human`), so this does
             // not re-fire or cancel the execute run.
+            // Add sdd:in-progress first; only drop sdd:ready once the task is
+            // confirmed in-progress, so an unexpected add failure (403/5xx)
+            // never leaves the task with neither label. A 422 means the label
+            // is already present (idempotent); any other status is fatal.
+            let inProgressPresent = false;
             try {
               await github.rest.issues.addLabels({
                 owner: context.repo.owner,
@@ -214,22 +219,27 @@ jobs:
                 issue_number: task,
                 labels: ['sdd:in-progress'],
               });
+              inProgressPresent = true;
             } catch (err) {
-              // A 422 here means the label is already present; ignore.
-              core.info('Could not add sdd:in-progress to #' + task + ': '
-                + err.message);
+              if (err.status === 422) {
+                inProgressPresent = true;
+              } else {
+                throw err;
+              }
             }
-            try {
-              await github.rest.issues.removeLabel({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                issue_number: task,
-                name: 'sdd:ready',
-              });
-            } catch (err) {
-              // A 404 here means sdd:ready was not present; ignore.
-              core.info('Could not remove sdd:ready from #' + task + ': '
-                + err.message);
+            if (inProgressPresent) {
+              try {
+                await github.rest.issues.removeLabel({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: task,
+                  name: 'sdd:ready',
+                });
+              } catch (err) {
+                // A 404 here means sdd:ready was not present; ignore.
+                core.info('Could not remove sdd:ready from #' + task + ': '
+                  + err.message);
+              }
             }
 
   # Manage the tracking issue's lifecycle and sdd:dispatched labels. On the
