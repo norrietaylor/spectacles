@@ -320,6 +320,39 @@ runs and `sdd-spec` clears the marker itself.
 When `plan:provided` is absent, this step is a no-op: the agent authors
 from the issue body exactly as it does today (step 5).
 
+### 3c. Baseline each requirement against the repository (required)
+
+Before the spec breaks the work into demoable units and requirements
+(step 5), determine for **each** prospective requirement whether the target
+repository **already implements it**. This is a required phase, not an
+optional capability: requirement IDs that the codebase already satisfies
+must not become implementation work downstream. Run it with the Serena and
+Distillery tools already activated in steps 2 and 3.
+
+For each prospective requirement:
+
+- **Serena.** `find_symbol` for the types, functions, or files the
+  requirement would add, and `find_referencing_symbols` on any match to
+  confirm it is wired in rather than a dead stub. A present, referenced
+  symbol that does what the requirement describes is evidence the
+  requirement is already satisfied. If no language server is available,
+  degrade to text-level search over the working tree; absence of a match is
+  weaker evidence, so prefer "missing" over "satisfied" when unsure.
+- **Distillery.** `distillery_search` and `distillery_find_similar`
+  (scoped to `project`) for prior decisions, components, or merged pull
+  requests that already delivered the requirement. A merged PR that landed
+  the artifact is evidence the requirement is done.
+
+Record the outcome for each requirement so step 5 can act on it: a
+requirement found already satisfied is annotated **ALREADY EXISTS** with
+its file/symbol or `(informed by #N)` / `(informed by ADR-0001)` evidence,
+and is expressed in the spec as an existing constraint or a
+verification-only concern — not as new work to build. A requirement with no
+in-tree evidence is genuinely missing and proceeds normally. When the store
+is unreachable or no language server is available, fall back to the
+available signal and note the reduced confidence; a baseline outage never
+blocks the run.
+
 ### 4. Assess confidence and scope
 
 Decide whether the issue can be specified at 80% confidence or higher, per the
@@ -380,6 +413,11 @@ The spec must:
   `R{unit}.{seq}` format (the first unit's requirements start at `R1.1`).
 - Carry the inline `(informed by ...)` citations from step 3 wherever a prior
   spec, decision, or issue shaped a decision.
+- Carry the step-3c baseline result onto every requirement. A requirement the
+  repository already satisfies is marked **ALREADY EXISTS** with its
+  file/symbol or `(informed by ...)` evidence and framed as an existing
+  constraint or verification-only concern, never as new work to build; a
+  requirement with no in-tree evidence is expressed as work to do.
 
 ### 5a. Translate the plan into the spec (`plan:provided`)
 

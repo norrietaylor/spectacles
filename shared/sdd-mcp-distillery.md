@@ -52,6 +52,28 @@ secrets; no endpoint, host, or organization slug is a literal in this fragment.
 - `distillery_get`: retrieve a stored entry by its identifier when an earlier
   query already named it.
 
+### When to use during planning (required)
+
+The tools above document *what* Distillery retrieves; this section is the
+*when*. During the spec and triage stages, a **baseline-against-repo pass is a
+required phase before any task is created** — planning must be grounded in what
+the repository has already delivered, not driven by the requirement list alone.
+A requirement a prior merged pull request or decision already satisfied must
+not become an implementation task; it is a common source of redundant,
+no-diff execute runs.
+
+For each requirement under consideration, run `distillery_search` and
+`distillery_find_similar` (scoped to `project`, per *Project scoping* below)
+for prior decisions, components, or merged pull requests that already delivered
+it. A merged PR that landed the artifact, or a decision record that settled the
+behavior, is evidence the requirement is **already satisfied**: record it as
+`(informed by #N)` / `(informed by ADR-0001)` and keep it out of the
+implementation task list (mark it done, or scope a verification-only task).
+This complements the Serena symbol-level baseline: Serena confirms the code is
+in-tree, Distillery confirms the decision and the merged work behind it. When
+the store is unreachable, skip the pass and note the omission per the outage
+rule below; the baseline never blocks the run.
+
 ### Project scoping (required)
 
 The Distillery store may be shared and may hold knowledge unrelated to this

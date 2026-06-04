@@ -371,6 +371,25 @@ preview is composed against the real working tree (Serena resolves the files
 in scope) and the merged spec's requirement IDs, exactly as phase C would
 compose it.
 
+**Baseline each requirement against the repository before drafting tasks
+(required).** Plan composition is repo-grounded, not requirement-driven: a
+requirement the target repository **already implements** must **not** become
+an implementation task. For each requirement, run the baseline pass with
+Serena and Distillery — `find_symbol` / `find_referencing_symbols` for the
+types, functions, and files the requirement would add (confirming a match is
+wired in, not a dead stub), and `distillery_search` / `distillery_find_similar`
+(scoped to `project`) for prior decisions, components, or merged pull requests
+that already delivered it. The spec's step-3c **ALREADY EXISTS** annotations
+seed this pass; re-verify them against the current tree, since the codebase may
+have moved since the spec merged. For a requirement found already satisfied,
+do **not** draft an implementation task: mark it done in the plan with its
+file/symbol or `(informed by ...)` evidence, or draft a **verification-only**
+task (one that proves the existing behavior, not one that re-builds it). Only
+genuinely-missing requirements become implementation sub-tasks. If the store
+is unreachable or no language server is available, fall back to the available
+signal and prefer "missing" over "satisfied" when unsure; a baseline outage
+never blocks the run.
+
 Compose one plan comment on the tracking issue. The comment opens with the
 machine-readable sentinel line `<\!-- sdd-triage:plan -->` (written verbatim
 into the comment body **without** the backslash — the backslash exists only to
@@ -386,6 +405,14 @@ sub-task showing:
 - its 1 to 3 proof artifacts,
 - its `depends on:` edges, and
 - its `model:*` tier.
+
+Under each Unit, list any requirement the baseline pass found already
+satisfied on a line of the form `ALREADY EXISTS: <requirement> — <evidence>`,
+where the evidence is the existing file/symbol or `(informed by ...)`
+reference. An already-satisfied requirement appears here, not as an
+implementation sub-task; if it needs a proof it appears as a
+verification-only sub-task instead. This makes the repo-grounding visible in
+the preview the human approves.
 
 The plan comment closes with the line: comment `/approve` to materialize this
 plan as Unit and task sub-issues, or `/revise <note>` to amend it. Post the
