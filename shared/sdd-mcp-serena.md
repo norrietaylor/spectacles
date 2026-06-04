@@ -152,6 +152,27 @@ install docs). An `sdd-*` source carries no hardcoded toolchain.
 - `replace_symbol_body`, `insert_after_symbol`, `insert_before_symbol`:
   symbol-level edits, so a change touches only the symbol it must.
 
+### When to use during planning (required)
+
+The tools above document *how* to navigate code by symbol; this section is the
+*when*. During the spec and triage stages, a **baseline-against-repo pass is a
+required phase before any task is created** — planning must be grounded in what
+the repository already implements, not driven by the requirement list alone. A
+requirement the codebase already satisfies must not become an implementation
+task; it is the most common source of empty, no-diff, or "already complete"
+execute runs.
+
+For each requirement under consideration, `find_symbol` for the types,
+functions, or files the requirement would add, and `find_referencing_symbols`
+on any match to confirm it is wired in rather than a dead stub. A present,
+referenced symbol that does what the requirement describes is evidence the
+requirement is **already satisfied**: record the file/symbol as evidence and
+keep it out of the implementation task list (mark it done, or scope a
+verification-only task). A requirement with no matching symbol is genuinely
+missing and proceeds to a task. When no language server is available, degrade
+to text-level search and prefer treating a requirement as missing over
+satisfied when the signal is weak.
+
 ### Graceful degradation
 
 Serena's language-server coverage depends on the consumer repository's stack.

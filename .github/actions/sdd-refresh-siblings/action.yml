@@ -1,0 +1,251 @@
+name: sdd-refresh-siblings
+description: >
+  Keep open sdd/ implementation PRs current with their base after a sibling
+  task's PR merges (issue #207). When the cascade merges one task's PR into
+  main, every other open sdd/ PR that touches the same files goes behind base
+  and strands as CONFLICTING with nothing to rebase or resolve it. This action
+  sweeps the open sdd/ PRs: a PR that is merely BEHIND its base is refreshed in
+  place (GitHub update-branch merges base in, which re-runs CI); a PR that is
+  CONFLICTING is handed back to sdd-execute as an implicit /revise carrying a
+  'resolve merge conflict with base' directive (most collisions are mechanical
+  append-only Cargo.toml/lib.rs unions the agent has task context for). The
+  resolve attempts are bounded by a hidden marker; needs-human is escalated
+  only after the cap. The caller mints the App installation token and passes it
+  as github-token so the /revise comment re-triggers the owning tier's
+  sdd-execute wrapper (a GITHUB_TOKEN comment would not). See ADR 0015 and
+  issue #207.
+
+inputs:
+  github-token:
+    description: >
+      App-installation token with contents:write, pull-requests:write, and
+      issues:write. Contents:write is needed for the update-branch call;
+      pull-requests:write posts the /revise comment and the iteration marker;
+      issues:write applies the needs-human label when the conflict-resolve cap
+      is reached. The App identity is required so the posted /revise re-triggers
+      the sdd-execute wrappers.
+    required: true
+  merged-pr-number:
+    description: >
+      The sdd/ PR that just merged. It is skipped by the sweep (it is closed)
+      and named in the directive for context.
+    required: true
+  max-resolve-iterations:
+    description: 'Cap on implicit conflict-resolve dispatches per PR. Defaults to 3 when empty.'
+    required: false
+    default: ''
+
+runs:
+  using: composite
+  steps:
+    - name: Refresh sibling sdd/ PRs behind base
+      uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+      env:
+        MERGED_PR: ${{ inputs.merged-pr-number }}
+        SDD_MAX_RESOLVE_ITERATIONS: ${{ inputs.max-resolve-iterations }}
+      with:
+        github-token: ${{ inputs.github-token }}
+        script: |
+            const mergedPr = parseInt(process.env.MERGED_PR, 10);
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+
+            // Hidden marker that bounds the implicit conflict-resolve
+            // dispatches, mirroring the auto-revise cap in sdd-route-execute
+            // (issues #128 / #203). Distinct marker so the conflict budget is
+            // independent of the review/check budgets.
+            const MARKER = '<!-- sdd-execute:auto-resolve-conflict -->';
+            const parsedMax = parseInt(
+              process.env.SDD_MAX_RESOLVE_ITERATIONS || '3', 10);
+            const maxIters = Number.isFinite(parsedMax) && parsedMax > 0
+              ? parsedMax
+              : 3;
+
+            // List the open sdd/ PRs. These are the cascade's other
+            // in-flight implementation PRs; one of their siblings just merged,
+            // so any that overlap on shared files are now behind base.
+            let openPrs = [];
+            try {
+              openPrs = await github.paginate(github.rest.pulls.list, {
+                owner,
+                repo,
+                state: 'open',
+                per_page: 100,
+              });
+            } catch (err) {
+              core.info('Could not list open pull requests: ' + err.message);
+              return;
+            }
+            const siblings = openPrs.filter((p) =>
+              p && p.number !== mergedPr
+              && p.head && typeof p.head.ref === 'string'
+              && p.head.ref.startsWith('sdd/'));
+            if (!siblings.length) {
+              core.info('No open sdd/ sibling PRs to refresh.');
+              return;
+            }
+
+            // GitHub computes mergeability asynchronously, so the first
+            // pulls.get right after a sibling merge frequently returns
+            // mergeable:null / mergeable_state:'unknown'. Poll with backoff
+            // until GitHub settles it; otherwise a behind/conflicting PR
+            // falls through to 'no refresh needed' and silently strands,
+            // defeating issue #207. Bounded so the sweep can never hang.
+            const MERGEABILITY_POLLS = 6;
+            const MERGEABILITY_DELAY_MS = 2000;
+            const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+            for (const pr of siblings) {
+              const prNumber = pr.number;
+              // Re-fetch the PR to force a fresh mergeability computation,
+              // retrying while it is still null/'unknown'.
+              let mergeable = null;
+              let mergeState = null;
+              let fetchFailed = false;
+              for (let attempt = 0; attempt < MERGEABILITY_POLLS; attempt++) {
+                let data;
+                try {
+                  ({ data } = await github.rest.pulls.get({
+                    owner,
+                    repo,
+                    pull_number: prNumber,
+                  }));
+                } catch (err) {
+                  core.info('Could not fetch PR #' + prNumber + ': '
+                    + err.message);
+                  fetchFailed = true;
+                  break;
+                }
+                mergeable = data.mergeable;
+                mergeState = data.mergeable_state;
+                // mergeable===null is GitHub's "still computing" signal; the
+                // 'unknown' state corroborates it. Anything else is settled.
+                const settled = mergeable !== null
+                  && (mergeState || '').toLowerCase() !== 'unknown';
+                if (settled || attempt === MERGEABILITY_POLLS - 1) {
+                  break;
+                }
+                await sleep(MERGEABILITY_DELAY_MS);
+              }
+              if (fetchFailed) {
+                continue;
+              }
+              const state = (mergeState || '').toLowerCase();
+              if (mergeable === null || state === 'unknown' || state === '') {
+                core.info('PR #' + prNumber + ' mergeability still unresolved'
+                  + ' after ' + MERGEABILITY_POLLS + ' polls (mergeable='
+                  + mergeable + ', state=' + state + '); skipping this sweep.');
+                continue;
+              }
+
+              // CONFLICTING: a textual merge conflict with base. Update-branch
+              // cannot resolve it, so hand it to sdd-execute as an implicit
+              // /revise. mergeable === false is GitHub's signal for a real
+              // conflict; the 'dirty' mergeable_state corroborates it.
+              if (mergeable === false || state === 'dirty') {
+                // Count prior resolve dispatches from the hidden marker to
+                // bound the loop. Escalate needs-human once the cap is hit.
+                let priorIters = 0;
+                try {
+                  const comments = await github.paginate(
+                    github.rest.issues.listComments, {
+                      owner,
+                      repo,
+                      issue_number: prNumber,
+                      per_page: 100,
+                    });
+                  for (const c of comments) {
+                    if ((c.body || '').includes(MARKER)) {
+                      priorIters += 1;
+                    }
+                  }
+                } catch (err) {
+                  core.info('Could not count resolve markers on PR #'
+                    + prNumber + ': ' + err.message);
+                }
+                if (priorIters >= maxIters) {
+                  core.info('Conflict-resolve cap (' + maxIters + ') reached'
+                    + ' on PR #' + prNumber + '; applying needs-human.');
+                  try {
+                    await github.rest.issues.addLabels({
+                      owner,
+                      repo,
+                      issue_number: prNumber,
+                      labels: ['needs-human'],
+                    });
+                  } catch (err) {
+                    core.info('Could not apply needs-human to PR #'
+                      + prNumber + ': ' + err.message);
+                  }
+                  continue;
+                }
+                // Post the hidden iteration marker, then the /revise. The
+                // /revise is posted by the App identity so the owning-tier
+                // sdd-execute wrapper picks it up (its route accepts a comment
+                // whose performed_via_github_app.id matches APP_ID); a
+                // GITHUB_TOKEN comment would not re-trigger. The route's tier
+                // gate then runs only the variant that owns the linked task.
+                const baseRef = (pr.base && pr.base.ref) || 'main';
+                try {
+                  await github.rest.issues.createComment({
+                    owner,
+                    repo,
+                    issue_number: prNumber,
+                    body: MARKER + '\nAuto-resolve conflict ' + (priorIters + 1)
+                      + ' of ' + maxIters + '.',
+                  });
+                } catch (err) {
+                  core.info('Could not post resolve marker on PR #'
+                    + prNumber + ': ' + err.message);
+                }
+                const directive = '/revise resolve the merge conflict with '
+                  + baseRef + ': merge ' + baseRef + ' into this branch (or '
+                  + 'rebase onto it) and resolve the conflicts, then push to '
+                  + 'this PR branch. The conflict appeared after sibling PR #'
+                  + mergedPr + ' merged; most collisions are append-only '
+                  + 'unions in shared files (the crate manifest, the lib '
+                  + 'module / pub use list) — take the union of both sides.';
+                try {
+                  await github.rest.issues.createComment({
+                    owner,
+                    repo,
+                    issue_number: prNumber,
+                    body: directive,
+                  });
+                  core.info('Dispatched implicit /revise to resolve conflict'
+                    + ' on PR #' + prNumber + ' (attempt ' + (priorIters + 1)
+                    + ' of ' + maxIters + ').');
+                } catch (err) {
+                  core.info('Could not post /revise on PR #' + prNumber
+                    + ': ' + err.message);
+                }
+                continue;
+              }
+
+              // BEHIND (no textual conflict): the base advanced but the merge
+              // is clean. Refresh the branch in place — update-branch merges
+              // base in, which re-runs CI against the new base. 'blocked' /
+              // 'unstable' / 'clean' states whose PR is also behind are
+              // covered by update-branch's own behind check (it 422s when the
+              // branch is already up to date, which we ignore).
+              if (state === 'behind') {
+                try {
+                  await github.rest.pulls.updateBranch({
+                    owner,
+                    repo,
+                    pull_number: prNumber,
+                  });
+                  core.info('Updated branch of PR #' + prNumber
+                    + ' (was behind base); CI will re-run.');
+                } catch (err) {
+                  // A 422 here means the branch was already up to date or the
+                  // update could not be applied; not fatal to the sweep.
+                  core.info('Could not update branch of PR #' + prNumber
+                    + ': ' + err.message);
+                }
+                continue;
+              }
+
+              core.info('PR #' + prNumber + ' mergeable_state=' + state
+                + '; no refresh needed.');
+            }
