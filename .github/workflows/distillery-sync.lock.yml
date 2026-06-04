@@ -1,4 +1,4 @@
-# gh-aw-metadata: {"schema_version":"v3","frontmatter_hash":"e9b9ff300fb65b1e4cbdc593f31d0bfd973b99c805b7271ed6f50b3b482cf132","compiler_version":"v0.74.3","agent_id":"copilot"}
+# gh-aw-metadata: {"schema_version":"v3","frontmatter_hash":"ae0c1a2df1a73e62c8467f875201fafc94f31faf28102aa78d60fe393f5f5221","compiler_version":"v0.74.3","agent_id":"copilot"}
 # gh-aw-manifest: {"version":1,"secrets":["APP_PRIVATE_KEY","COPILOT_GITHUB_TOKEN","DISTILLERY_OAUTH_TOKEN","GH_AW_GITHUB_MCP_SERVER_TOKEN","GH_AW_GITHUB_TOKEN","GITHUB_TOKEN"],"actions":[{"repo":"actions/checkout","sha":"de0fac2e4500dabe0009e67214ff5f5447ce83dd","version":"v6.0.2"},{"repo":"actions/create-github-app-token","sha":"bcd2ba49218906704ab6c1aa796996da409d3eb1","version":"v3.2.0"},{"repo":"actions/download-artifact","sha":"3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c","version":"v8.0.1"},{"repo":"actions/github-script","sha":"3a2844b7e9c422d3c10d287c895573f7108da1b3","version":"v9.0.0"},{"repo":"actions/setup-node","sha":"48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e","version":"v6.4.0"},{"repo":"actions/upload-artifact","sha":"043fb46d1a93c77aae656e7c1c64a875d1fc6a0a","version":"v7.0.1"},{"repo":"github/gh-aw-actions/setup","sha":"8a9a52673cb8f97ebb43b344618af2d6f2c9ac7f","version":"v0.74.3"}],"containers":[{"image":"ghcr.io/github/gh-aw-firewall/agent:0.25.46"},{"image":"ghcr.io/github/gh-aw-firewall/api-proxy:0.25.46"},{"image":"ghcr.io/github/gh-aw-firewall/squid:0.25.46"},{"image":"ghcr.io/github/gh-aw-mcpg:v0.3.9","digest":"sha256:64828b42a4482f58fab16509d7f8f495a6d97c972a98a68aff20543531ac0388","pinned_image":"ghcr.io/github/gh-aw-mcpg:v0.3.9@sha256:64828b42a4482f58fab16509d7f8f495a6d97c972a98a68aff20543531ac0388"},{"image":"ghcr.io/github/github-mcp-server:v1.0.4"},{"image":"node:lts-alpine","digest":"sha256:d1b3b4da11eefd5941e7f0b9cf17783fc99d9c6fc34884a665f40a06dbdfc94f","pinned_image":"node:lts-alpine@sha256:d1b3b4da11eefd5941e7f0b9cf17783fc99d9c6fc34884a665f40a06dbdfc94f"}]}
 #    ___                   _   _      
 #   / _ \                 | | (_)     
@@ -221,20 +221,20 @@ jobs:
         run: |
           bash "${RUNNER_TEMP}/gh-aw/actions/create_prompt_first.sh"
           {
-          cat << 'GH_AW_PROMPT_e2aceaf58d523844_EOF'
+          cat << 'GH_AW_PROMPT_b2ff48b5eb8f55e8_EOF'
           <system>
-          GH_AW_PROMPT_e2aceaf58d523844_EOF
+          GH_AW_PROMPT_b2ff48b5eb8f55e8_EOF
           cat "${RUNNER_TEMP}/gh-aw/prompts/xpia.md"
           cat "${RUNNER_TEMP}/gh-aw/prompts/temp_folder_prompt.md"
           cat "${RUNNER_TEMP}/gh-aw/prompts/markdown.md"
           cat "${RUNNER_TEMP}/gh-aw/prompts/safe_outputs_prompt.md"
-          cat << 'GH_AW_PROMPT_e2aceaf58d523844_EOF'
+          cat << 'GH_AW_PROMPT_b2ff48b5eb8f55e8_EOF'
           <safe-output-tools>
           Tools: add_comment, create_issue, update_issue, missing_tool, missing_data, noop
           </safe-output-tools>
-          GH_AW_PROMPT_e2aceaf58d523844_EOF
+          GH_AW_PROMPT_b2ff48b5eb8f55e8_EOF
           cat "${RUNNER_TEMP}/gh-aw/prompts/mcp_cli_tools_prompt.md"
-          cat << 'GH_AW_PROMPT_e2aceaf58d523844_EOF'
+          cat << 'GH_AW_PROMPT_b2ff48b5eb8f55e8_EOF'
           <github-context>
           The following GitHub context information is available for this workflow:
           {{#if github.actor}}
@@ -263,9 +263,9 @@ jobs:
           {{/if}}
           </github-context>
           
-          GH_AW_PROMPT_e2aceaf58d523844_EOF
+          GH_AW_PROMPT_b2ff48b5eb8f55e8_EOF
           cat "${RUNNER_TEMP}/gh-aw/prompts/github_mcp_tools_with_safeoutputs_prompt.md"
-          cat << 'GH_AW_PROMPT_e2aceaf58d523844_EOF'
+          cat << 'GH_AW_PROMPT_b2ff48b5eb8f55e8_EOF'
           </system>
           # Distillery sync
           
@@ -352,6 +352,19 @@ jobs:
              repository (`owner/repo`, derived from the workflow context, not a file
              path) and the resolved project. `distillery_gh_sync` fetches the
              repository's issues and pull requests and stores them as `github` entries.
+             - **A cold backfill can exceed the MCP client request timeout and fail with
+               `-32001` even though the server-side sync completed.** A `-32001` (or any
+               client timeout) on this call is **not** a confirmed failure. Do **not**
+               retry with `background=true`: that parameter is rejected by the
+               HTTP-transport deployment this workflow uses (`INVALID_PARAMS`) and wastes
+               the turn. Do **not** re-call `distillery_gh_sync` synchronously to "get a
+               count" either — a second call dedups and returns `0/0`, which is the dedup
+               result, **not** the real ingest count, and must never be reported as one
+               (step 6). Instead let step 3's `distillery_list` probe stand as the
+               confirmation of whether entries landed, and record the issue/PR result for
+               the summary as "sync dispatched; result unconfirmed (client timeout)"
+               qualified by that probe (store non-empty vs empty). At most one such probe;
+               do not poll (step 8's no-loop rule).
           3. **Decide the document set.** Probe the store with
              `distillery_list(project=<slug>, limit=1)`. If it returns no entries for
              this project, this is a **backfill** run (step 3a). Otherwise it is an
@@ -420,6 +433,12 @@ jobs:
              many supersedes and citation relations were written; the resolved project
              slug; a UTC timestamp; and every path dropped by the backfill cap. Log it to
              the run, and reuse it as the status-issue payload in step 7.
+             - **When step 2 hit a client timeout,** report the issue/PR line as
+               "dispatched; result unconfirmed (client timeout); store <empty|non-empty>"
+               using the step-3 probe result — **never** `0 ingested`. A `0/0` from a
+               synchronous dedup retry is not the ingest count and must not appear in the
+               summary; an unconfirmed timeout over a server-side success is not a
+               failure.
           7. **Upsert the persistent status issue.** Maintain exactly one status issue per
              repository, identified by the `distillery-sync` label plus the stable title
              marker `[distillery-sync] Status` (gh-aw prefixes `create-issue` titles with
@@ -448,9 +467,16 @@ jobs:
           
           - `gh aw compile` compiles this workflow with the Distillery MCP server
             declared and reports zero errors.
-          - A run logs both mechanisms: a non-zero count of issues and pull requests
-            ingested by `distillery_gh_sync`, and a non-zero count of documents created,
-            updated, or skipped by the deterministic source-path pass.
+          - A run logs both mechanisms. The document pass logs a non-zero count of
+            documents created, updated, or skipped. The `distillery_gh_sync` pass logs
+            either a count of issues and pull requests ingested or refreshed, **or**, when
+            the call hit a client timeout, "dispatched; result unconfirmed" qualified by
+            the store probe — an unconfirmed timeout over a server-side success is not a
+            failure and is not reported as `0 ingested`.
+          - A cold backfill whose `distillery_gh_sync` call times out (`-32001`) emits no
+            `background=true` retry and no synchronous `0/0` dedup retry, and its summary
+            reports "dispatched; result unconfirmed (client timeout)" with the store-probe
+            result, never `0 ingested`.
           - A second run with no source changes logs every document as **skipped** and
             creates no duplicate entry (idempotence). Each document's `srcpath/<slug>` tag
             stores successfully (the validator accepts it) and is recomputed identically,
@@ -465,7 +491,7 @@ jobs:
             `distillery_relations(action="get", entry_id=<new ADR entry>)` shows a
             `supersedes` edge to the prior ADR's entry.
           
-          GH_AW_PROMPT_e2aceaf58d523844_EOF
+          GH_AW_PROMPT_b2ff48b5eb8f55e8_EOF
           } > "$GH_AW_PROMPT"
       - name: Interpolate variables and render templates
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
@@ -672,9 +698,9 @@ jobs:
           mkdir -p "${RUNNER_TEMP}/gh-aw/safeoutputs"
           mkdir -p /tmp/gh-aw/safeoutputs
           mkdir -p /tmp/gh-aw/mcp-logs/safeoutputs
-          cat > "${RUNNER_TEMP}/gh-aw/safeoutputs/config.json" << 'GH_AW_SAFE_OUTPUTS_CONFIG_4f112e830d0eeb7f_EOF'
+          cat > "${RUNNER_TEMP}/gh-aw/safeoutputs/config.json" << 'GH_AW_SAFE_OUTPUTS_CONFIG_e2525a423a69a49e_EOF'
           {"add_comment":{"max":1,"target":"*"},"create_issue":{"max":1},"create_report_incomplete_issue":{},"missing_data":{},"missing_tool":{},"noop":{"max":1,"report-as-issue":"true"},"report_incomplete":{},"update_issue":{"allow_body":true,"allow_title":true,"max":1,"target":"*"}}
-          GH_AW_SAFE_OUTPUTS_CONFIG_4f112e830d0eeb7f_EOF
+          GH_AW_SAFE_OUTPUTS_CONFIG_e2525a423a69a49e_EOF
       - name: Generate Safe Outputs Tools
         env:
           GH_AW_TOOLS_META_JSON: |
@@ -961,7 +987,7 @@ jobs:
           
           mkdir -p /home/runner/.copilot
           GH_AW_NODE=$(which node 2>/dev/null || command -v node 2>/dev/null || echo node)
-          cat << GH_AW_MCP_CONFIG_6adcc050cd413b1f_EOF | "$GH_AW_NODE" "${RUNNER_TEMP}/gh-aw/actions/start_mcp_gateway.cjs"
+          cat << GH_AW_MCP_CONFIG_7d9cb5dc33d00439_EOF | "$GH_AW_NODE" "${RUNNER_TEMP}/gh-aw/actions/start_mcp_gateway.cjs"
           {
             "mcpServers": {
               "distillery": {
@@ -1028,7 +1054,7 @@ jobs:
               "payloadDir": "${MCP_GATEWAY_PAYLOAD_DIR}"
             }
           }
-          GH_AW_MCP_CONFIG_6adcc050cd413b1f_EOF
+          GH_AW_MCP_CONFIG_7d9cb5dc33d00439_EOF
       - name: Mount MCP servers as CLIs
         id: mount-mcp-clis
         continue-on-error: true
