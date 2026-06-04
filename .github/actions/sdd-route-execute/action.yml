@@ -353,6 +353,10 @@ runs:
               const suite = payload.check_suite || {};
               const conclusion = (suite.conclusion || '').toLowerCase();
               const headBranch = suite.head_branch || '';
+              // The commit this suite ran against. A stale suite for an older
+              // head_sha can finish after the PR tip has advanced; we only act
+              // when the suite's commit still matches the open PR's head.
+              const suiteSha = suite.head_sha || '';
               // Only a terminal failure conclusion is actionable; a green or
               // still-pending suite (success/neutral/skipped/null) is ignored.
               const isFailure = conclusion === 'failure'
@@ -366,6 +370,7 @@ runs:
                 const suitePrs = (suite.pull_requests || []).filter(
                   (p) => p && p.number);
                 let prNumber = 0;
+                let baseBranch = '';
                 for (const p of suitePrs) {
                   try {
                     const { data } = await github.rest.pulls.get({
@@ -374,8 +379,10 @@ runs:
                       pull_number: p.number,
                     });
                     if (data.state === 'open'
-                        && data.head && data.head.ref === headBranch) {
+                        && data.head && data.head.ref === headBranch
+                        && data.head.sha === suiteSha) {
                       prNumber = p.number;
+                      baseBranch = data.base && data.base.ref || '';
                       break;
                     }
                   } catch (err) {
@@ -395,8 +402,10 @@ runs:
                       head: context.repo.owner + ':' + headBranch,
                       per_page: 1,
                     });
-                    if (data && data[0] && data[0].number) {
+                    if (data && data[0] && data[0].number
+                        && data[0].head && data[0].head.sha === suiteSha) {
                       prNumber = data[0].number;
+                      baseBranch = data[0].base && data[0].base.ref || '';
                     }
                   } catch (err) {
                     core.info('Could not resolve open PR for ' + headBranch
@@ -407,9 +416,36 @@ runs:
                   core.info('check_suite failure on ' + headBranch
                     + ' has no open PR; ignoring.');
                 } else {
+                  // Only checks that actually gate merge should fire an
+                  // implicit /revise. An optional/advisory suite failure never
+                  // blocks merge, so triggering on it would burn the retry
+                  // budget and can escalate needs-human for nothing. Fetch the
+                  // base branch's required status check contexts; if branch
+                  // protection is absent or the call throws, treat it as "no
+                  // required contexts" and do NOT trigger.
+                  const requiredContexts = new Set();
+                  if (baseBranch) {
+                    try {
+                      const { data: prot } =
+                        await github.rest.repos.getBranchProtection({
+                          owner: context.repo.owner,
+                          repo: context.repo.repo,
+                          branch: baseBranch,
+                        });
+                      const ctxs = prot && prot.required_status_checks
+                        && prot.required_status_checks.contexts || [];
+                      for (const c of ctxs) {
+                        requiredContexts.add(c);
+                      }
+                    } catch (err) {
+                      core.info('No branch protection for ' + baseBranch
+                        + ' (or not accessible): ' + err.message);
+                    }
+                  }
                   // Name the failing check runs so the revise directive is
                   // actionable, and point at the suite's run logs. A failed
-                  // run's `html_url` is the per-run logs page.
+                  // run's `html_url` is the per-run logs page. Only failed runs
+                  // whose name matches a required context count toward firing.
                   const failed = [];
                   try {
                     const runs = await github.paginate(
@@ -421,38 +457,40 @@ runs:
                       });
                     for (const r of runs) {
                       const c = (r.conclusion || '').toLowerCase();
-                      if (c === 'failure' || c === 'timed_out'
-                          || c === 'cancelled' || c === 'action_required') {
-                        failed.push({ name: r.name, url: r.html_url });
+                      const name = r.name || r.check_name || '';
+                      if ((c === 'failure' || c === 'timed_out'
+                          || c === 'cancelled' || c === 'action_required')
+                          && requiredContexts.has(name)) {
+                        failed.push({ name, url: r.html_url });
                       }
                     }
                   } catch (err) {
                     core.info('Could not list check runs for suite '
                       + suite.id + ': ' + err.message);
                   }
-                  const lines = ['A required CI check failed on this pull'
-                    + ' request. Fix the cause and push to the same branch.'];
-                  if (failed.length) {
+                  if (!failed.length) {
+                    core.info('check_suite failure on ' + headBranch
+                      + ' has no failed REQUIRED check; ignoring.');
+                  } else {
+                    const lines = ['A required CI check failed on this pull'
+                      + ' request. Fix the cause and push to the same branch.'];
                     lines.push('Failing checks:');
                     for (const f of failed) {
                       lines.push('- ' + f.name
                         + (f.url ? (' (' + f.url + ')') : ''));
                     }
-                  } else {
-                    lines.push('The check suite (conclusion: ' + conclusion
-                      + ') failed; see the PR Checks tab for details.');
+                    const directive = lines.join('\n');
+                    run = true;
+                    reviewAutoRevise = true;
+                    reviewPrNumber = prNumber;
+                    reviseMarker = '<!-- sdd-execute:auto-revise-check -->';
+                    ctx = {
+                      trigger: 'revise',
+                      item_type: 'pull_request',
+                      item_number: prNumber,
+                      directive,
+                    };
                   }
-                  const directive = lines.join('\n');
-                  run = true;
-                  reviewAutoRevise = true;
-                  reviewPrNumber = prNumber;
-                  reviseMarker = '<!-- sdd-execute:auto-revise-check -->';
-                  ctx = {
-                    trigger: 'revise',
-                    item_type: 'pull_request',
-                    item_number: prNumber,
-                    directive,
-                  };
                 }
               }
             }
