@@ -18,6 +18,21 @@ permissions:
 engine:
   id: copilot
   model: claude-sonnet-4.6
+# Agent-firewall egress allow-list. `defaults` keeps gh-aw's baseline host set
+# (GitHub APIs, the Copilot proxy, the npm registry, the Ubuntu/Microsoft
+# package mirrors); the two crates.io hosts let a Rust consumer's toolchain
+# resolve and fetch dependencies from inside the sandbox so the pre-PR CI gate
+# (step 6) can run `cargo fmt`/`cargo build`/`cargo clippy`/`cargo test`. Cargo
+# needs BOTH the sparse index host `index.crates.io` (dependency resolution)
+# AND the crate-download CDN `static.crates.io` (tarball fetch); the index
+# alone cannot fetch a crate. Without both, cargo cannot build and the agent
+# cannot self-verify, which (per step 6) is treated as "cannot verify → do not
+# open a PR" rather than shipping unverified code (issue #205).
+network:
+  allowed:
+    - defaults
+    - "index.crates.io"
+    - "static.crates.io"
 inlined-imports: true
 strict: false
 imports:
@@ -27,6 +42,7 @@ imports:
   - norrietaylor/spectacles/shared/sdd-interaction.md@main
   - norrietaylor/spectacles/shared/sdd-proof-artifacts.md@main
   - norrietaylor/spectacles/shared/sdd-mcp-serena.md@main
+  - norrietaylor/spectacles/shared/sdd-mcp-playwright.md@main
   - norrietaylor/spectacles/shared/sdd-rust-cleanup.md@main
   - norrietaylor/spectacles/shared/sdd-node-cleanup.md@main
 tools:
@@ -419,7 +435,7 @@ agent to resume (situation 4 above).
 
 **Terminal-outcome contract.** An impl run must end in exactly one of two
 terminal states: a pull request whose diff is **non-empty**, or an explicit,
-logged **no-op verdict** that closes the task as already-satisfied. Producing
+logged **no-op verdict** that records the work-item as already-satisfied. Producing
 neither — no pull request, or a pull request with an empty (0-file, 0-line)
 diff — is a failure, not a success. Before emitting `create-pull-request`,
 verify the working tree carries a non-empty diff against the base branch (for
@@ -429,19 +445,66 @@ an empty PR can never merge (path-gated CI does not run on a 0-line diff and
 `commitlint` blocks), so it sits BLOCKED and consumes a review cycle while still
 reporting success.
 
-If the diff is empty because the task's work **already exists** on the base
-branch, record the no-op verdict instead of opening a pull request: post exactly
-one comment (`add-comment`) stating the task is already satisfied and citing the
-evidence — name each in-scope file and the symbol or line that already carries
-the required behavior, per the imported evidence-rigor standard — then close the
-task as done with an `update-issue` safe-output that sets its status to closed
-(this is the one case where the agent closes a task sub-issue directly, since no
-pull request will merge to close it). This no-op close is the terminal state for
-that task; do not also open a pull request. If the diff is empty for any other
+If the diff is empty because the work **already exists** on the base branch,
+record the no-op verdict instead of opening a pull request, and route by entry
+path. On a **normal task** run, where the work-item is a task sub-issue: post
+exactly one comment (`add-comment`) stating the task is already satisfied and
+citing the evidence — name each in-scope file and the symbol or line that
+already carries the required behavior, per the imported evidence-rigor standard
+— then close that task sub-issue as done with an `update-issue` safe-output that
+sets its status to closed. This is the one case where the agent closes a task
+sub-issue directly, since no pull request will merge to close it (the Boundaries
+section carves out this no-op exception); this no-op close is the terminal state
+for that task. On the **fast-path** `/approve` run (situation 1a), where the
+work-item is the **tracking issue** itself, do **not** close it: the tracking
+issue stays open until a human does the final close (ADR 0001). Instead post the
+same evidence `add-comment` on the tracking issue, then hand off with the
+fast-path completion transition — remove `sdd:in-progress` and add `sdd:done`
+(`remove-labels` / `add-labels`), or apply `needs-human` (`add-labels`) when a
+human must verify the already-satisfied claim — and **never** emit `update-issue`
+with status closed on the tracking issue, and never `create-pull-request`. On
+either path do not also open a pull request. If the diff is empty for any other
 reason — the implementation never ran, or the edits were lost — treat it as a
-failure: apply `needs-human` to the task (`add-labels`) and post one comment
+failure: apply `needs-human` to the work-item (`add-labels`) and post one comment
 with the failing evidence, exactly as the proof-artifact hand-off above. Never
 let an empty-diff run reach `create-pull-request`.
+
+**Pre-PR CI gate (issue #205).** Before opening or updating the pull request,
+run the target repository's own declared CI/validation commands and require them
+green — never open a PR you have not locally verified. Discover those commands
+from the repository's CI configuration (`.github/workflows/*`), then `CLAUDE.md`,
+then a `Makefile` / `justfile` / `package.json` scripts, in that order; for a
+Rust consumer this is at minimum `cargo fmt --all -- --check`, `cargo build`,
+`cargo clippy --all-targets -- -D warnings`, and `cargo test`. Run them from
+inside the sandbox (the `network.allowed` block above admits `index.crates.io`
+and `static.crates.io` so cargo can resolve and fetch dependencies). On a
+failure, fix the code and re-run until every command is green. A `cargo fmt`
+or lint diff that one command would fix is never a reason to ship — fix it,
+do not open the PR with it.
+
+This in-sandbox verification requirement **supersedes** any older imported
+guidance that assumes Rust verification cannot run in the firewalled sandbox
+(for example `shared/sdd-rust-cleanup.md`, whose header predates the
+`index.crates.io`/`static.crates.io` egress added for this gate): with both
+crates.io hosts admitted you **can** run cargo here, so you must. The host-side
+post-cleanup that runs after this gate (`shared/sdd-rust-cleanup.md`,
+`shared/sdd-node-cleanup.md`) is limited to the same deterministic formatters
+and lock refresh the gate already enforces green (`cargo fmt --all`,
+`cargo clippy --fix` machine-applicable lints, `cargo update --workspace`), so a
+properly-gated tree and the final PR tree converge; never rely on that
+post-cleanup to fix a gate failure.
+
+If you **cannot run** the gate — a required toolchain is missing, or the
+firewall blocks a host the toolchain must reach (a "Firewall blocked … domain"
+notice naming a registry/CDN such as `index.crates.io` or `static.crates.io`) —
+treat that as a **hard failure**, not a soft warning: you cannot verify the
+change, so do **not** open or update the pull request. Apply `needs-human` to
+the task sub-issue — or, on the fast-path `/approve` flow where there is no task
+sub-issue, to the tracking issue — and post exactly one comment there naming the
+blocked domain or missing tool and the gate it prevented, per the imported
+evidence-rigor standard. The task keeps its `sdd:in-progress` label; `needs-human` excludes it
+from re-selection until a human clears it (situation 4 above). Shipping
+unverified code that fails the consumer's first CI run is never acceptable.
 
 When the implementation is complete and every proof artifact passes, open
 exactly one pull request via the `create-pull-request` safe-output. The pull
@@ -507,7 +570,10 @@ For a pull request this agent owns, read the review comment and the diff it
 anchors to. Address every **actionable** review comment by editing the
 in-scope files at the symbol level, then push the follow-up commits to the
 pull request's **existing branch** with the `push-to-pull-request-branch`
-safe-output. Do not emit `create-pull-request` on this path: that safe-output
+safe-output. Before that push, rerun the same discovered Pre-PR CI gate against
+the updated tree and require it green, with the identical hard-failure handling
+— the gate guards every PR open **and** update, so an update path must not push
+an unverified tree. Do not emit `create-pull-request` on this path: that safe-output
 always opens a fresh branch and a fresh pull request, which would leave two
 pull requests racing to close the same task. `create-pull-request` belongs to
 step 6, the initial implementation pull request, alone. The pull request
@@ -581,8 +647,13 @@ so the rest is handled by subsequent runs.
 - This agent never merges or approves a pull request. Merge authority stays
   with humans and the consumer repository's CI.
 - This agent closes a completed Unit sub-issue. It never closes the feature
-  tracking issue — a human does that (ADR 0001) — and it never closes a task
-  sub-issue, which closes when its pull request merges.
+  tracking issue — a human does that (ADR 0001), and the fast-path empty-diff
+  no-op leaves the tracking issue open too. It never closes a task sub-issue,
+  which closes when its pull request merges, **except** for the already-satisfied
+  empty-diff no-op in step 6's terminal-outcome contract: when the diff is empty
+  because a **task**'s work already exists on base, the agent posts one
+  `add-comment` with the evidence and then performs the no-op close of that task
+  sub-issue via `update-issue`.
 - This agent never removes the `needs-human` label. Only a human clears it.
 - All writes go through safe-outputs. The workflow permissions stay read-only.
 

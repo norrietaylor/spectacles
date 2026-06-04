@@ -65,6 +65,15 @@ on:
   # directly.
   pull_request:
     types: [unlabeled, closed]
+  # A check suite that completed on a pull request this agent opened. A
+  # failure conclusion on an `sdd/` branch is treated as an implicit
+  # /revise (issue #203): a required CI check failed and merge is BLOCKED,
+  # so the build is handed back to sdd-execute to fix on the same branch,
+  # mirroring the CHANGES_REQUESTED path. A success/neutral suite does not
+  # trigger a revise. The route step bounds the retries and escalates with
+  # needs-human after the cap.
+  check_suite:
+    types: [completed]
 
 permissions:
   contents: read
@@ -132,7 +141,8 @@ jobs:
   # without an API call).
   route:
     if: |
-      (github.event_name != 'issue_comment' && github.event_name != 'issues')
+      (github.event_name != 'issue_comment' && github.event_name != 'issues'
+        && github.event_name != 'check_suite')
       || (
         github.event_name == 'issue_comment'
         && (
@@ -148,6 +158,17 @@ jobs:
         && github.event.action == 'unlabeled'
         && github.event.label.name == 'needs-human'
       )
+      || (
+        github.event_name == 'check_suite'
+        && github.event.action == 'completed'
+        && startsWith(github.event.check_suite.head_branch, 'sdd/')
+        && (
+          github.event.check_suite.conclusion == 'failure'
+          || github.event.check_suite.conclusion == 'timed_out'
+          || github.event.check_suite.conclusion == 'cancelled'
+          || github.event.check_suite.conclusion == 'action_required'
+        )
+      )
     runs-on: ubuntu-latest
     # pull-requests: read is needed for the tier gate on a /revise issue_comment
     # (situation 6): the route fetches the pull request to read its body and
@@ -161,7 +182,13 @@ jobs:
     # comment on the PR and, on hitting SDD_MAX_REVIEW_ITERATIONS, applies the
     # needs-human label. Comments and labels written by the GITHUB_TOKEN do not
     # re-trigger workflows, so this does not feed back into the route.
+    #
+    # checks: read is needed by the failed-required-check auto-revise branch
+    # (issue #203): it lists the check runs in the failing suite to name them
+    # in the revise directive. The same branch reuses the iteration-marker /
+    # needs-human machinery above.
     permissions:
+      checks: read
       contents: read
       issues: write
       pull-requests: write

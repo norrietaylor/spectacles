@@ -202,9 +202,13 @@ runs:
               }
             }
 
-            // Detect in-flight tasks: those carrying sdd:in-progress, or
-            // those linked to an open implementation pull request. Listing
-            // every open PR once is cheaper than asking per-task. Paginate
+            // Detect in-flight tasks: those linked to an open
+            // implementation pull request (a live run opens an sdd/ PR or
+            // a PR whose body closes the task). An open PR — not the
+            // sdd:in-progress label alone — is the authoritative in-flight
+            // signal, so a task stranded in sdd:in-progress with no PR is
+            // still admitted to the ready set. Listing every open PR once
+            // is cheaper than asking per-task. Paginate
             // across pages of 100 so a repo with more than 100 open PRs
             // does not silently miss in-flight task links and cause a
             // re-dispatch of an already-active task.
@@ -244,9 +248,15 @@ runs:
               if (taskLabels.includes('needs-human')) {
                 continue;
               }
-              if (taskLabels.includes('sdd:in-progress')) {
-                continue;
-              }
+              // sdd:in-progress normally means a run is live, but that case
+              // is already caught by the open-implementation-PR check
+              // below — an active run has an open sdd/ PR or a Closes #N
+              // body link. A pre-agent execute failure can strand a task
+              // in sdd:in-progress with no open PR and no run (issue #201);
+              // sdd-monitor re-dispatches exactly that case, so we must
+              // admit a non-in-flight sdd:in-progress task here rather than
+              // excluding it unconditionally (otherwise the re-dispatch
+              // never re-executes the stranded task).
               if (inFlightFromPrs.has(task.number)) {
                 continue;
               }

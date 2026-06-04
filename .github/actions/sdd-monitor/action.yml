@@ -2,9 +2,12 @@ name: sdd-monitor
 description: >
   Scheduled backstop that nudges armed-but-idle tracking issues by posting
   /dispatch when a ready set exists but the cascade stalled (ADR 0006). Walks
-  open PRs to their tracker, computes the ready set, and debounces. Extracted
-  verbatim (ADR 0015). The caller mints the App token and passes it as
-  github-token.
+  open PRs to their tracker, computes the ready set, and debounces. Also
+  recovers tasks left stranded by a pre-agent execute failure (cancelled or
+  activation-stage, issue #201): re-dispatches an sdd:ready / sdd:in-progress
+  task that has no open sdd/ PR and no in-flight run, then escalates to
+  needs-human after a bounded number of attempts. Extracted verbatim
+  (ADR 0015). The caller mints the App token and passes it as github-token.
 
 inputs:
   github-token:
@@ -214,12 +217,37 @@ runs:
                 continue;
               }
 
+              // Task numbers carrying an open sdd/ implementation PR.
+              // A task whose PR is open has a layer in flight on the
+              // pull-request side of the cascade, so it is never
+              // stranded even when it still carries sdd:ready /
+              // sdd:in-progress. sddPrs was already collected for the
+              // in-flight rollup guard above.
+              const tasksWithOpenPr = new Set();
+              for (const pr of sddPrs) {
+                const m = (pr.head.ref || '').match(/^sdd\/(\d+)-/);
+                if (m) { tasksWithOpenPr.add(parseInt(m[1], 10)); }
+              }
+
               // Walk the sub-issue tree: tracker -> Unit -> task. Find
               // open task sub-issues whose every `blocked by #<N>`
               // dependency is closed. Tier 1 only needs the count; the
               // dispatch wrapper recomputes the ready set authoritatively
               // when it picks up our /dispatch comment.
+              //
+              // Stranded-task recovery (issue #201): an sdd-execute run
+              // that dies BEFORE its agent job — cancelled by concurrency
+              // or failing in activation — leaves its task at sdd:ready /
+              // sdd:in-progress with no PR and no run, and files no
+              // failure issue (report-failure-as-issue only covers an
+              // agent-stage failure). The repo-wide in-flight gate above
+              // already proved no sdd-execute-* run is in_progress or
+              // queued, so any deps-closed open task labelled sdd:ready or
+              // sdd:in-progress with no open sdd/ PR has been silently
+              // dropped. Collect those as stranded so the recovery tier
+              // below re-dispatches them (bounded) or escalates.
               let readyCount = 0;
+              const strandedTasks = [];
               let units = [];
               try {
                 units = await github.paginate(
@@ -272,14 +300,119 @@ runs:
                       break;
                     }
                   }
-                  if (allClosed) { readyCount += 1; }
+                  if (allClosed) {
+                    readyCount += 1;
+                    // A deps-closed open task counts as stranded when it
+                    // already carries a lifecycle label that means "a run
+                    // should be live" (sdd:ready / sdd:in-progress) yet
+                    // has no open sdd/ PR. With the repo-wide in-flight
+                    // gate already cleared, that task has no run and no PR:
+                    // a pre-agent execute failure dropped it silently.
+                    const labelNames = (task.labels || []).map(
+                      (l) => (typeof l === 'string' ? l : l.name));
+                    const looksDispatched =
+                      labelNames.includes('sdd:ready')
+                      || labelNames.includes('sdd:in-progress');
+                    if (looksDispatched
+                        && !tasksWithOpenPr.has(task.number)) {
+                      strandedTasks.push(task.number);
+                    }
+                  }
                 }
               }
 
-              if (readyCount === 0) {
+              if (readyCount === 0 && strandedTasks.length === 0) {
                 core.info(
-                  '#' + trackerNum + ': no ready open tasks; not '
-                  + 'armed-but-idle.');
+                  '#' + trackerNum + ': no ready or stranded open tasks; '
+                  + 'not armed-but-idle.');
+                continue;
+              }
+
+              // Stranded-task recovery tier (issue #201). When at least
+              // one task is stranded, count this tracker's prior monitor
+              // re-dispatch audit lines to bound the retry. The audit line
+              // posted below is the durable attempt counter — it survives
+              // across monitor passes and is visible to operators. After
+              // MAX_REDISPATCH attempts the tracker is escalated to
+              // needs-human instead of being re-dispatched again, so a
+              // task that cannot recover does not loop forever.
+              const MAX_REDISPATCH = 3;
+              const REDISPATCH_MARKER = 'sdd-monitor: re-dispatching stranded';
+              if (strandedTasks.length) {
+                let priorAttempts = 0;
+                for (const c of comments) {
+                  if ((c.body || '').includes(REDISPATCH_MARKER)) {
+                    priorAttempts += 1;
+                  }
+                }
+                if (priorAttempts >= MAX_REDISPATCH) {
+                  // Escalate. Apply needs-human (a marker label, not a
+                  // lifecycle transition) and post a digest so an operator
+                  // can intervene. The App token carries issues:write; the
+                  // monitor's own GITHUB_TOKEN is issues:read only.
+                  const escalateBody =
+                    'sdd-monitor: stranded task'
+                    + (strandedTasks.length === 1 ? '' : 's') + ' '
+                    + strandedTasks.map((n) => '#' + n).join(', ')
+                    + ' on #' + trackerNum + ' did not recover after '
+                    + priorAttempts + ' re-dispatch attempt'
+                    + (priorAttempts === 1 ? '' : 's')
+                    + '; applying needs-human for operator review.';
+                  try {
+                    await github.rest.issues.addLabels({
+                      owner, repo, issue_number: trackerNum,
+                      labels: ['needs-human'],
+                    });
+                  } catch (err) {
+                    core.warning(
+                      '#' + trackerNum + ': failed to apply needs-human: '
+                      + err.message);
+                  }
+                  try {
+                    await github.rest.issues.createComment({
+                      owner, repo, issue_number: trackerNum,
+                      body: escalateBody,
+                    });
+                  } catch (err) {
+                    core.warning(
+                      '#' + trackerNum + ': failed to post escalation: '
+                      + err.message);
+                  }
+                  core.info(
+                    '#' + trackerNum + ': escalated stranded task'
+                    + (strandedTasks.length === 1 ? '' : 's') + ' to '
+                    + 'needs-human after ' + priorAttempts + ' attempt'
+                    + (priorAttempts === 1 ? '' : 's') + '.');
+                  continue;
+                }
+
+                // Re-dispatch. The body's first token is /dispatch so the
+                // dispatch wrapper recomputes the ready set and re-fires
+                // /execute on the stranded task(s); the audit line names
+                // them and records the attempt number so the recovery is
+                // observable, not silent.
+                const recoverBody =
+                  '/dispatch\n\n'
+                  + REDISPATCH_MARKER + ' task'
+                  + (strandedTasks.length === 1 ? '' : 's') + ' '
+                  + strandedTasks.map((n) => '#' + n).join(', ')
+                  + ' on #' + trackerNum + ' (no PR, no in-flight run; '
+                  + 'attempt ' + (priorAttempts + 1) + ' of '
+                  + MAX_REDISPATCH + ').';
+                try {
+                  await github.rest.issues.createComment({
+                    owner, repo, issue_number: trackerNum, body: recoverBody,
+                  });
+                  core.info(
+                    '#' + trackerNum + ': re-dispatched stranded task'
+                    + (strandedTasks.length === 1 ? '' : 's') + ' '
+                    + strandedTasks.join(', ') + ' (attempt '
+                    + (priorAttempts + 1) + '/' + MAX_REDISPATCH + ').');
+                } catch (err) {
+                  core.warning(
+                    '#' + trackerNum + ': failed to post re-dispatch: '
+                    + err.message);
+                }
                 continue;
               }
 
