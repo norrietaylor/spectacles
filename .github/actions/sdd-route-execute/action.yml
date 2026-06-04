@@ -211,16 +211,26 @@ runs:
               const isCommented = state === 'commented';
               if ((state === 'changes_requested' || isCommented)
                   && headRef.startsWith('sdd/')) {
-                // Author scope: accept CodeRabbit's bot review or a review by
-                // an author with repository write access, mirroring the
-                // /revise permission check above. A login of `coderabbitai`
+                // Author scope: accept the configured App's own review,
+                // CodeRabbit's bot review, or a review by an author with
+                // repository write access, mirroring the /revise permission
+                // check above. sdd-review posts its verdict via the configured
+                // App (vars.APP_ID); the App user is not a collaborator and
+                // would 404 the permission check, so accept the review when
+                // review.performed_via_github_app.id matches APP_ID (mirrors
+                // the /execute App handling above). A login of `coderabbitai`
                 // (with or without a `[bot]` suffix) is the CodeRabbit bot.
                 const reviewer = (review.user && review.user.login) || '';
                 const reviewerLc = reviewer.toLowerCase();
+                const appId = parseInt(process.env.APP_ID || '0', 10);
+                const reviewApp = review.performed_via_github_app;
+                const fromConfiguredApp = appId > 0
+                  && reviewApp
+                  && reviewApp.id === appId;
                 const isCodeRabbit = reviewerLc === 'coderabbitai'
                   || reviewerLc === 'coderabbitai[bot]';
-                let reviewerCanWrite = isCodeRabbit;
-                if (!isCodeRabbit && reviewer) {
+                let reviewerCanWrite = fromConfiguredApp || isCodeRabbit;
+                if (!reviewerCanWrite && reviewer) {
                   let permission = 'none';
                   try {
                     const resp = await github.rest.repos
