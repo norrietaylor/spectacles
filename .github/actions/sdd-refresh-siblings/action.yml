@@ -18,10 +18,12 @@ description: >
 inputs:
   github-token:
     description: >
-      App-installation token with contents:write and pull-requests:write.
-      Contents:write is needed for the update-branch call; pull-requests:write
-      posts the /revise comment and the iteration marker. The App identity is
-      required so the posted /revise re-triggers the sdd-execute wrappers.
+      App-installation token with contents:write, pull-requests:write, and
+      issues:write. Contents:write is needed for the update-branch call;
+      pull-requests:write posts the /revise comment and the iteration marker;
+      issues:write applies the needs-human label when the conflict-resolve cap
+      is reached. The App identity is required so the posted /revise re-triggers
+      the sdd-execute wrappers.
     required: true
   merged-pr-number:
     description: >
