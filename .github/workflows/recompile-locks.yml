@@ -36,7 +36,7 @@ jobs:
     steps:
       - name: Mint App token
         id: app-token
-        uses: actions/create-github-app-token@v3
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3
         with:
           app-id: ${{ vars.APP_ID }}
           private-key: ${{ secrets.APP_PRIVATE_KEY }}
@@ -46,9 +46,14 @@ jobs:
           permission-workflows: write
 
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
-          token: ${{ steps.app-token.outputs.token }}
+          # No token here: the repo is public (read needs no auth) and omitting
+          # it keeps the write-scoped App token out of git config for the
+          # compile/install steps. persist-credentials: false also stops the
+          # default GITHUB_TOKEN being persisted. The App token is wired in only
+          # for the final push step below.
+          persist-credentials: false
           fetch-depth: 0
 
       - name: Install gh-aw
@@ -57,7 +62,7 @@ jobs:
         run: gh extension install github/gh-aw --pin v0.74.3
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: "3.12"
 
@@ -93,7 +98,11 @@ jobs:
           git add '.github/workflows/*.lock.yml' scripts/digest-snapshot.yml
           git commit -m "build: recompile locks after fragment merge [skip ci]"
 
-          # A second fragment merge may have landed while this run compiled;
-          # rebase the generated-only commit onto current main before pushing.
+          # Authenticate the App token only for these final git operations
+          # (checkout did not persist it). GH_TOKEN is a registered secret, so
+          # it is masked in logs. A second fragment merge may have landed while
+          # this run compiled; rebase the generated-only commit onto current
+          # main before pushing.
+          git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
           git pull --rebase origin main
           git push origin HEAD:main
