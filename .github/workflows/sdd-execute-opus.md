@@ -27,6 +27,7 @@ imports:
   - norrietaylor/spectacles/shared/sdd-interaction.md@main
   - norrietaylor/spectacles/shared/sdd-proof-artifacts.md@main
   - norrietaylor/spectacles/shared/sdd-mcp-serena.md@main
+  - norrietaylor/spectacles/shared/sdd-mcp-playwright.md@main
   - norrietaylor/spectacles/shared/sdd-rust-cleanup.md@main
   - norrietaylor/spectacles/shared/sdd-node-cleanup.md@main
 tools:
