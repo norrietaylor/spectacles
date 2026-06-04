@@ -1,4 +1,4 @@
-# gh-aw-metadata: {"schema_version":"v3","frontmatter_hash":"2bd963d99bf8d9e041d79ca1b168f3be58460d8e472ad538113d3f6660179701","compiler_version":"v0.74.3","agent_id":"copilot","agent_model":"claude-sonnet-4.6"}
+# gh-aw-metadata: {"schema_version":"v3","frontmatter_hash":"21a5e468cfeb7c8383ec65b4f204370c1d6c6dfd7ea4b461dfc62f947c8f647f","compiler_version":"v0.74.3","agent_id":"copilot","agent_model":"claude-sonnet-4.6"}
 # gh-aw-manifest: {"version":1,"secrets":["APP_PRIVATE_KEY","COPILOT_GITHUB_TOKEN","GH_AW_CI_TRIGGER_TOKEN","GH_AW_GITHUB_MCP_SERVER_TOKEN","GH_AW_GITHUB_TOKEN","GITHUB_TOKEN"],"actions":[{"repo":"actions/checkout","sha":"de0fac2e4500dabe0009e67214ff5f5447ce83dd","version":"v6.0.2"},{"repo":"actions/create-github-app-token","sha":"bcd2ba49218906704ab6c1aa796996da409d3eb1","version":"v3.2.0"},{"repo":"actions/download-artifact","sha":"3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c","version":"v8.0.1"},{"repo":"actions/github-script","sha":"3a2844b7e9c422d3c10d287c895573f7108da1b3","version":"v9.0.0"},{"repo":"actions/setup-node","sha":"48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e","version":"v6.4.0"},{"repo":"actions/upload-artifact","sha":"043fb46d1a93c77aae656e7c1c64a875d1fc6a0a","version":"v7.0.1"},{"repo":"dtolnay/rust-toolchain","sha":"29eef336d9b2848a0b548edc03f92a220660cdb8","version":"29eef336d9b2848a0b548edc03f92a220660cdb8"},{"repo":"github/gh-aw-actions/setup","sha":"8a9a52673cb8f97ebb43b344618af2d6f2c9ac7f","version":"v0.74.3"}],"containers":[{"image":"ghcr.io/github/gh-aw-firewall/agent:0.25.46"},{"image":"ghcr.io/github/gh-aw-firewall/api-proxy:0.25.46"},{"image":"ghcr.io/github/gh-aw-firewall/squid:0.25.46"},{"image":"ghcr.io/github/gh-aw-mcpg:v0.3.9","digest":"sha256:64828b42a4482f58fab16509d7f8f495a6d97c972a98a68aff20543531ac0388","pinned_image":"ghcr.io/github/gh-aw-mcpg:v0.3.9@sha256:64828b42a4482f58fab16509d7f8f495a6d97c972a98a68aff20543531ac0388"},{"image":"ghcr.io/github/github-mcp-server:v1.0.4"},{"image":"ghcr.io/github/serena-mcp-server:latest","digest":"sha256:bf343399e3725c45528f531a230f3a04521d4cdef29f9a5af6282ff0d3c393c5","pinned_image":"ghcr.io/github/serena-mcp-server:latest@sha256:bf343399e3725c45528f531a230f3a04521d4cdef29f9a5af6282ff0d3c393c5"},{"image":"mcr.microsoft.com/playwright/mcp:v0.0.75"},{"image":"node:lts-alpine","digest":"sha256:d1b3b4da11eefd5941e7f0b9cf17783fc99d9c6fc34884a665f40a06dbdfc94f","pinned_image":"node:lts-alpine@sha256:d1b3b4da11eefd5941e7f0b9cf17783fc99d9c6fc34884a665f40a06dbdfc94f"}]}
 #    ___                   _   _      
 #   / _ \                 | | (_)     
@@ -237,24 +237,24 @@ jobs:
         run: |
           bash "${RUNNER_TEMP}/gh-aw/actions/create_prompt_first.sh"
           {
-          cat << 'GH_AW_PROMPT_278ec8cbc9a03596_EOF'
+          cat << 'GH_AW_PROMPT_34171ec8b4b8b96b_EOF'
           <system>
-          GH_AW_PROMPT_278ec8cbc9a03596_EOF
+          GH_AW_PROMPT_34171ec8b4b8b96b_EOF
           cat "${RUNNER_TEMP}/gh-aw/prompts/xpia.md"
           cat "${RUNNER_TEMP}/gh-aw/prompts/temp_folder_prompt.md"
           cat "${RUNNER_TEMP}/gh-aw/prompts/markdown.md"
           cat "${RUNNER_TEMP}/gh-aw/prompts/safe_outputs_prompt.md"
-          cat << 'GH_AW_PROMPT_278ec8cbc9a03596_EOF'
+          cat << 'GH_AW_PROMPT_34171ec8b4b8b96b_EOF'
           <safe-output-tools>
           Tools: add_comment, update_issue, create_pull_request, add_labels(max:2), remove_labels(max:2), push_to_pull_request_branch, missing_tool, missing_data, noop
-          GH_AW_PROMPT_278ec8cbc9a03596_EOF
+          GH_AW_PROMPT_34171ec8b4b8b96b_EOF
           cat "${RUNNER_TEMP}/gh-aw/prompts/safe_outputs_create_pull_request.md"
           cat "${RUNNER_TEMP}/gh-aw/prompts/safe_outputs_push_to_pr_branch.md"
-          cat << 'GH_AW_PROMPT_278ec8cbc9a03596_EOF'
+          cat << 'GH_AW_PROMPT_34171ec8b4b8b96b_EOF'
           </safe-output-tools>
-          GH_AW_PROMPT_278ec8cbc9a03596_EOF
+          GH_AW_PROMPT_34171ec8b4b8b96b_EOF
           cat "${RUNNER_TEMP}/gh-aw/prompts/mcp_cli_tools_prompt.md"
-          cat << 'GH_AW_PROMPT_278ec8cbc9a03596_EOF'
+          cat << 'GH_AW_PROMPT_34171ec8b4b8b96b_EOF'
           <github-context>
           The following GitHub context information is available for this workflow:
           {{#if github.actor}}
@@ -283,9 +283,9 @@ jobs:
           {{/if}}
           </github-context>
           
-          GH_AW_PROMPT_278ec8cbc9a03596_EOF
+          GH_AW_PROMPT_34171ec8b4b8b96b_EOF
           cat "${RUNNER_TEMP}/gh-aw/prompts/github_mcp_tools_with_safeoutputs_prompt.md"
-          cat << 'GH_AW_PROMPT_278ec8cbc9a03596_EOF'
+          cat << 'GH_AW_PROMPT_34171ec8b4b8b96b_EOF'
           </system>
           # Core principles
           
@@ -1230,6 +1230,43 @@ jobs:
           excludes it from re-selection until a human clears it, which re-triggers this
           agent to resume (situation 4 above).
           
+          **Terminal-outcome contract.** An impl run must end in exactly one of two
+          terminal states: a pull request whose diff is **non-empty**, or an explicit,
+          logged **no-op verdict** that records the work-item as already-satisfied. Producing
+          neither — no pull request, or a pull request with an empty (0-file, 0-line)
+          diff — is a failure, not a success. Before emitting `create-pull-request`,
+          verify the working tree carries a non-empty diff against the base branch (for
+          example `git status --porcelain` is non-empty, or `git diff --stat` against the
+          base shows changed files). Do **not** open a pull request whose diff is empty:
+          an empty PR can never merge (path-gated CI does not run on a 0-line diff and
+          `commitlint` blocks), so it sits BLOCKED and consumes a review cycle while still
+          reporting success.
+          
+          If the diff is empty because the work **already exists** on the base branch,
+          record the no-op verdict instead of opening a pull request, and route by entry
+          path. On a **normal task** run, where the work-item is a task sub-issue: post
+          exactly one comment (`add-comment`) stating the task is already satisfied and
+          citing the evidence — name each in-scope file and the symbol or line that
+          already carries the required behavior, per the imported evidence-rigor standard
+          — then close that task sub-issue as done with an `update-issue` safe-output that
+          sets its status to closed. This is the one case where the agent closes a task
+          sub-issue directly, since no pull request will merge to close it (the Boundaries
+          section carves out this no-op exception); this no-op close is the terminal state
+          for that task. On the **fast-path** `/approve` run (situation 1a), where the
+          work-item is the **tracking issue** itself, do **not** close it: the tracking
+          issue stays open until a human does the final close (ADR 0001). Instead post the
+          same evidence `add-comment` on the tracking issue, then hand off with the
+          fast-path completion transition — always remove `sdd:in-progress` and add
+          `sdd:done` (`remove-labels` / `add-labels`), and additionally apply
+          `needs-human` (`add-labels`) for a human to verify the already-satisfied claim
+          (matching step 8's fast-path completion) — and **never** emit `update-issue`
+          with status closed on the tracking issue, and never `create-pull-request`. On
+          either path do not also open a pull request. If the diff is empty for any other
+          reason — the implementation never ran, or the edits were lost — treat it as a
+          failure: apply `needs-human` to the work-item (`add-labels`) and post one comment
+          with the failing evidence, exactly as the proof-artifact hand-off above. Never
+          let an empty-diff run reach `create-pull-request`.
+          
           **Pre-PR CI gate (issue #205).** Before opening or updating the pull request,
           run the target repository's own declared CI/validation commands and require them
           green — never open a PR you have not locally verified. Discover those commands
@@ -1408,8 +1445,13 @@ jobs:
           - This agent never merges or approves a pull request. Merge authority stays
             with humans and the consumer repository's CI.
           - This agent closes a completed Unit sub-issue. It never closes the feature
-            tracking issue — a human does that (ADR 0001) — and it never closes a task
-            sub-issue, which closes when its pull request merges.
+            tracking issue — a human does that (ADR 0001), and the fast-path empty-diff
+            no-op leaves the tracking issue open too. It never closes a task sub-issue,
+            which closes when its pull request merges, **except** for the already-satisfied
+            empty-diff no-op in step 6's terminal-outcome contract: when the diff is empty
+            because a **task**'s work already exists on base, the agent posts one
+            `add-comment` with the evidence and then performs the no-op close of that task
+            sub-issue via `update-issue`.
           - This agent never removes the `needs-human` label. Only a human clears it.
           - All writes go through safe-outputs. The workflow permissions stay read-only.
           
@@ -1432,7 +1474,7 @@ jobs:
             moves to `sdd:done` and gains `needs-human`, and the tracking issue is not
             closed by the agent.
           
-          GH_AW_PROMPT_278ec8cbc9a03596_EOF
+          GH_AW_PROMPT_34171ec8b4b8b96b_EOF
           } > "$GH_AW_PROMPT"
       - name: Interpolate variables and render templates
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
@@ -1650,9 +1692,9 @@ jobs:
           mkdir -p "${RUNNER_TEMP}/gh-aw/safeoutputs"
           mkdir -p /tmp/gh-aw/safeoutputs
           mkdir -p /tmp/gh-aw/mcp-logs/safeoutputs
-          cat > "${RUNNER_TEMP}/gh-aw/safeoutputs/config.json" << 'GH_AW_SAFE_OUTPUTS_CONFIG_840abe8819923394_EOF'
+          cat > "${RUNNER_TEMP}/gh-aw/safeoutputs/config.json" << 'GH_AW_SAFE_OUTPUTS_CONFIG_e545862316aa10a9_EOF'
           {"add_comment":{"max":1},"add_labels":{"allowed":["sdd:in-progress","sdd:done","needs-human"],"max":2},"create_pull_request":{"draft":false,"max":1,"max_patch_files":100,"max_patch_size":1024,"protect_top_level_dot_folders":true,"protected_files":["bun.lockb","bunfig.toml","deno.json","deno.jsonc","deno.lock","global.json","NuGet.Config","Directory.Packages.props","mix.exs","mix.lock","go.mod","go.sum","stack.yaml","stack.yaml.lock","pom.xml","build.gradle","build.gradle.kts","settings.gradle","settings.gradle.kts","gradle.properties","requirements.txt","Pipfile","Pipfile.lock","setup.py","setup.cfg","Gemfile","Gemfile.lock","uv.lock","CODEOWNERS","DESIGN.md","README.md","CONTRIBUTING.md","CHANGELOG.md","SECURITY.md","CODE_OF_CONDUCT.md","AGENTS.md","CLAUDE.md","GEMINI.md"],"protected_files_policy":"fallback-to-issue"},"create_report_incomplete_issue":{},"missing_data":{},"missing_tool":{},"noop":{"max":1,"report-as-issue":"true"},"push_to_pull_request_branch":{"if_no_changes":"warn","max":1,"max_patch_size":1024,"protect_top_level_dot_folders":true,"protected_files":["bun.lockb","bunfig.toml","deno.json","deno.jsonc","deno.lock","global.json","NuGet.Config","Directory.Packages.props","mix.exs","mix.lock","go.mod","go.sum","stack.yaml","stack.yaml.lock","pom.xml","build.gradle","build.gradle.kts","settings.gradle","settings.gradle.kts","gradle.properties","requirements.txt","Pipfile","Pipfile.lock","setup.py","setup.cfg","Gemfile","Gemfile.lock","uv.lock","CODEOWNERS","DESIGN.md","README.md","CONTRIBUTING.md","CHANGELOG.md","SECURITY.md","CODE_OF_CONDUCT.md","AGENTS.md","CLAUDE.md","GEMINI.md"]},"remove_labels":{"allowed":["sdd:ready","sdd:review","sdd:fastpath","sdd:in-progress"],"max":2},"report_incomplete":{},"update_issue":{"allow_body":true,"allow_status":true,"max":1,"target":"*"}}
-          GH_AW_SAFE_OUTPUTS_CONFIG_840abe8819923394_EOF
+          GH_AW_SAFE_OUTPUTS_CONFIG_e545862316aa10a9_EOF
       - name: Generate Safe Outputs Tools
         env:
           GH_AW_TOOLS_META_JSON: |
@@ -2004,7 +2046,7 @@ jobs:
           
           mkdir -p /home/runner/.copilot
           GH_AW_NODE=$(which node 2>/dev/null || command -v node 2>/dev/null || echo node)
-          cat << GH_AW_MCP_CONFIG_723bd42cb5531511_EOF | "$GH_AW_NODE" "${RUNNER_TEMP}/gh-aw/actions/start_mcp_gateway.cjs"
+          cat << GH_AW_MCP_CONFIG_c27ea2f52d00ac72_EOF | "$GH_AW_NODE" "${RUNNER_TEMP}/gh-aw/actions/start_mcp_gateway.cjs"
           {
             "mcpServers": {
               "github": {
@@ -2125,7 +2167,7 @@ jobs:
               "payloadDir": "${MCP_GATEWAY_PAYLOAD_DIR}"
             }
           }
-          GH_AW_MCP_CONFIG_723bd42cb5531511_EOF
+          GH_AW_MCP_CONFIG_c27ea2f52d00ac72_EOF
       - name: Mount MCP servers as CLIs
         id: mount-mcp-clis
         continue-on-error: true

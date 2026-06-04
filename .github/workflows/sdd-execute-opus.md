@@ -433,6 +433,43 @@ The task keeps its `sdd:in-progress` lifecycle label from step 2; `needs-human`
 excludes it from re-selection until a human clears it, which re-triggers this
 agent to resume (situation 4 above).
 
+**Terminal-outcome contract.** An impl run must end in exactly one of two
+terminal states: a pull request whose diff is **non-empty**, or an explicit,
+logged **no-op verdict** that records the work-item as already-satisfied. Producing
+neither — no pull request, or a pull request with an empty (0-file, 0-line)
+diff — is a failure, not a success. Before emitting `create-pull-request`,
+verify the working tree carries a non-empty diff against the base branch (for
+example `git status --porcelain` is non-empty, or `git diff --stat` against the
+base shows changed files). Do **not** open a pull request whose diff is empty:
+an empty PR can never merge (path-gated CI does not run on a 0-line diff and
+`commitlint` blocks), so it sits BLOCKED and consumes a review cycle while still
+reporting success.
+
+If the diff is empty because the work **already exists** on the base branch,
+record the no-op verdict instead of opening a pull request, and route by entry
+path. On a **normal task** run, where the work-item is a task sub-issue: post
+exactly one comment (`add-comment`) stating the task is already satisfied and
+citing the evidence — name each in-scope file and the symbol or line that
+already carries the required behavior, per the imported evidence-rigor standard
+— then close that task sub-issue as done with an `update-issue` safe-output that
+sets its status to closed. This is the one case where the agent closes a task
+sub-issue directly, since no pull request will merge to close it (the Boundaries
+section carves out this no-op exception); this no-op close is the terminal state
+for that task. On the **fast-path** `/approve` run (situation 1a), where the
+work-item is the **tracking issue** itself, do **not** close it: the tracking
+issue stays open until a human does the final close (ADR 0001). Instead post the
+same evidence `add-comment` on the tracking issue, then hand off with the
+fast-path completion transition — always remove `sdd:in-progress` and add
+`sdd:done` (`remove-labels` / `add-labels`), and additionally apply
+`needs-human` (`add-labels`) for a human to verify the already-satisfied claim
+(matching step 8's fast-path completion) — and **never** emit `update-issue`
+with status closed on the tracking issue, and never `create-pull-request`. On
+either path do not also open a pull request. If the diff is empty for any other
+reason — the implementation never ran, or the edits were lost — treat it as a
+failure: apply `needs-human` to the work-item (`add-labels`) and post one comment
+with the failing evidence, exactly as the proof-artifact hand-off above. Never
+let an empty-diff run reach `create-pull-request`.
+
 **Pre-PR CI gate (issue #205).** Before opening or updating the pull request,
 run the target repository's own declared CI/validation commands and require them
 green — never open a PR you have not locally verified. Discover those commands
@@ -611,8 +648,13 @@ so the rest is handled by subsequent runs.
 - This agent never merges or approves a pull request. Merge authority stays
   with humans and the consumer repository's CI.
 - This agent closes a completed Unit sub-issue. It never closes the feature
-  tracking issue — a human does that (ADR 0001) — and it never closes a task
-  sub-issue, which closes when its pull request merges.
+  tracking issue — a human does that (ADR 0001), and the fast-path empty-diff
+  no-op leaves the tracking issue open too. It never closes a task sub-issue,
+  which closes when its pull request merges, **except** for the already-satisfied
+  empty-diff no-op in step 6's terminal-outcome contract: when the diff is empty
+  because a **task**'s work already exists on base, the agent posts one
+  `add-comment` with the evidence and then performs the no-op close of that task
+  sub-issue via `update-issue`.
 - This agent never removes the `needs-human` label. Only a human clears it.
 - All writes go through safe-outputs. The workflow permissions stay read-only.
 
