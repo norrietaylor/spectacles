@@ -97,9 +97,10 @@ existing work, and are seeded from a repo's pre-existing docs on install.
   `sdd-triage` locks; source and lock are committed together (CI drift gate).
 - The push trigger lists `main` and `master`; a repo with a different default
   branch relies on the daily schedule until the wrapper is adjusted.
-- Lifecycle `status` is set at authoring; advancing it through in-progress and
-  complete at later phase transitions is a follow-up — the field and its sync
-  mirror exist now.
+- Lifecycle `status` is set at authoring and advanced through in-progress and
+  complete by the deterministic `sdd-doc-status` workflow, driven by the
+  tracking issue's `sdd:*` labels via a `tracking-issue` frontmatter back-link
+  (ADR 0021). `distillery-sync` mirrors each advance into `state/<status>`.
 
 ## Cross-links
 
@@ -107,3 +108,5 @@ existing work, and are seeded from a repo's pre-existing docs on install.
   reusable workflow.
 - `decisions/0003-bootstrapping-policy.md` — Distillery as a bootstrapping
   prerequisite.
+- `decisions/0021-spec-arch-status-advance.md` — advances the lifecycle
+  `status` this integration mirrors, closing the follow-up deferred above.

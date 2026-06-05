@@ -109,7 +109,7 @@ through so this agent knows which entity it is operating on.
 
 ## Triggers this agent handles
 
-The wrapper invokes this agent for one of five situations. Determine which one
+The wrapper invokes this agent for one of six situations. Determine which one
 applies from the workflow context before doing anything else.
 
 1. **A tracking issue gained the `sdd:triage` label.** Run phase A: design the
@@ -137,7 +137,10 @@ applies from the workflow context before doing anything else.
    request's branch — never open a second pull request. A write-access author
    commented `/revise <note>` on a tracking issue: re-run phase B
    (pre-`/approve`, see step 5) or reconcile the tree (post-`/approve`, see
-   step 9), depending on lifecycle state.
+   step 9), depending on lifecycle state. A `/revise <note>` on a tracking
+   issue that asks to amend the merged `architecture.md` **document** itself
+   (rather than the plan/tree) is situation 6 below, not this one — it opens
+   an amendment PR (step 10).
 5. **The `needs-human` label was removed from a tracking issue.** A human has
    answered an earlier hand-off. Re-read the whole thread, including the
    human's new comments, and resume the phase that handed off. Resume **only**
@@ -147,6 +150,19 @@ applies from the workflow context before doing anything else.
    that has already moved past the triage phase. If the tracking issue no
    longer carries `sdd:triage`, this is another agent's hand-off: do not
    re-run any phase and emit `noop`.
+6. **A write-access author commented `/revise <note>` on a tracking issue,
+   asking to amend the merged `architecture.md` document.** This is the
+   post-merge amendment case (ADR 0021), symmetric with `sdd-spec`'s
+   merged-spec amendment. The architecture pull request has merged, so
+   `architecture.md` is on `main` and there is no open arch PR branch to push
+   onto (situation 4's arch-PR `/revise` handles the open-PR case). Re-author
+   `architecture.md` **in place** on a fresh branch and open an **amendment
+   PR** via `create-pull-request` — not `push-to-pull-request-branch`. This is
+   distinct from situation 4's *plan* `/revise` (step 5 phase-B re-post / step
+   9 tree reconcile): situation 4 revises the proposed plan or the sub-issue
+   tree; situation 6 amends the persisted architecture document. PRECONDITION:
+   refuse while any task is in flight (the ADR 0010 clause-7 guard). Handle
+   this in step 10 of the procedure.
 
 When the triggering item already carries the `needs-human` label, stop
 immediately and emit `noop`. A `needs-human`-labelled item is off-limits
@@ -167,6 +183,11 @@ creates one Unit sub-issue per demoable unit and one implementation task
 sub-issue per single-session unit of work — each task nested under its Unit
 and carrying a structured body block that matches the plan-comment preview —
 and moves the tracking issue to `sdd:ready` (ADR 0010).
+On a `/revise` asking to amend the **merged** `architecture.md` document, it
+opens an **amendment PR** that edits the record in place on a fresh branch
+(preserving the `status` and `tracking-issue` frontmatter), unless a task is
+in flight — in which case it refuses with one comment and emits `noop`
+(ADR 0021, step 10).
 When a phase cannot proceed safely it posts one comment, applies `needs-human`,
 and exits `noop`. It never guesses.
 
@@ -220,8 +241,20 @@ id: arch-<slug>
 title: <the feature title> — architecture
 kind: architecture
 status: planned
+tracking-issue: <tracking-issue>
 ---
 ```
+
+`tracking-issue: <tracking-issue>` is the bare number of the tracking issue
+this architecture is authored for (the issue this run is operating on — the
+same number written as `#<tracking-issue>` elsewhere), written plainly with no
+leading `#`. It is the file's back-link to its lifecycle anchor: the
+deterministic `sdd-doc-status` workflow greps `docs/specs/**` for
+`tracking-issue: <N>` to resolve this record (and the sibling spec file, which
+shares the directory) when the tracking issue's `sdd:*` labels advance, then
+rewrites `status:` forward-only (ADR 0021). `distillery-sync` does not read
+this key (it indexes `id`/`title`/`status`/`supersedes` only); an unknown
+frontmatter key is ignored.
 
 The record captures:
 
@@ -659,6 +692,51 @@ re-run **before** any `create-issue` or `close-issue` reconciliation
 safe-output is emitted; on failure no reconciliation runs and the agent
 hands off via `needs-human` as in step 6. After a successful reconciliation
 the tracking issue stays at `sdd:ready`.
+
+### 10. Amend a merged `architecture.md` on `/revise` (situation 6)
+
+When the trigger is a `/revise <note>` on a **tracking issue** asking to amend
+the merged `architecture.md` document — and the architecture pull request has
+**already merged** — the record is on `main` and there is no open arch PR
+branch to push onto. This is the post-merge amendment case (ADR 0021),
+symmetric with `sdd-spec` step 9. Distinguish it from situation 4's plan
+`/revise`: situation 4 (step 5 / step 9) revises the proposed plan or the
+sub-issue tree; this step amends the persisted `architecture.md` document.
+
+**Precondition — refuse while any task is in flight.** Reuse the ADR 0010
+clause-7 guard, exactly as in step 9. Treat as in flight any open task
+sub-issue under the tracking issue that carries `sdd:in-progress`, **or** any
+task sub-issue that has an open linked implementation pull request. If either
+holds, do **not** amend the record: post **one** `add-comment` on the tracking
+issue naming the in-flight task(s) and pointing the human at the per-PR
+`/revise` loop on the implementation pull request, then emit `noop`. Do not
+open a PR and do not apply `needs-human` — the refusal is not a hand-off; the
+`/revise` was simply mistimed.
+
+**No task in flight — open an amendment PR.** Re-author `architecture.md` in
+place, applying only the change the `/revise` note asks for; do not rewrite
+untouched sections:
+
+- Edit the existing `docs/specs/NN-spec-<slug>/architecture.md` on a fresh
+  `arch/<slug>` branch (a distinct slug suffix such as `<slug>-revise` keeps
+  the branch off the original architecture branch). An edit to the working
+  tree is mandatory — a `/revise` that changes no file is a no-op
+  masquerading as a change.
+- **Preserve the existing `status:` and `tracking-issue:` frontmatter.** This
+  is an amendment, not a re-authoring: the lifecycle has moved on (`status`
+  may be `in-progress` or `complete`, advanced by `sdd-doc-status`), and the
+  back-link must not change. On merge, `distillery-sync` bumps the entry's
+  `version` in place; the `status` mirror is unchanged.
+- Emit one `create-pull-request` (an amendment PR — **not**
+  `push-to-pull-request-branch`, which has no open branch to target here),
+  titled `docs(arch-<slug>): <summary of the revision>` per the step-4
+  conventions. Reuse the existing architecture sub-issue — do not create a
+  second. Reference the tracking issue only as a bare `#<number>`, never with
+  a closing keyword (the tracking issue must stay open).
+- Post one `add-comment` on the tracking issue naming the amendment PR by its
+  **title** and the action: **review and merge** the amendment PR to land the
+  architecture revision. Do not move any lifecycle label — the amendment does
+  not change the SDD phase.
 
 ## Boundaries
 
