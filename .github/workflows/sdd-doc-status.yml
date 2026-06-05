@@ -19,11 +19,13 @@
 # only sanctioned commit-to-main mechanism. See ADR 0019.
 #
 # Loop guard: this workflow fires on issues.labeled, and its only output is a
-# docs/specs/** push — which cannot re-fire an issues trigger. recompile-locks
-# watches only shared/** and .github/workflows/*.md, so the docs/specs/** push
-# does not wake it either. distillery-sync *does* trigger on docs/specs/**;
-# that is intended — it re-mirrors the advanced status. [skip ci] on the commit
-# is belt-and-suspenders against any future push-triggered workflow.
+# docs/specs/** push — which cannot re-fire an issues trigger, so it never wakes
+# itself. recompile-locks watches only shared/** and .github/workflows/*.md, so
+# the docs/specs/** push does not wake it either. distillery-sync *does* trigger
+# on docs/specs/**; that is the point — it re-mirrors the advanced status, so the
+# commit must NOT carry [skip ci] (which would suppress distillery-sync's
+# push-triggered run and defeat the re-mirror). Loop-safety here comes from the
+# issues.labeled trigger, not from [skip ci].
 #
 # Forward-only: status is ranked planned(0) < in-progress(1) < complete(2). A
 # file already at or past the target is skipped, so a re-applied or out-of-order
@@ -160,7 +162,9 @@ jobs:
           git config user.email "${bot_user_id}+${BOT_SLUG}[bot]@users.noreply.github.com"
 
           git add docs/specs
-          git commit -m "docs: advance spec/arch status to ${TARGET_STATUS} for #${ISSUE_NUMBER} [skip ci]"
+          # No [skip ci]: the docs/specs/** push must fire distillery-sync to
+          # re-mirror state/<status>. Loop-safety is the issues.labeled trigger.
+          git commit -m "docs: advance spec/arch status to ${TARGET_STATUS} for #${ISSUE_NUMBER}"
 
           # Authenticate the App token only for these final git operations
           # (checkout did not persist it). GH_TOKEN is a registered secret, so

@@ -253,8 +253,8 @@ deterministic `sdd-doc-status` workflow greps `docs/specs/**` for
 `tracking-issue: <N>` to resolve this record (and the sibling spec file, which
 shares the directory) when the tracking issue's `sdd:*` labels advance, then
 rewrites `status:` forward-only (ADR 0021). `distillery-sync` does not read
-this key (it indexes `id`/`title`/`status`/`supersedes` only); an unknown
-frontmatter key is ignored.
+this key (it indexes `id`/`title`/`status`/`supersedes`/`superseded-by` only);
+an unknown frontmatter key is ignored.
 
 The record captures:
 

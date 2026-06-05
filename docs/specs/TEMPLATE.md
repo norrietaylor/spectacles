@@ -28,8 +28,8 @@ fills the frontmatter:
   - tracking-issue: the GitHub tracking issue number this spec was authored
                for. sdd-spec records it so the status-advance workflow can
                resolve this file by grep over docs/specs/**. distillery-sync
-               does not read it (it indexes id/title/status/supersedes only);
-               an unknown frontmatter key is ignored.
+               does not read it (it indexes id/title/status/supersedes/
+               superseded-by only); an unknown frontmatter key is ignored.
   - supersedes: set to the id of a prior spec this one replaces; distillery-sync
                writes a `supersedes` relation between the two entries.
 distillery-sync skips this TEMPLATE.md and any file whose name starts with `_`.

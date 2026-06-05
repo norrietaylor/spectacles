@@ -467,7 +467,8 @@ its lifecycle anchor: the deterministic `sdd-doc-status` workflow greps
 `architecture.md`, which shares the directory) when the tracking issue's
 `sdd:*` labels advance, then rewrites `status:` forward-only (ADR 0021).
 Write the number plainly, with no leading `#`. `distillery-sync` does not read
-this key (it indexes `id`/`title`/`status`/`supersedes` only); an unknown
+this key (it indexes `id`/`title`/`status`/`supersedes`/`superseded-by` only);
+an unknown
 frontmatter key is ignored.
 
 The spec must:
