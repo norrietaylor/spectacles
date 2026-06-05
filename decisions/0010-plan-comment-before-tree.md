@@ -193,3 +193,15 @@ without changing the gate semantics in clauses 1 to 7.
   because gh-aw has no `update-comment` safe-output today. If one is added
   later, the agent can switch to editing the existing plan comment in place
   without changing any of the gate semantics in clauses 1 to 7.
+- `.github/actions/sdd-cycle-detect` (issue #229) is a deterministic
+  post-materialization backstop for a cycle the in-prompt phase-C check of
+  clause 3 missed. It runs *after* `/approve` has materialized the tree,
+  walks the Feature → Unit → task sub-issues, and parks the tracking issue
+  with `needs-human` when it finds a cycle (or a `blocked by` reference it
+  cannot resolve). Clause 3's "the tree is never partially created"
+  invariant governs the in-prompt path it was written for; the backstop
+  only fires when that path already failed, so its create-then-park outcome
+  is the accepted consequence of being a backstop — the same
+  defence-in-depth pattern as ADR 0006 and ADR 0008, where the
+  deterministic job makes the in-prompt rule reliable rather than replacing
+  it.

@@ -178,6 +178,26 @@ jobs:
       - name: Assert container digests match snapshot
         run: python scripts/test-digest-snapshot.py
 
+  # Self-check the shared blocked-by parser and the deterministic cycle
+  # detector (.github/actions/shared/blocked-by.js) that sdd-cycle-detect and
+  # sdd-dispatch-compute both require. The fixture asserts parseBlockers parses
+  # same-repo and cross-repo `blocked by` lines and that detectCycle finds the
+  # latent cycle (issue #229) and clears a forward-only DAG. Plain node, no
+  # dependencies; ubuntu-latest ships node.
+  cycle-detect:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        # Pinned to the immutable v4 SHA (the pin recompile-locks.yml already
+        # uses) with persist-credentials: false — this job only reads the tree
+        # to run a node self-check, so it persists no git credentials
+        # (CodeRabbit, #239).
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          persist-credentials: false
+      - name: Run the cycle-detect self-check
+        run: node scripts/test-cycle-detect.mjs
+
   # Smoke-test the assumption the sdd-execute host post-step depends on: that
   # the stable rustfmt it runs (`cargo fmt --all`) can parse and normalize an
   # edition-2024 `let`-chain to what a consumer's `cargo fmt --all -- --check`
