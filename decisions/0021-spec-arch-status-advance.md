@@ -131,6 +131,8 @@ open PR and no-opped post-merge.
   state.
 - `/revise` is now defined for the whole doc lifecycle: open-PR push,
   pre-`/approve` plan re-post, and post-merge amendment PR.
+- The spec frontmatter fields and the doc lifecycle states they carry are
+  documented for operators in `docs/sdd/spec-frontmatter-and-doc-states.md`.
 
 ## Cross-links
 
