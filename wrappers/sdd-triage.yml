@@ -124,7 +124,18 @@ jobs:
   # design or plan-preview phases, which create no task tree to check.
   cycle-detect:
     needs: [route, sdd-triage]
-    if: needs.route.outputs.phase == 'C' && needs.sdd-triage.result == 'success'
+    # always(): the backstop must also run when sdd-triage FAILS partway
+    # through phase C, because a partial materialization can leave a cyclic
+    # or incomplete tree on the issues — exactly the state the deterministic
+    # cycle/tree_incomplete park exists to catch. Gate on route succeeding
+    # (so phase is a valid value) and on sdd-triage having actually run
+    # (result != 'skipped'); a non-phase-C run still no-ops on the phase
+    # check.
+    if: >-
+      always()
+      && needs.route.result == 'success'
+      && needs.route.outputs.phase == 'C'
+      && needs.sdd-triage.result != 'skipped'
     runs-on: ubuntu-latest
     permissions:
       contents: read
