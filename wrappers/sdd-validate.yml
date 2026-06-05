@@ -96,6 +96,10 @@ jobs:
     secrets:
       APP_PRIVATE_KEY: ${{ secrets.APP_PRIVATE_KEY }}
       COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
+      # OTLP collector URL (write-only ingest key embedded). Mapped explicitly so
+      # the reusable lock's observability.otlp endpoint resolves; unset is fine
+      # (if-missing: warn). See ADR 0020.
+      GH_AW_OTEL_ENDPOINT: ${{ secrets.GH_AW_OTEL_ENDPOINT }}
     # Ceiling for the called reusable workflow. Must cover the union of every
     # nested job's permissions: the gh-aw conclusion and safe_outputs jobs
     # need write scopes, and activation needs actions: read. sdd-validate

@@ -6,6 +6,40 @@ permissions:
   issues: read
   pull-requests: read
 engine: copilot
+# Agent-firewall egress allow-list. `defaults` is gh-aw's baseline host set;
+# `*.run.app` lets the agent export OTLP spans to the observability collector on
+# Cloud Run (firewalled otherwise). See ADR 0020.
+network:
+  allowed:
+    - defaults
+    - "*.run.app"
+# OpenTelemetry (ADR 0020): export agent spans — token usage, duration,
+# outcomes — over OTLP. The secret URL embeds a write-only ingest key, so no
+# auth header is needed (headerless also dodges the gh-aw headers-YAML
+# bug, github/gh-aw#37067). `if-missing: warn` degrades a missing secret to a
+# warning, so a consumer that has not set GH_AW_OTEL_ENDPOINT is unaffected. The
+# wrapper maps the secret in — cross-owner workflow_call does not inherit it.
+observability:
+  otlp:
+    if-missing: warn
+    endpoint: ${{ secrets.GH_AW_OTEL_ENDPOINT }}
+# The OTLP endpoint secret embeds a write-only ingest key. gh-aw's built-in
+# redaction (GH_AW_SECRET_NAMES) covers only the engine/GitHub tokens, not this
+# value, so add a custom redaction step that scrubs it from /tmp/gh-aw before the
+# artifact upload. Runs after built-in redaction; no-op when the secret is unset.
+secret-masking:
+  steps:
+    - name: Redact OTLP endpoint from artifacts
+      # always(): the artifact upload runs on failure paths too (if: always()),
+      # and the built-in redaction is always() — match it so a failed run cannot
+      # upload the endpoint unredacted.
+      if: always()
+      env:
+        GH_AW_OTEL_ENDPOINT: ${{ secrets.GH_AW_OTEL_ENDPOINT }}
+      run: |
+        if [ -n "${GH_AW_OTEL_ENDPOINT:-}" ]; then
+          find /tmp/gh-aw -type f -exec sed -i "s#${GH_AW_OTEL_ENDPOINT}#[REDACTED-OTEL-ENDPOINT]#g" {} + 2>/dev/null || true
+        fi
 inlined-imports: true
 strict: false
 imports:
