@@ -1,0 +1,150 @@
+name: sdd-cycle-detect
+description: >
+  Deterministic DAG backstop for the sdd-triage tree. Walks the tracking
+  issue's Feature -> Unit -> task sub-issue tree, parses each open task's
+  `blocked by` lines with the shared parseBlockers helper, builds the edge map
+  over task numbers, and runs detectCycle. The agent's in-prompt cycle check
+  (ADR 0010) is the primary zero-create-on-cycle guarantee; this action is the
+  authoritative backstop that detects a cycle that slipped past the LLM. It
+  mutates no label and posts no comment — the wrapper job does that.
+
+inputs:
+  tracking-issue:
+    description: 'The tracking issue number whose task tree is checked.'
+    required: true
+  github-token:
+    description: 'Token for the REST sub-issue walk and blocker lookups.'
+    required: false
+    default: ${{ github.token }}
+
+outputs:
+  cycle:
+    description: "'true' when a dependency cycle exists across the tasks."
+    value: ${{ steps.detect.outputs.cycle }}
+  cycle_path:
+    description: "The cycle as e.g. '#12 -> #15 -> #12', else the empty string."
+    value: ${{ steps.detect.outputs.cycle_path }}
+  tree_incomplete:
+    description: >
+      'true' when a `blocked by #<n>` references a number that is neither in
+      the walked tree nor resolvable as an issue in the repo (a partial-tree
+      false-negative guard).
+    value: ${{ steps.detect.outputs.tree_incomplete }}
+
+runs:
+  using: composite
+  steps:
+    - name: Detect a dependency cycle in the task tree
+      id: detect
+      uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+      env:
+        TRACKING_ISSUE: ${{ inputs.tracking-issue }}
+      with:
+        github-token: ${{ inputs.github-token }}
+        script: |
+            // Shared, dependency-free helpers (one source of truth with
+            // sdd-dispatch-compute). GITHUB_ACTION_PATH is this action's dir;
+            // '..' reaches the actions/ dir, then shared/blocked-by.js.
+            const { parseBlockers, detectCycle } = require(
+              require('path').join(
+                process.env.GITHUB_ACTION_PATH, '..', 'shared',
+                'blocked-by.js'));
+
+            const tracking = parseInt(process.env.TRACKING_ISSUE, 10);
+
+            // Walk Feature -> Unit -> task exactly like sdd-dispatch-compute's
+            // listChildren: list the tracking issue's sub-issues (Units), then
+            // each Unit's sub-issues (tasks). Paginate at 100.
+            async function listChildren(parentNumber) {
+              const items = [];
+              let page = 1;
+              for (;;) {
+                const { data } = await github.request(
+                  'GET /repos/{owner}/{repo}/issues/{issue_number}/sub_issues',
+                  {
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    issue_number: parentNumber,
+                    per_page: 100,
+                    page,
+                  });
+                items.push(...data);
+                if (data.length < 100) {
+                  break;
+                }
+                page += 1;
+              }
+              return items;
+            }
+
+            const units = await listChildren(tracking);
+            const tasks = [];
+            for (const unit of units) {
+              const children = await listChildren(unit.number);
+              for (const child of children) {
+                tasks.push(child);
+              }
+            }
+
+            // Collect OPEN task issues and build the edge map over their
+            // numbers. A closed task is already done and contributes no live
+            // dependency edge; the cycle gate is about the open work graph.
+            const openTasks = tasks.filter((t) => t.state === 'open');
+            const nodeNumbers = openTasks.map((t) => t.number);
+            const nodeSet = new Set(nodeNumbers);
+            // Every task in the walked tree (open or closed) is a known number,
+            // so a same-repo blocker pointing at one is in-tree, not external.
+            const inTree = new Set(tasks.map((t) => t.number));
+
+            const edges = new Map();
+            let treeIncomplete = false;
+            for (const task of openTasks) {
+              const blockers = parseBlockers(task.body || '');
+              const out = [];
+              for (const b of blockers) {
+                const isCross = b.owner && (
+                  b.owner !== context.repo.owner
+                  || b.repo !== context.repo.repo);
+                if (isCross) {
+                  // Cross-repo blocker: not a node in this single-repo tree, so
+                  // it cannot participate in a cycle here. Skip it.
+                  continue;
+                }
+                if (nodeSet.has(b.number)) {
+                  out.push(b.number);
+                  continue;
+                }
+                if (inTree.has(b.number)) {
+                  // In-tree but closed: a satisfied dependency, no live edge.
+                  continue;
+                }
+                // Not in the walked tree. Resolve it as a same-repo issue: a
+                // real issue (open or closed) is an external-but-known leaf and
+                // is not a tree-incompleteness signal. A number that resolves
+                // to nothing means the walked tree did not capture the full
+                // graph — flag it rather than silently dropping the edge, so a
+                // cycle is not missed through a partial walk.
+                try {
+                  await github.rest.issues.get({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    issue_number: b.number,
+                  });
+                } catch (err) {
+                  core.info('blocked by #' + b.number + ' on task #'
+                    + task.number + ' is neither in the walked tree nor a'
+                    + ' resolvable issue: ' + err.message);
+                  treeIncomplete = true;
+                }
+              }
+              edges.set(task.number, out);
+            }
+
+            const { hasCycle, path } = detectCycle(nodeNumbers, edges);
+            const cyclePath = hasCycle
+              ? path.map((n) => '#' + n).join(' -> ')
+              : '';
+
+            core.setOutput('cycle', hasCycle ? 'true' : 'false');
+            core.setOutput('cycle_path', cyclePath);
+            core.setOutput('tree_incomplete', treeIncomplete ? 'true' : 'false');

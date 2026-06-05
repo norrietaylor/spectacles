@@ -55,6 +55,14 @@ runs:
       with:
         github-token: ${{ inputs.github-token }}
         script: |
+            // Shared, dependency-free blocked-by parser (one source of truth
+            // with sdd-cycle-detect). GITHUB_ACTION_PATH is this action's dir;
+            // '..' reaches the actions/ dir, then shared/blocked-by.js.
+            const { parseBlockers } = require(
+              require('path').join(
+                process.env.GITHUB_ACTION_PATH, '..', 'shared',
+                'blocked-by.js'));
+
             const tracking = parseInt(process.env.TRACKING_ISSUE, 10);
             const triggerKind = process.env.TRIGGER_KIND;
 
@@ -200,12 +208,10 @@ runs:
             const openTaskCount = openTasks.length;
             core.setOutput('open_task_count', String(openTaskCount));
 
-            // Parse `blocked by #<N>` and `blocked by <owner>/<repo>#<N>`
-            // lines from the task body. A task with zero blockers is born
-            // ready; a task whose every blocker resolves to a closed issue
-            // is now ready.
-            const blockerRegex =
-              /^\s*-?\s*blocked by\s+(?:([\w.-]+)\/([\w.-]+))?#(\d+)/gim;
+            // Blocked-by lines are parsed below with the shared parseBlockers
+            // helper (`blocked by #<N>` and `blocked by <owner>/<repo>#<N>`).
+            // A task with zero blockers is born ready; a task whose every
+            // blocker resolves to a closed issue is now ready.
 
             // Build a set of closed task issue numbers in the same repo so
             // blocker-resolution is O(1). Cross-repo blockers are read via
@@ -345,16 +351,7 @@ runs:
                 return;
               }
               const body = task.body || '';
-              const blockers = [];
-              let m;
-              blockerRegex.lastIndex = 0;
-              while ((m = blockerRegex.exec(body)) !== null) {
-                blockers.push({
-                  owner: m[1] || '',
-                  repo: m[2] || '',
-                  number: parseInt(m[3], 10),
-                });
-              }
+              const blockers = parseBlockers(body);
               let anyOpen = false;
               for (const b of blockers) {
                 if (await isBlockerOpen(b.owner, b.repo, b.number)) {

@@ -485,6 +485,34 @@ The plan comment closes with the line: comment `/approve` to materialize this
 plan as Unit and task sub-issues, or `/revise <note>` to amend it. Post the
 comment via the `add-comment` safe-output (capped at one per run).
 
+**Latent-edge pass (run while composing the plan preview).** A declared
+`depends on:` edge is not the only dependency a plan implies. A task whose proof
+artifacts consume an artifact another task produces is dependent on that
+producer even when the author wrote no `blocked by` line — a latent edge. Run
+this pass as part of composing the preview, before the cycle check below, so the
+implied edges are visible to the human in the plan comment and phase C
+materializes them unchanged. For each previewed sub-task, enumerate every
+artifact its proof artifacts **consume** that the task does not itself produce
+(a stub, a fixture, a generated binary or schema, and the like). Classify each
+consumed artifact:
+
+- It exists in the repository working tree (confirm with Serena, per the
+  imported Serena fragment) → no edge.
+- Exactly **one** other planned task produces it, at **80% confidence or
+  higher** → add an implied dependency: write a literal `blocked by` line into
+  **that consuming task's** `depends on:` preview, referencing the producer task
+  by the same preview identity the plan uses for its other depends-on edges. It
+  must read as a real depends-on line, not a parenthetical annotation. Phase C
+  materializes it verbatim into the task body's `blocked by #<n>` line — the
+  ADR 0010 rule that phase C materializes exactly the plan comment applies to
+  these implied edges exactly as it does to declared ones.
+- No producer found **and** absent from the repository → a dangling-input note,
+  filed Info, or Warning when the artifact is clearly required. Keep this note
+  **distinct** from the requirement-coverage finding; the two are different
+  failures.
+- Ambiguous, or below the 80% confidence floor → **no edge**, plus a
+  knowledge-gap note. Never fabricate an edge, or a cycle, on uncertainty.
+
 Before posting, check the dependency graph the plan implies for cycles. If a
 cycle is not mechanically resolvable, do **not** post the plan: emit one
 comment naming the cycle, apply the `needs-human` label, and emit `noop`. No

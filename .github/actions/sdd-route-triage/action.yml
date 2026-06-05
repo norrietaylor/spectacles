@@ -18,6 +18,18 @@ outputs:
   aw_context:
     description: 'JSON naming the triggering entity; empty when should_run is false.'
     value: ${{ steps.decide.outputs.aw_context }}
+  phase:
+    description: >
+      The SDD triage phase this event drives: 'A' (sdd:triage label or /triage
+      comment), 'B' (merged arch PR), 'C' (/approve comment), or '' otherwise.
+      The cycle-detect wrapper job gates on 'C'.
+    value: ${{ steps.decide.outputs.phase }}
+  item_number:
+    description: >
+      The tracking issue (or PR) number from aw_context, surfaced directly so
+      the wrapper's deterministic jobs read it without re-parsing the JSON.
+      Empty when should_run is false.
+    value: ${{ steps.decide.outputs.item_number }}
 
 runs:
   using: composite
@@ -32,6 +44,13 @@ runs:
             const payload = context.payload;
             let run = false;
             let ctx = {};
+            // The SDD triage phase this event drives, surfaced as an output so
+            // the wrapper's deterministic cycle-detect job can gate on phase C
+            // (the /approve materialization). 'A' = architecture design,
+            // 'B' = plan-preview comment, 'C' = materialize the tree. A resume
+            // (needs-human cleared) and a non-routed event leave it ''; the
+            // cycle-detect job only fires on 'C', so a '' on a resume is safe.
+            let phase = '';
 
             // A tracking issue gained sdd:triage (phase A), or needs-human was
             // cleared (resume).
@@ -40,8 +59,11 @@ runs:
               const label = payload.label && payload.label.name;
               if (action === 'labeled' && label === 'sdd:triage') {
                 run = true;
+                phase = 'A';
               } else if (action === 'unlabeled' && label === 'needs-human') {
                 run = true;
+                // Resume of whatever phase handed off; left '' (the
+                // cycle-detect job only fires on a fresh phase C).
               }
               // The triage boundary is the tracking issue only. sdd:triage or a
               // needs-human clear on a sub-issue (a Unit or a task, each of
@@ -141,6 +163,16 @@ runs:
                   }
                   if (!skipFastpath) {
                     run = true;
+                    // Phase from the command: /triage designs the architecture
+                    // (A), /approve materializes the tree (C). /revise re-runs
+                    // phase B or reconciles post-approve; it does not freshly
+                    // materialize, so it leaves phase '' and the cycle-detect
+                    // job does not fire on it.
+                    if (firstWord === '/triage') {
+                      phase = 'A';
+                    } else if (firstWord === '/approve') {
+                      phase = 'C';
+                    }
                     ctx = {
                       item_type: isPr ? 'pull_request' : 'issue',
                       item_number: payload.issue.number,
@@ -166,6 +198,7 @@ runs:
               const isArchBranch = headRef.startsWith('arch/');
               if (merged && isArchBranch) {
                 run = true;
+                phase = 'B';
                 ctx = {
                   item_type: 'pull_request',
                   item_number: payload.pull_request.number,
@@ -177,3 +210,8 @@ runs:
 
             core.setOutput('should_run', run ? 'true' : 'false');
             core.setOutput('aw_context', run ? JSON.stringify(ctx) : '');
+            // phase and item_number are surfaced for the wrapper's
+            // deterministic cycle-detect job; both empty when not running.
+            core.setOutput('phase', run ? phase : '');
+            core.setOutput('item_number',
+              run && ctx.item_number ? String(ctx.item_number) : '');
