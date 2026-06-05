@@ -25,6 +25,19 @@ observability:
   otlp:
     if-missing: warn
     endpoint: ${{ secrets.GH_AW_OTEL_ENDPOINT }}
+# The OTLP endpoint secret embeds a write-only ingest key. gh-aw's built-in
+# redaction (GH_AW_SECRET_NAMES) covers only the engine/GitHub tokens, not this
+# value, so add a custom redaction step that scrubs it from /tmp/gh-aw before the
+# artifact upload. Runs after built-in redaction; no-op when the secret is unset.
+secret-masking:
+  steps:
+    - name: Redact OTLP endpoint from artifacts
+      env:
+        GH_AW_OTEL_ENDPOINT: ${{ secrets.GH_AW_OTEL_ENDPOINT }}
+      run: |
+        if [ -n "${GH_AW_OTEL_ENDPOINT:-}" ]; then
+          find /tmp/gh-aw -type f -exec sed -i "s#${GH_AW_OTEL_ENDPOINT}#[REDACTED-OTEL-ENDPOINT]#g" {} + 2>/dev/null || true
+        fi
 inlined-imports: true
 strict: false
 mcp-servers:

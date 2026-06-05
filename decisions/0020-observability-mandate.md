@@ -34,9 +34,9 @@ endpoint secret reaches the lock only if each wrapper maps it.
 
 1. **Every agent workflow — present and future — must export OTLP spans.** A new
    `.github/workflows/<agent>.md` that declares an `engine:` is not complete
-   until it carries the `observability.otlp` block and a `*.run.app` egress
-   entry, and its wrapper maps `GH_AW_OTEL_ENDPOINT` into the called lock's
-   `secrets:`.
+   until it carries the `observability.otlp` block, a `*.run.app` egress entry,
+   and a `secret-masking` step redacting the endpoint from artifacts, and its
+   wrapper maps `GH_AW_OTEL_ENDPOINT` into the called lock's `secrets:`.
 
 2. **The endpoint is a secret, not a variable.** `observability.otlp.endpoint`
    reads `${{ secrets.GH_AW_OTEL_ENDPOINT }}`. A secret is log-masked; a
@@ -47,7 +47,14 @@ endpoint secret reaches the lock only if each wrapper maps it.
 3. **Auth is write-only and headerless.** The secret URL embeds a write-only
    ingest key, so a leak can push spans but never read telemetry. No auth header
    is sent: `observability.otlp.headers` emits invalid YAML in the safe-outputs
-   job on the pinned gh-aw (`github/gh-aw#37067`), and headerless sidesteps it.
+   job on gh-aw (`github/gh-aw#37067`), and headerless sidesteps it.
+
+   The endpoint value is masked twice: GitHub Actions auto-masks the secret in
+   job logs, and a `secret-masking` step scrubs it from the `/tmp/gh-aw`
+   artifact tree before upload. gh-aw's built-in redaction (`GH_AW_SECRET_NAMES`)
+   covers only the engine/GitHub tokens, not `observability.otlp.endpoint`, so
+   the custom step is required — the built-in pass alone leaves the URL
+   recoverable in uploaded artifacts.
 
 4. **A missing secret degrades, never fails.** `if-missing: warn` makes a
    consumer that has not set `GH_AW_OTEL_ENDPOINT` run clean with a warning, so
@@ -79,6 +86,8 @@ endpoint secret reaches the lock only if each wrapper maps it.
 - After `recompile-locks`, each lock carries the workflow-level `OTEL_*` env,
   `*.run.app` in the firewall allowlist, the MCP-gateway `opentelemetry` block,
   the observability-summary step, and `otel.jsonl` in its artifact list.
+- Each lock has a `Redact OTLP endpoint from artifacts` step ordered after the
+  built-in `Redact secrets in logs` step and before `Upload agent artifacts`.
 - `distillery-sync`'s recompiled lock still carries the `DISTILLERY_MCP_URL`
   host in its allowlist: the explicit `network:` block added for OTLP must not
   drop the MCP host gh-aw injects from `mcp-servers`.
