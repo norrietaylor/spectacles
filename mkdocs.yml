@@ -42,6 +42,7 @@ nav:
   - SDD:
       - The SDD pipeline: sdd/index.md
       - Installing the SDD suite: sdd/install.md
+      - Spec frontmatter and doc states: sdd/spec-frontmatter-and-doc-states.md
       - MCP tools: sdd/mcp-tools.md
       - The sdd-monitor agent: sdd/sdd-monitor.md
   - Specs:

@@ -3,6 +3,7 @@ id: spec-<slug>
 title: <human-readable feature title>
 kind: spec
 status: planned        # planned | in-progress | complete
+tracking-issue:        # the GitHub tracking issue number this spec was authored for
 supersedes:            # optional: id of a spec this one replaces
 ---
 
@@ -22,6 +23,13 @@ fills the frontmatter:
                when the feature merges. distillery-sync mirrors this field into
                the knowledge store as the entry's `state/<status>` tag and
                `metadata.lifecycle`, so SDD progress is queryable per repo.
+               sdd-doc-status advances it forward-only from the tracking
+               issue's `sdd:*` labels (ADR 0021).
+  - tracking-issue: the GitHub tracking issue number this spec was authored
+               for. sdd-spec records it so the status-advance workflow can
+               resolve this file by grep over docs/specs/**. distillery-sync
+               does not read it (it indexes id/title/status/supersedes/
+               superseded-by only); an unknown frontmatter key is ignored.
   - supersedes: set to the id of a prior spec this one replaces; distillery-sync
                writes a `supersedes` relation between the two entries.
 distillery-sync skips this TEMPLATE.md and any file whose name starts with `_`.

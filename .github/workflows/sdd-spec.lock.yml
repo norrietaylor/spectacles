@@ -1,4 +1,4 @@
-# gh-aw-metadata: {"schema_version":"v4","frontmatter_hash":"95a3603d6a9adc5cb8ec5bcd37ffa99c7cd4f9ad24c6ff782875d2cee35aaaed","body_hash":"ca421d16595d0e7eaf7afd965b4db5e7325780c1bfaed919070fac8e68a5a078","compiler_version":"v0.77.5","agent_id":"copilot"}
+# gh-aw-metadata: {"schema_version":"v4","frontmatter_hash":"1abbe27a22426e0222b15c6f5b75030f9be800853ba4374acdfca218549cb3ba","body_hash":"d67eba56f3bba5521a624bd3cc6f087de03c36d04ccb11a85b5e070e4880734c","compiler_version":"v0.77.5","agent_id":"copilot"}
 # gh-aw-manifest: {"version":1,"secrets":["APP_PRIVATE_KEY","COPILOT_GITHUB_TOKEN","DISTILLERY_OAUTH_TOKEN","GH_AW_CI_TRIGGER_TOKEN","GH_AW_GITHUB_MCP_SERVER_TOKEN","GH_AW_GITHUB_TOKEN","GH_AW_OTEL_ENDPOINT","GITHUB_TOKEN"],"actions":[{"repo":"actions/checkout","sha":"de0fac2e4500dabe0009e67214ff5f5447ce83dd","version":"v6.0.2"},{"repo":"actions/create-github-app-token","sha":"bcd2ba49218906704ab6c1aa796996da409d3eb1","version":"v3.2.0"},{"repo":"actions/download-artifact","sha":"3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c","version":"v8.0.1"},{"repo":"actions/github-script","sha":"3a2844b7e9c422d3c10d287c895573f7108da1b3","version":"v9.0.0"},{"repo":"actions/setup-node","sha":"48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e","version":"v6.4.0"},{"repo":"actions/upload-artifact","sha":"043fb46d1a93c77aae656e7c1c64a875d1fc6a0a","version":"v7.0.1"},{"repo":"github/gh-aw-actions/setup","sha":"3ea13c02d765410340d533515cb31a7eef2baaf0","version":"v0.77.5"}],"containers":[{"image":"ghcr.io/github/gh-aw-firewall/agent:0.25.58"},{"image":"ghcr.io/github/gh-aw-firewall/api-proxy:0.25.58"},{"image":"ghcr.io/github/gh-aw-firewall/squid:0.25.58"},{"image":"ghcr.io/github/gh-aw-mcpg:v0.3.22"},{"image":"ghcr.io/github/github-mcp-server:v1.1.0"},{"image":"ghcr.io/github/serena-mcp-server:latest","digest":"sha256:bf343399e3725c45528f531a230f3a04521d4cdef29f9a5af6282ff0d3c393c5","pinned_image":"ghcr.io/github/serena-mcp-server:latest@sha256:bf343399e3725c45528f531a230f3a04521d4cdef29f9a5af6282ff0d3c393c5"},{"image":"node:lts-alpine","digest":"sha256:2bdb65ed1dab192432bc31c95f94155ca5ad7fc1392fb7eb7526ab682fa5bf14","pinned_image":"node:lts-alpine@sha256:2bdb65ed1dab192432bc31c95f94155ca5ad7fc1392fb7eb7526ab682fa5bf14"}]}
 #    ___                   _   _      
 #   / _ \                 | | (_)     
@@ -260,24 +260,24 @@ jobs:
         run: |
           bash "${RUNNER_TEMP}/gh-aw/actions/create_prompt_first.sh"
           {
-          cat << 'GH_AW_PROMPT_a1efd9ffd7ea506d_EOF'
+          cat << 'GH_AW_PROMPT_e450a4e0fc3c5cfc_EOF'
           <system>
-          GH_AW_PROMPT_a1efd9ffd7ea506d_EOF
+          GH_AW_PROMPT_e450a4e0fc3c5cfc_EOF
           cat "${RUNNER_TEMP}/gh-aw/prompts/xpia.md"
           cat "${RUNNER_TEMP}/gh-aw/prompts/temp_folder_prompt.md"
           cat "${RUNNER_TEMP}/gh-aw/prompts/markdown.md"
           cat "${RUNNER_TEMP}/gh-aw/prompts/safe_outputs_prompt.md"
-          cat << 'GH_AW_PROMPT_a1efd9ffd7ea506d_EOF'
+          cat << 'GH_AW_PROMPT_e450a4e0fc3c5cfc_EOF'
           <safe-output-tools>
           Tools: add_comment, create_issue, create_pull_request, add_labels(max:2), remove_labels(max:3), push_to_pull_request_branch, hide_comment(max:5), missing_tool, missing_data, noop
-          GH_AW_PROMPT_a1efd9ffd7ea506d_EOF
+          GH_AW_PROMPT_e450a4e0fc3c5cfc_EOF
           cat "${RUNNER_TEMP}/gh-aw/prompts/safe_outputs_create_pull_request.md"
           cat "${RUNNER_TEMP}/gh-aw/prompts/safe_outputs_push_to_pr_branch.md"
-          cat << 'GH_AW_PROMPT_a1efd9ffd7ea506d_EOF'
+          cat << 'GH_AW_PROMPT_e450a4e0fc3c5cfc_EOF'
           </safe-output-tools>
-          GH_AW_PROMPT_a1efd9ffd7ea506d_EOF
+          GH_AW_PROMPT_e450a4e0fc3c5cfc_EOF
           cat "${RUNNER_TEMP}/gh-aw/prompts/mcp_cli_tools_prompt.md"
-          cat << 'GH_AW_PROMPT_a1efd9ffd7ea506d_EOF'
+          cat << 'GH_AW_PROMPT_e450a4e0fc3c5cfc_EOF'
           <github-context>
           The following GitHub context information is available for this workflow:
           {{#if github.actor}}
@@ -306,9 +306,9 @@ jobs:
           {{/if}}
           </github-context>
           
-          GH_AW_PROMPT_a1efd9ffd7ea506d_EOF
+          GH_AW_PROMPT_e450a4e0fc3c5cfc_EOF
           cat "${RUNNER_TEMP}/gh-aw/prompts/github_mcp_tools_with_safeoutputs_prompt.md"
-          cat << 'GH_AW_PROMPT_a1efd9ffd7ea506d_EOF'
+          cat << 'GH_AW_PROMPT_e450a4e0fc3c5cfc_EOF'
           </system>
           # Core principles
           
@@ -878,7 +878,7 @@ jobs:
           
           ## Triggers this agent handles
           
-          The wrapper invokes this agent for one of seven situations. Determine which
+          The wrapper invokes this agent for one of eight situations. Determine which
           one applies from the workflow context before doing anything else.
           
           1. **A tracking issue gained the `sdd:spec` label.** Classify the work
@@ -946,6 +946,21 @@ jobs:
              merged pull request that is not a spec pull request is nonetheless seen
              here, it is not this agent's concern: do not author a spec, do not move
              any label, and emit `noop`.
+          8. **A write-access author commented `/revise <note>` on a tracking issue
+             whose spec pull request has already MERGED, asking to amend the merged
+             spec document.** This is the post-merge amendment case (ADR 0021),
+             distinct from situation 4 (a `/revise` on an *open* spec PR) and
+             situation 5 (a `/revise` on a fast-path tracking issue before
+             `/approve`). The spec file is already on `main`; there is no open PR
+             branch to push onto, so re-author the spec **in place** on a fresh branch
+             and open an **amendment PR** via `create-pull-request` — do not use
+             `push-to-pull-request-branch`. A `/revise` on a tracking issue triggers
+             both this agent and `sdd-triage`; a note asking to amend the merged
+             `architecture.md` is `sdd-triage`'s situation 6, not this one. Act only
+             when the note targets the **spec** document; if it targets the
+             architecture record or the plan/tree, emit `noop` and let `sdd-triage`
+             handle it. PRECONDITION: refuse while any task is in flight (the ADR 0010
+             clause-7 guard). Handle this in step 9 of the procedure.
           
           When the triggering item already carries the `needs-human` label, stop
           immediately and emit `noop`. A `needs-human`-labelled item is off-limits
@@ -976,6 +991,12 @@ jobs:
           `/approve`, it posts a new plan comment carrying the same sentinel and
           hides the prior plan comment as `OUTDATED`. The stub spec PR is not
           touched.
+          
+          On a `/revise` on a tracking issue whose spec PR has already **merged**, it
+          opens an **amendment PR** that edits the merged spec in place on a fresh
+          branch (preserving the `status` and `tracking-issue` frontmatter), unless a
+          task is in flight — in which case it refuses with one comment and emits
+          `noop` (ADR 0021, step 9).
           
           ## Procedure
           
@@ -1198,6 +1219,7 @@ jobs:
           title: <the feature title>
           kind: spec
           status: planned
+          tracking-issue: <tracking-issue>
           supersedes:            # set only when this spec replaces a prior one, by its id
           ---
           ```
@@ -1206,6 +1228,18 @@ jobs:
           mirrors it into the knowledge store so SDD progress is queryable per repo. Do
           not omit the frontmatter — it is the stable identity and lifecycle source for
           the memory layer.
+          
+          `tracking-issue: <tracking-issue>` records the bare number of the tracking
+          issue this spec is authored for (the issue this run is operating on — the same
+          number written as `#<tracking-issue>` elsewhere). It is the file's back-link to
+          its lifecycle anchor: the deterministic `sdd-doc-status` workflow greps
+          `docs/specs/**` for `tracking-issue: <N>` to resolve this spec (and its sibling
+          `architecture.md`, which shares the directory) when the tracking issue's
+          `sdd:*` labels advance, then rewrites `status:` forward-only (ADR 0021).
+          Write the number plainly, with no leading `#`. `distillery-sync` does not read
+          this key (it indexes `id`/`title`/`status`/`supersedes`/`superseded-by` only);
+          an unknown
+          frontmatter key is ignored.
           
           The spec must:
           
@@ -1513,6 +1547,62 @@ jobs:
           close the tracking issue itself (ADR 0001). Exactly one lifecycle label is
           present at a time, so the removal and the addition are a single move.
           
+          ### 9. Amend a merged spec on `/revise` (situation 8)
+          
+          When the trigger is a `/revise <note>` on a **tracking issue** whose spec
+          pull request has **already merged**, the spec file is on `main` and there is
+          no open PR branch to push onto. This is the post-merge amendment case
+          (ADR 0021), distinct from the open-PR `/revise` of step 7 (situation 4) and
+          the fast-path pre-`/approve` `/revise` of step 7a (situation 5). Distinguish
+          it by the triggering item — situation 4's `/revise` arrives on a pull
+          request, this one on the tracking issue — and confirm the spec PR has merged
+          (the tracking issue has advanced past `sdd:spec`/`sdd:fastpath-review`, and a
+          spec file for it exists on `main`; the file carries `tracking-issue:
+          <tracking-issue>`).
+          
+          **Target the spec document only.** A `/revise` on a tracking issue triggers
+          this agent **and** `sdd-triage` (its situation 6 amends the merged
+          `architecture.md`). Read the note: act only when it asks to amend the
+          **spec**. If the note targets the architecture record, or the plan / sub-issue
+          tree, this is not your situation — emit `noop` with no comment and let the
+          other agent (or the open-PR/plan `/revise` paths) handle it. Do not open a
+          spec amendment PR for a note that never asked to change the spec.
+          
+          **Precondition — refuse while any task is in flight.** Reuse the ADR 0010
+          clause-7 guard. Treat as in flight any open task sub-issue under the tracking
+          issue that carries `sdd:in-progress`, **or** any task sub-issue that has an
+          open linked implementation pull request. If either holds, do **not** amend
+          the spec: post **one** `add-comment` on the tracking issue naming the
+          in-flight task(s) and pointing the human at the per-PR `/revise` loop on the
+          implementation pull request, then emit `noop`. Do not open a PR and do not
+          apply `needs-human` — the refusal is not a hand-off; the `/revise` was simply
+          mistimed.
+          
+          **No task in flight — open an amendment PR.** Re-author the spec in place,
+          applying only the change the `/revise` note asks for; do not rewrite
+          untouched sections:
+          
+          - Edit the existing spec file under `docs/specs/NN-spec-<slug>/` on a fresh
+            branch (the `spec/` prefix is applied automatically, so supply only
+            `<slug>`; a distinct slug suffix such as `<slug>-revise` keeps the branch
+            off the original spec branch). An edit to the working tree is mandatory — a
+            `/revise` that changes no file is a no-op masquerading as a change.
+          - **Preserve the existing `status:` and `tracking-issue:` frontmatter.** This
+            is an amendment, not a re-authoring: the lifecycle has moved on (`status`
+            may be `in-progress` or `complete`, advanced by `sdd-doc-status`), and the
+            back-link must not change. On merge of the amendment PR, `distillery-sync`
+            bumps the entry's `version` in place; the `status` mirror is unchanged.
+          - Emit one `create-pull-request` (an amendment PR — **not**
+            `push-to-pull-request-branch`, which has no open branch to target here).
+            Title it `docs(spec-<slug>): <summary of the revision>` per step 7's
+            conventions. Reuse the existing spec sub-issue — do not create a second.
+            Reference the tracking issue only as a bare `#<number>`, never with a
+            closing keyword (the tracking issue must stay open).
+          - Post one `add-comment` on the tracking issue naming the amendment PR by its
+            **title** and the action: **review and merge** the amendment PR to land the
+            spec revision. Do not move any lifecycle label — the amendment does not
+            change the SDD phase.
+          
           ## Boundaries
           
           - This agent never edits `.github/`, `decisions/`, `templates/.github/`, or
@@ -1577,7 +1667,7 @@ jobs:
             from the plan, the execution plan comment is the plan reformatted, and
             `plan:provided` is removed when the stub spec PR opens.
           
-          GH_AW_PROMPT_a1efd9ffd7ea506d_EOF
+          GH_AW_PROMPT_e450a4e0fc3c5cfc_EOF
           } > "$GH_AW_PROMPT"
       - name: Interpolate variables and render templates
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
@@ -1804,9 +1894,9 @@ jobs:
           mkdir -p "${RUNNER_TEMP}/gh-aw/safeoutputs"
           mkdir -p /tmp/gh-aw/safeoutputs
           mkdir -p /tmp/gh-aw/mcp-logs/safeoutputs
-          cat > "${RUNNER_TEMP}/gh-aw/safeoutputs/config.json" << 'GH_AW_SAFE_OUTPUTS_CONFIG_ec9b4b849a6ba36e_EOF'
+          cat > "${RUNNER_TEMP}/gh-aw/safeoutputs/config.json" << 'GH_AW_SAFE_OUTPUTS_CONFIG_bb1d4aad7e14c23d_EOF'
           {"add_comment":{"max":1},"add_labels":{"allowed":["sdd:spec","sdd:triage","sdd:fastpath","sdd:fastpath-review","needs-human"],"max":2},"create_issue":{"max":1},"create_pull_request":{"branch_prefix":"spec/","draft":false,"max":1,"max_patch_files":100,"max_patch_size":1024,"protect_top_level_dot_folders":true,"protected_files":["package.json","bun.lockb","bunfig.toml","deno.json","deno.jsonc","deno.lock","global.json","NuGet.Config","Directory.Packages.props","mix.exs","mix.lock","go.mod","go.sum","stack.yaml","stack.yaml.lock","pom.xml","build.gradle","build.gradle.kts","settings.gradle","settings.gradle.kts","gradle.properties","package-lock.json","yarn.lock","pnpm-lock.yaml","npm-shrinkwrap.json","requirements.txt","Pipfile","Pipfile.lock","pyproject.toml","setup.py","setup.cfg","Gemfile","Gemfile.lock","uv.lock","CODEOWNERS","DESIGN.md","README.md","CONTRIBUTING.md","CHANGELOG.md","SECURITY.md","CODE_OF_CONDUCT.md","AGENTS.md","CLAUDE.md","GEMINI.md"],"protected_files_policy":"request_review","title_prefix":"docs"},"create_report_incomplete_issue":{},"hide_comment":{"max":5},"missing_data":{},"missing_tool":{},"noop":{"max":1,"report-as-issue":"true"},"push_to_pull_request_branch":{"if_no_changes":"warn","max":1,"max_patch_size":1024,"protect_top_level_dot_folders":true,"protected_files":["package.json","bun.lockb","bunfig.toml","deno.json","deno.jsonc","deno.lock","global.json","NuGet.Config","Directory.Packages.props","mix.exs","mix.lock","go.mod","go.sum","stack.yaml","stack.yaml.lock","pom.xml","build.gradle","build.gradle.kts","settings.gradle","settings.gradle.kts","gradle.properties","package-lock.json","yarn.lock","pnpm-lock.yaml","npm-shrinkwrap.json","requirements.txt","Pipfile","Pipfile.lock","pyproject.toml","setup.py","setup.cfg","Gemfile","Gemfile.lock","uv.lock","CODEOWNERS","DESIGN.md","README.md","CONTRIBUTING.md","CHANGELOG.md","SECURITY.md","CODE_OF_CONDUCT.md","AGENTS.md","CLAUDE.md","GEMINI.md"]},"remove_labels":{"allowed":["sdd:spec","sdd:fastpath","sdd:fastpath-review","plan:provided"],"max":3},"report_incomplete":{}}
-          GH_AW_SAFE_OUTPUTS_CONFIG_ec9b4b849a6ba36e_EOF
+          GH_AW_SAFE_OUTPUTS_CONFIG_bb1d4aad7e14c23d_EOF
       - name: Generate Safe Outputs Tools
         env:
           GH_AW_TOOLS_META_JSON: |
@@ -2166,7 +2256,7 @@ jobs:
           
           mkdir -p /home/runner/.copilot
           GH_AW_NODE=$(which node 2>/dev/null || command -v node 2>/dev/null || echo node)
-          cat << GH_AW_MCP_CONFIG_eb40badc47529230_EOF | "$GH_AW_NODE" "${RUNNER_TEMP}/gh-aw/actions/start_mcp_gateway.cjs"
+          cat << GH_AW_MCP_CONFIG_a6e4d99ce8d42cae_EOF | "$GH_AW_NODE" "${RUNNER_TEMP}/gh-aw/actions/start_mcp_gateway.cjs"
           {
             "mcpServers": {
               "distillery": {
@@ -2273,7 +2363,7 @@ jobs:
               }
             }
           }
-          GH_AW_MCP_CONFIG_eb40badc47529230_EOF
+          GH_AW_MCP_CONFIG_a6e4d99ce8d42cae_EOF
       - name: Mount MCP servers as CLIs
         id: mount-mcp-clis
         continue-on-error: true

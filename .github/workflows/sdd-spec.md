@@ -108,7 +108,7 @@ through so this agent knows which entity it is operating on.
 
 ## Triggers this agent handles
 
-The wrapper invokes this agent for one of seven situations. Determine which
+The wrapper invokes this agent for one of eight situations. Determine which
 one applies from the workflow context before doing anything else.
 
 1. **A tracking issue gained the `sdd:spec` label.** Classify the work
@@ -176,6 +176,21 @@ one applies from the workflow context before doing anything else.
    merged pull request that is not a spec pull request is nonetheless seen
    here, it is not this agent's concern: do not author a spec, do not move
    any label, and emit `noop`.
+8. **A write-access author commented `/revise <note>` on a tracking issue
+   whose spec pull request has already MERGED, asking to amend the merged
+   spec document.** This is the post-merge amendment case (ADR 0021),
+   distinct from situation 4 (a `/revise` on an *open* spec PR) and
+   situation 5 (a `/revise` on a fast-path tracking issue before
+   `/approve`). The spec file is already on `main`; there is no open PR
+   branch to push onto, so re-author the spec **in place** on a fresh branch
+   and open an **amendment PR** via `create-pull-request` — do not use
+   `push-to-pull-request-branch`. A `/revise` on a tracking issue triggers
+   both this agent and `sdd-triage`; a note asking to amend the merged
+   `architecture.md` is `sdd-triage`'s situation 6, not this one. Act only
+   when the note targets the **spec** document; if it targets the
+   architecture record or the plan/tree, emit `noop` and let `sdd-triage`
+   handle it. PRECONDITION: refuse while any task is in flight (the ADR 0010
+   clause-7 guard). Handle this in step 9 of the procedure.
 
 When the triggering item already carries the `needs-human` label, stop
 immediately and emit `noop`. A `needs-human`-labelled item is off-limits
@@ -206,6 +221,12 @@ On a `/revise` on a fast-path tracking issue between the plan-comment and
 `/approve`, it posts a new plan comment carrying the same sentinel and
 hides the prior plan comment as `OUTDATED`. The stub spec PR is not
 touched.
+
+On a `/revise` on a tracking issue whose spec PR has already **merged**, it
+opens an **amendment PR** that edits the merged spec in place on a fresh
+branch (preserving the `status` and `tracking-issue` frontmatter), unless a
+task is in flight — in which case it refuses with one comment and emits
+`noop` (ADR 0021, step 9).
 
 ## Procedure
 
@@ -428,6 +449,7 @@ id: spec-<slug>
 title: <the feature title>
 kind: spec
 status: planned
+tracking-issue: <tracking-issue>
 supersedes:            # set only when this spec replaces a prior one, by its id
 ---
 ```
@@ -436,6 +458,18 @@ supersedes:            # set only when this spec replaces a prior one, by its id
 mirrors it into the knowledge store so SDD progress is queryable per repo. Do
 not omit the frontmatter — it is the stable identity and lifecycle source for
 the memory layer.
+
+`tracking-issue: <tracking-issue>` records the bare number of the tracking
+issue this spec is authored for (the issue this run is operating on — the same
+number written as `#<tracking-issue>` elsewhere). It is the file's back-link to
+its lifecycle anchor: the deterministic `sdd-doc-status` workflow greps
+`docs/specs/**` for `tracking-issue: <N>` to resolve this spec (and its sibling
+`architecture.md`, which shares the directory) when the tracking issue's
+`sdd:*` labels advance, then rewrites `status:` forward-only (ADR 0021).
+Write the number plainly, with no leading `#`. `distillery-sync` does not read
+this key (it indexes `id`/`title`/`status`/`supersedes`/`superseded-by` only);
+an unknown
+frontmatter key is ignored.
 
 The spec must:
 
@@ -742,6 +776,62 @@ closes on merge without an agent step (ADR 0005). Do not author a new spec or
 open a pull request on this trigger; it is a lifecycle transition only. Never
 close the tracking issue itself (ADR 0001). Exactly one lifecycle label is
 present at a time, so the removal and the addition are a single move.
+
+### 9. Amend a merged spec on `/revise` (situation 8)
+
+When the trigger is a `/revise <note>` on a **tracking issue** whose spec
+pull request has **already merged**, the spec file is on `main` and there is
+no open PR branch to push onto. This is the post-merge amendment case
+(ADR 0021), distinct from the open-PR `/revise` of step 7 (situation 4) and
+the fast-path pre-`/approve` `/revise` of step 7a (situation 5). Distinguish
+it by the triggering item — situation 4's `/revise` arrives on a pull
+request, this one on the tracking issue — and confirm the spec PR has merged
+(the tracking issue has advanced past `sdd:spec`/`sdd:fastpath-review`, and a
+spec file for it exists on `main`; the file carries `tracking-issue:
+<tracking-issue>`).
+
+**Target the spec document only.** A `/revise` on a tracking issue triggers
+this agent **and** `sdd-triage` (its situation 6 amends the merged
+`architecture.md`). Read the note: act only when it asks to amend the
+**spec**. If the note targets the architecture record, or the plan / sub-issue
+tree, this is not your situation — emit `noop` with no comment and let the
+other agent (or the open-PR/plan `/revise` paths) handle it. Do not open a
+spec amendment PR for a note that never asked to change the spec.
+
+**Precondition — refuse while any task is in flight.** Reuse the ADR 0010
+clause-7 guard. Treat as in flight any open task sub-issue under the tracking
+issue that carries `sdd:in-progress`, **or** any task sub-issue that has an
+open linked implementation pull request. If either holds, do **not** amend
+the spec: post **one** `add-comment` on the tracking issue naming the
+in-flight task(s) and pointing the human at the per-PR `/revise` loop on the
+implementation pull request, then emit `noop`. Do not open a PR and do not
+apply `needs-human` — the refusal is not a hand-off; the `/revise` was simply
+mistimed.
+
+**No task in flight — open an amendment PR.** Re-author the spec in place,
+applying only the change the `/revise` note asks for; do not rewrite
+untouched sections:
+
+- Edit the existing spec file under `docs/specs/NN-spec-<slug>/` on a fresh
+  branch (the `spec/` prefix is applied automatically, so supply only
+  `<slug>`; a distinct slug suffix such as `<slug>-revise` keeps the branch
+  off the original spec branch). An edit to the working tree is mandatory — a
+  `/revise` that changes no file is a no-op masquerading as a change.
+- **Preserve the existing `status:` and `tracking-issue:` frontmatter.** This
+  is an amendment, not a re-authoring: the lifecycle has moved on (`status`
+  may be `in-progress` or `complete`, advanced by `sdd-doc-status`), and the
+  back-link must not change. On merge of the amendment PR, `distillery-sync`
+  bumps the entry's `version` in place; the `status` mirror is unchanged.
+- Emit one `create-pull-request` (an amendment PR — **not**
+  `push-to-pull-request-branch`, which has no open branch to target here).
+  Title it `docs(spec-<slug>): <summary of the revision>` per step 7's
+  conventions. Reuse the existing spec sub-issue — do not create a second.
+  Reference the tracking issue only as a bare `#<number>`, never with a
+  closing keyword (the tracking issue must stay open).
+- Post one `add-comment` on the tracking issue naming the amendment PR by its
+  **title** and the action: **review and merge** the amendment PR to land the
+  spec revision. Do not move any lifecycle label — the amendment does not
+  change the SDD phase.
 
 ## Boundaries
 

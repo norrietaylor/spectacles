@@ -1,0 +1,175 @@
+# Advance a spec/architecture doc's `status:` frontmatter when the tracking
+# issue's SDD lifecycle label moves, and push the rewritten files straight back
+# to main. The frontmatter `status` field was set once at authoring (`planned`)
+# and never advanced; this workflow connects it to the real progress signal —
+# the tracking issue's `sdd:*` labels — so distillery-sync mirrors a live
+# `state/<status>` instead of a frozen `state/planned`. See ADR 0021.
+#
+# Label → target status map (the single source of truth for this transition):
+#   sdd:in-progress → in-progress
+#   sdd:done        → complete
+# (`planned` is the authoring default; no label advances *to* it.)
+#
+# Why this can push to protected main: main is guarded by ruleset 16496590,
+# whose bypass actors include the `spectacles-bot` App (actor_type Integration).
+# The push below carries that App's installation token, so it bypasses the
+# pull_request rule. The default GITHUB_TOKEN's github-actions[bot] is not a
+# bypass actor and would be rejected. No safe-output can commit to main
+# (safe-outputs are PR-centric), so the App-token + bypass-actor path is the
+# only sanctioned commit-to-main mechanism. See ADR 0019.
+#
+# Loop guard: this workflow fires on issues.labeled, and its only output is a
+# docs/specs/** push — which cannot re-fire an issues trigger, so it never wakes
+# itself. recompile-locks watches only shared/** and .github/workflows/*.md, so
+# the docs/specs/** push does not wake it either. distillery-sync *does* trigger
+# on docs/specs/**; that is the point — it re-mirrors the advanced status, so the
+# commit must NOT carry [skip ci] (which would suppress distillery-sync's
+# push-triggered run and defeat the re-mirror). Loop-safety here comes from the
+# issues.labeled trigger, not from [skip ci].
+#
+# Forward-only: status is ranked planned(0) < in-progress(1) < complete(2). A
+# file already at or past the target is skipped, so a re-applied or out-of-order
+# label produces no commit (idempotent). A label whose target status is not
+# strictly ahead of every matched file is a clean no-op.
+name: sdd-doc-status
+
+on:
+  issues:
+    types: [labeled]
+
+permissions:
+  contents: read
+
+concurrency:
+  # Serialize per tracking issue: two label moves on the same issue must not
+  # race to rebase-and-push competing status edits. Different issues run in
+  # parallel.
+  group: sdd-doc-status-${{ github.event.issue.number }}
+  cancel-in-progress: false
+
+jobs:
+  advance:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Resolve target status from the added label
+        id: target
+        env:
+          LABEL: ${{ github.event.label.name }}
+        run: |
+          # Map the added lifecycle label to a target frontmatter status. Any
+          # other label (sdd:spec, sdd:ready, a marker, …) is not a status
+          # transition this workflow owns: emit an empty status so the job
+          # short-circuits below without minting a token or checking out.
+          case "$LABEL" in
+            sdd:in-progress) status=in-progress ;;
+            sdd:done)        status=complete ;;
+            *)               status= ;;
+          esac
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+          if [ -z "$status" ]; then
+            echo "Label '$LABEL' is not a status-advancing label; nothing to do."
+          else
+            echo "Label '$LABEL' → target status '$status'."
+          fi
+
+      - name: Mint App token
+        id: app-token
+        if: steps.target.outputs.status != ''
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3
+        with:
+          app-id: ${{ vars.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
+          permission-contents: write
+
+      - name: Checkout
+        if: steps.target.outputs.status != ''
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          # No token here: the repo is public (read needs no auth) and omitting
+          # it keeps the write-scoped App token out of git config for the edit
+          # step. persist-credentials: false also stops the default
+          # GITHUB_TOKEN being persisted. The App token is wired in only for the
+          # final push step below. fetch-depth: 0 so the pre-push rebase has
+          # full history.
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Advance status and push if changed
+        if: steps.target.outputs.status != ''
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          BOT_SLUG: ${{ steps.app-token.outputs.app-slug }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          TARGET_STATUS: ${{ steps.target.outputs.status }}
+        run: |
+          set -euo pipefail
+
+          # Forward-only rank. A file is rewritten only when its current status
+          # ranks strictly below the target.
+          rank() {
+            case "$1" in
+              planned)     echo 0 ;;
+              in-progress) echo 1 ;;
+              complete)    echo 2 ;;
+              *)           echo -1 ;;  # unknown/missing status → treat as behind
+            esac
+          }
+          target_rank="$(rank "$TARGET_STATUS")"
+
+          # Resolve the spec and its sibling architecture.md by their
+          # tracking-issue back-link. Both share a directory, so one grep
+          # matches both. -l lists matching files; a trailing-space pattern
+          # avoids matching e.g. tracking-issue: 1230 when N is 123.
+          mapfile -t files < <(grep -rlE "^tracking-issue:[[:space:]]+${ISSUE_NUMBER}[[:space:]]*$" docs/specs --include='*.md' || true)
+
+          if [ "${#files[@]}" -eq 0 ]; then
+            # No matching file. A fast-path stub spec may not be on main yet
+            # when sdd:in-progress fires; the later sdd:done corrects it. This
+            # is a sanctioned no-op, not an error.
+            echo "No docs/specs file carries 'tracking-issue: ${ISSUE_NUMBER}'; nothing to advance."
+            exit 0
+          fi
+
+          changed=0
+          for f in "${files[@]}"; do
+            current="$(sed -n 's/^status:[[:space:]]*\([a-z-]*\).*$/\1/p' "$f" | head -n1)"
+            if [ -z "$current" ]; then
+              echo "WARN: $f has no 'status:' frontmatter line; skipping."
+              continue
+            fi
+            current_rank="$(rank "$current")"
+            if [ "$current_rank" -ge "$target_rank" ]; then
+              echo "Skip $f: status '$current' is at or past target '$TARGET_STATUS'."
+              continue
+            fi
+            # Rewrite only the first status: line (the frontmatter one). Keep any
+            # trailing comment on the template-derived line intact by replacing
+            # just the value.
+            sed -i "0,/^status:[[:space:]]*[a-z-]*/s//status: ${TARGET_STATUS}/" "$f"
+            echo "Advanced $f: '$current' → '$TARGET_STATUS'."
+            changed=1
+          done
+
+          if [ "$changed" -eq 0 ]; then
+            echo "Every matched file already at or past '$TARGET_STATUS'; nothing to push."
+            exit 0
+          fi
+
+          bot_user_id="$(gh api "/users/${BOT_SLUG}[bot]" --jq .id)"
+          git config user.name "${BOT_SLUG}[bot]"
+          git config user.email "${bot_user_id}+${BOT_SLUG}[bot]@users.noreply.github.com"
+
+          git add docs/specs
+          # No [skip ci]: the docs/specs/** push must fire distillery-sync to
+          # re-mirror state/<status>. Loop-safety is the issues.labeled trigger.
+          git commit -m "docs: advance spec/arch status to ${TARGET_STATUS} for #${ISSUE_NUMBER}"
+
+          # Authenticate the App token only for these final git operations
+          # (checkout did not persist it). GH_TOKEN is a registered secret, so
+          # it is masked in logs. Another label move may have landed while this
+          # run computed its edit; rebase onto current main before pushing.
+          git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          git pull --rebase origin main
+          git push origin HEAD:main
