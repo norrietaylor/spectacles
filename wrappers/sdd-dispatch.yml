@@ -236,9 +236,16 @@ jobs:
                   name: 'sdd:ready',
                 });
               } catch (err) {
-                // A 404 here means sdd:ready was not present; ignore.
-                core.info('Could not remove sdd:ready from #' + task + ': '
-                  + err.message);
+                // A 404 means sdd:ready was already absent; idempotent.
+                // Any other status (permission, transient API failure)
+                // is fatal so dispatch-state drift surfaces as a job
+                // failure rather than being silently swallowed, mirroring
+                // the 422 handling on the paired sdd:in-progress add above.
+                if (err.status === 404) {
+                  core.info('sdd:ready already absent on #' + task);
+                } else {
+                  throw err;
+                }
               }
             }
 
