@@ -36,6 +36,12 @@ outputs:
   reason:
     description: 'Human-readable reason for the precondition outcome.'
     value: ${{ steps.compute.outputs.reason }}
+  closeable_units:
+    description: >
+      JSON array of Unit issue numbers whose every task child is closed
+      while the Unit itself is still open. The wrapper's lifecycle job
+      closes these deterministically (#233).
+    value: ${{ steps.compute.outputs.closeable_units }}
 
 runs:
   using: composite
@@ -117,6 +123,9 @@ runs:
               core.setOutput('matrix', JSON.stringify({ include: [] }));
               core.setOutput('ready_count', '0');
               core.setOutput('open_task_count', '0');
+              // No tree walk ran, so no Unit is nominated for closure. A
+              // refused /dispatch must never close a Unit.
+              core.setOutput('closeable_units', '[]');
               return;
             }
 
@@ -148,12 +157,41 @@ runs:
 
             const units = await listChildren(tracking);
             const tasks = [];
+            // Units whose every task child is closed while the Unit itself
+            // is still open. The wrapper's lifecycle job closes these
+            // deterministically (#233), replacing the prompt-driven
+            // Unit-close sdd-execute's step-8 sweep used to own (ADR 0005
+            // §4-5) — a path that only fired on a merged-PR run and missed
+            // manual closes. We ride the same tree walk that already groups
+            // tasks per Unit, so the walk stays single-sourced.
+            const closeableUnits = [];
             for (const unit of units) {
               const children = await listChildren(unit.number);
               for (const child of children) {
                 tasks.push(child);
               }
+              // Fail-closed Unit-close test. Only nominate a Unit for
+              // closure when:
+              //   - the Unit itself is still open (no redundant re-close;
+              //     mirrors the dual-path sdd:done idempotency contract),
+              //   - it has at least one task child (never close a Unit
+              //     mid-setup before its tasks are materialized — "all of
+              //     zero children closed" is vacuously true but closing an
+              //     empty Unit is never intended),
+              //   - and EVERY child is confirmed closed. A child whose
+              //     state we cannot read is not 'closed', so it fails this
+              //     test and the Unit is left open: an unreadable sibling
+              //     never triggers a false Unit-close (issue acceptance #4).
+              //     listChildren throwing propagates and fails the whole
+              //     action, which is itself fail-closed (no close is
+              //     emitted on a partial walk).
+              if (unit.state === 'open'
+                  && children.length > 0
+                  && children.every((c) => c.state === 'closed')) {
+                closeableUnits.push(unit.number);
+              }
             }
+            core.setOutput('closeable_units', JSON.stringify(closeableUnits));
 
             // Filter to open tasks. We need their full body to parse the
             // `## Task` block; the sub-issues listing already includes
@@ -299,6 +337,11 @@ runs:
                 core.setOutput('reason', message);
                 core.setOutput('matrix', JSON.stringify({ include: [] }));
                 core.setOutput('ready_count', '0');
+                // This run is refused; do not close any Unit even if the
+                // units loop above nominated one. The wrapper also gates
+                // Unit-close on precondition === 'ok', so this is belt and
+                // braces.
+                core.setOutput('closeable_units', '[]');
                 return;
               }
               const body = task.body || '';
