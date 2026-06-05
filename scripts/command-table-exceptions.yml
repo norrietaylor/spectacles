@@ -1,0 +1,15 @@
+# Documented exceptions for scripts/test-command-table.py, mirroring
+# scripts/safe-output-allowlist-exceptions.yml. Each bucket maps to one of the
+# script's assertions; every entry needs a `name` (the `/token` as matched) and
+# a `reason`. Keep this list minimal — an exception silences real drift too.
+
+# P ⊆ T: prose mentions of a `/token` not in the command table. Use only for
+# tokens the bounded prose regex matches that are not slash-commands.
+prose-not-in-table:
+  - name: /tmp
+    reason: >-
+      Filesystem path, not a slash-command. The OTLP-endpoint redaction step
+      (ADR 0020) in every agent source runs `find /tmp/gh-aw ...` to scrub the
+      write-only ingest key from the artifact tree before upload; `/tmp/gh-aw`
+      is gh-aw's staging dir (distinct from $RUNNER_TEMP), so the path cannot be
+      reworded away. The prose regex matches the leading `/tmp` token.
