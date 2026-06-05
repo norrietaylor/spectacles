@@ -117,8 +117,17 @@ permissions:
 # where cancel-in-progress killed the originating run's safe_outputs tail
 # and its auto-merge job. The route step acts only on /execute and
 # /revise comments, so a non-command comment in a unique group is safe.
+#
+# A check_suite.completed event (the CI-failure -> implicit /revise path)
+# carries neither github.event.issue.number nor github.event.pull_request
+# .number — the PR is in github.event.check_suite.pull_requests[]. Without
+# a dedicated branch the expression fell through to the github.run_id
+# fallback, giving every failed suite its own group so cancel-in-progress
+# never collapsed concurrent /revise runs on the same PR (issues #227,
+# #228). Key on the suite's PR number, falling back to head_branch for a
+# suite with no associated PR, so all suites for one sdd/ PR share a group.
 concurrency:
-  group: sdd-execute-opus-${{ github.event.action == 'unlabeled' && github.run_id || (github.event_name == 'issue_comment' && !startsWith(github.event.comment.body, '/execute') && !startsWith(github.event.comment.body, '/revise')) && github.run_id || github.event.issue.number || github.event.pull_request.number || fromJSON(github.event.inputs.aw_context || '{}').item_number || github.run_id }}
+  group: sdd-execute-opus-${{ github.event.action == 'unlabeled' && github.run_id || (github.event_name == 'issue_comment' && !startsWith(github.event.comment.body, '/execute') && !startsWith(github.event.comment.body, '/revise')) && github.run_id || (github.event_name == 'check_suite' && (github.event.check_suite.pull_requests[0].number || github.event.check_suite.head_branch)) || github.event.issue.number || github.event.pull_request.number || fromJSON(github.event.inputs.aw_context || '{}').item_number || github.run_id }}
   cancel-in-progress: true
 
 jobs:
