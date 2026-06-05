@@ -612,10 +612,19 @@ jobs:
              the child of a Unit). A spec requirement that maps to no task is a Blocker.
              The `requirements:` field of the structured body block lives on tasks, not
              on Units.
-          2. **Dependencies form a DAG.** The `blocked by` lines across the **task
-             sub-issues** form a directed acyclic graph. A dependency cycle is a Blocker.
-             Read `blocked by` from each task's `depends on:` field; Unit sub-issues
-             carry no `depends on:` field and contribute no edges.
+          2. **Dependency edges are complete and acyclic.** This gate has two parts:
+             - **2a. Latent-edge pass completed.** The plan's implied edges — an artifact
+               a task's proof consumes that a sibling task produces — were enumerated and
+               written as `blocked by` lines, not left latent (see
+               `.github/workflows/sdd-triage.md` step 5). A missing latent-edge pass is a
+               Warning.
+             - **2b. Dependencies form a DAG.** The declared **and** implied `blocked by`
+               edges across the **task sub-issues** form a directed acyclic graph. A
+               dependency cycle is a Blocker. Read `blocked by` from each task's
+               `depends on:` field; Unit sub-issues carry no `depends on:` field and
+               contribute no edges. The deterministic `.github/actions/sdd-cycle-detect`
+               wrapper job is the **authoritative** DAG gate; this `sdd-validate` gate is
+               an LLM advisory restatement (a validation agent cannot `uses:` the action).
           3. **Each task single-session sized.** Every **task sub-issue** is scoped to be
              implementable in a single agent session. A task that is too large for one
              session is a Warning. Apply this to tasks, not to Units; a Unit is a
