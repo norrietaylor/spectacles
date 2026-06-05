@@ -84,14 +84,20 @@ flowchart TD
 
     subgraph s_triage [Tracking issue state: sdd:triage]
         h_triage([Human: comment /triage]):::human
-        a_arch[sdd-triage phase A: maps the code<br/>opens an architecture sub-issue and PR]:::agent
+        a_arch[sdd-triage phase A: maps the code, builds the<br/>assumption ledger, opens an architecture sub-issue and PR]:::agent
         h_arch([Human: review and merge the architecture PR<br/>the architecture sub-issue closes on merge]):::human
+        a_spikewave[sdd-triage phase A step 4a: one kind:spike<br/>sub-issue per needs-spike assumption]:::agent
+        a_actuator[sdd-spike-actuator: posts /execute<br/>on each kind:spike sub-issue]:::agent
+        a_spikedoc[sdd-execute: writes docs/spikes/&lt;date&gt;-&lt;slug&gt;.md<br/>opens a spike doc PR]:::agent
+        a_spikeval[sdd-validate spike boundary:<br/>proved, disproved, or partial]:::agent
+        a_reentry[sdd-spike-reentry: when the wave drains to<br/>zero open spikes, re-enters phase B]:::agent
         a_units[sdd-triage phase B: posts the proposed plan<br/>as one comment on the tracking issue]:::agent
         h_approve([Human: comment /approve]):::human
     end
 
     subgraph s_ready [Tracking issue state: sdd:ready]
         a_tasks[sdd-triage phase C: creates Unit sub-issues and<br/>task sub-issues; labels unblocked tasks sdd:ready]:::agent
+        a_cycle[sdd-cycle-detect: deterministic DAG backstop<br/>parks needs-human on a cycle the LLM missed]:::agent
     end
 
     subgraph s_dispatch [Tracking issue state: sdd:ready, awaiting /dispatch]
@@ -117,7 +123,14 @@ flowchart TD
     a_classify -->|full path| a_spec --> h_spec --> h_triage --> a_arch --> h_arch
     a_classify -->|fast-path proposal| h_fast
     h_fast --> a_fast --> h_fast_merge --> h_approve_fast --> a_exec
-    h_arch --> a_units --> h_approve --> a_tasks --> h_dispatch
+    h_arch -->|needs-spike residue: pre-plan spike wave| a_spikewave
+    a_spikewave --> a_actuator --> a_spikedoc --> a_spikeval
+    a_spikeval -->|proved: sdd:spike-resolved on the spike sub-issue| a_reentry
+    a_spikeval -.->|disproved or partial: park the tracking issue| hand
+    a_reentry --> a_units
+    h_arch -->|ledger all settled: no wave| a_units
+    a_units --> h_approve --> a_tasks --> a_cycle --> h_dispatch
+    a_cycle -.->|cycle the LLM missed: park needs-human| hand
     h_dispatch --> a_dispatch --> a_exec --> a_check --> h_merge
     h_merge -->|tasks remain, full path| a_dispatch
     h_merge -->|last task done, or fast path| a_done --> h_close
@@ -186,6 +199,41 @@ flow: answer in a comment and either tighten the scope (the executor
 resumes) or comment `/spec` to bounce the issue into the full
 pipeline (`sdd:fastpath` becomes `sdd:spec`; the stub is the
 starting point of a fuller spec).
+
+## Planning hardening
+
+Two backstops keep the plan honest before and after `/approve`. Both run inside
+the `sdd:triage` phase and need no extra human action in the normal case.
+
+**The pre-plan spike wave.** While `sdd-triage` phase A designs the
+architecture, it builds an **assumption ledger** in the architecture record: one
+row per load-bearing assumption the chosen approach rests on. An assumption that
+is load-bearing **and** not settleable from the repository working tree nor from
+prior precedent is the residue — it is marked `needs-spike`. Phase A step 4a
+then materializes one `kind:spike` sub-issue per `needs-spike` row, each a direct
+child of the tracking issue. The `sdd-spike-actuator` wrapper posts `/execute` on
+each spike, `sdd-execute` writes a `docs/spikes/<date>-<slug>.md` finding, and
+`sdd-validate` resolves the outcome: a `proved` spike gains
+`sdd:spike-resolved`; a `disproved` or `partial` spike parks the tracking issue
+at `needs-human` so a human decides how the plan adapts. Phase B holds the plan
+comment while any spike is open; the `sdd-spike-reentry` wrapper re-enters
+phase B once the wave drains to zero open spikes, folding each resolved spike's
+finding into the plan as settled ground. The spike wave is the one
+materialization phase A performs — ADR 0010's all-or-nothing guarantee is scoped
+to the main Unit/task tree, and the spike wave is the carved-out exception. See
+[Spikes](spikes.md) for the full primitive.
+
+**The cycle-detect backstop.** Phase B's plan composition runs a **latent-edge
+pass**: a task whose proof artifacts consume an artifact a sibling task produces
+is dependent on that producer even when no `blocked by` line was written, so the
+implied edge is added to the plan and materialized verbatim by phase C. The
+agent also checks the implied dependency graph for cycles before it posts. As a
+deterministic backstop for a cycle the LLM misses, the `sdd-triage` wrapper runs
+an `sdd-cycle-detect` composite-action job **after** phase-C materialization: it
+walks the Feature → Unit → task sub-issues, and if it finds a real cycle (or a
+`blocked by` reference it cannot resolve in the tree) it parks the tracking issue
+at `needs-human` with a comment naming the cycle. The agent's in-prompt check is
+the primary guarantee; this job is the authoritative backstop.
 
 ## What a human does
 

@@ -82,7 +82,17 @@ install aborts.
   tracker with one `/dispatch` when the close-driven cascade stalls. It is
   disabled by default — set the `SDD_MONITOR` repository variable to `1` to
   enable it (see `sdd-monitor.md`);
-- the `sdd:*` lifecycle labels, the `model:*` tier labels, and the
+- the `sdd-spike-actuator` utility workflow, the deterministic actuator for the
+  spike wave (issue #229): when a `kind:spike` sub-issue is opened or labeled
+  under a tracking issue still in triage, it posts `/execute` on that sub-issue
+  via the App token so the matching `sdd-execute` variant runs the spike, the
+  same way `sdd-dispatch` fans the main task cascade out;
+- the `sdd-spike-reentry` utility workflow, the deterministic re-entry for the
+  spike wave (issue #229): when a `kind:spike` child of a triage tracking issue
+  closes or has `needs-human` cleared and zero open spikes remain, it re-enters
+  `sdd-triage` phase B so the resolved spikes' findings fold into the plan;
+- the `sdd:*` lifecycle labels, the `kind:spike` spike label, the
+  `sdd:spike-resolved` marker, the `model:*` tier labels, and the
   `plan:provided` translation marker;
 - the `feature`, `bug`, `chore`, and `spec` issue templates.
 
@@ -256,8 +266,8 @@ agent — this opt-in widens no network access.
 
 ## Workflows installed
 
-`--suite sdd` writes thirteen workflow files to the consumer's
-`.github/workflows/`. Nine are agent wrappers; four are utility workflows.
+`--suite sdd` writes fifteen workflow files to the consumer's
+`.github/workflows/`. Nine are agent wrappers; six are utility workflows.
 None carries a `.lock.yml` — every wrapper calls a hosted reusable workflow by
 pinned ref (ADR 0004).
 
@@ -276,15 +286,17 @@ pinned ref (ADR 0004).
 | `sdd-triage-dedupe-tasks` | `issues` | Closes a duplicate phase-C task sub-issue (ADR 0008). |
 | `sdd-triage-promote-ready` | `issues` | Applies `sdd:ready` to a task when its last `blocked by` blocker closes (ADR 0009, ADR 0013). |
 | `sdd-monitor` | `workflow_run`, `pull_request`, `schedule` (`*/10`) | Backstop that nudges an armed-but-idle `sdd:dispatched` tracker with `/dispatch`. Disabled unless `SDD_MONITOR=1` (see `sdd-monitor.md`). |
+| `sdd-spike-actuator` | `issues` (`opened`, `labeled`) | Deterministic actuator for the spike wave: posts `/execute` on a `kind:spike` sub-issue under a triage tracking issue so `sdd-execute` runs the spike (issue #229). |
+| `sdd-spike-reentry` | `issues` (`closed`, `unlabeled`) | Deterministic re-entry: when a `kind:spike` child closes (or its `needs-human` is cleared) and zero open spikes remain, re-enters `sdd-triage` phase B (issue #229). |
 
 ## Labels installed
 
 `--suite sdd` syncs the complete label set below. Eight `sdd:*` labels are the
 lifecycle state machine — exactly one is present on a tracking issue at a time.
-`sdd:dispatched`, `plan:provided`, and `needs-human` are orthogonal markers
-that coexist with the lifecycle label. The `kind:*`, `priority:*`, and
-`model:*` families are metadata, not states. The state machine and the agent
-that writes each transition are in `shared/sdd-interaction.md`.
+`sdd:dispatched`, `sdd:spike-resolved`, `plan:provided`, and `needs-human` are
+orthogonal markers that coexist with the lifecycle label. The `kind:*`,
+`priority:*`, and `model:*` families are metadata, not states. The state machine
+and the agent that writes each transition are in `shared/sdd-interaction.md`.
 
 | Label | Family | Set by | Meaning |
 |---|---|---|---|
@@ -297,6 +309,7 @@ that writes each transition are in `shared/sdd-interaction.md`.
 | `sdd:review` | lifecycle | `sdd-validate` on clean pass | Implementation awaits human review. |
 | `sdd:done` | lifecycle | `sdd-execute` when all tasks close | Complete; human does the final close. |
 | `sdd:dispatched` | marker | `sdd-dispatch` on first `/dispatch` | Cascade armed; re-fires on every task close until the tree drains. |
+| `sdd:spike-resolved` | marker | `sdd-validate` on a `proved` spike | A spike sub-issue's experiment proved its load-bearing assumption (issue #229). |
 | `plan:provided` | marker | `spec.md` template / human | Tracking-issue body is a Claude plan; `sdd-spec`/`sdd-triage` translate it (issue #102). Cleared when the architecture (or fast-path stub) PR opens. |
 | `needs-human` | marker | any agent | Agent handed off; a human acts then clears it (ADR 0001). |
 | `model:haiku` | tier | `sdd-triage` | Low-complexity task; haiku `sdd-execute` variant. |
@@ -305,6 +318,7 @@ that writes each transition are in `shared/sdd-interaction.md`.
 | `kind:feature` | kind | template | A new feature or capability. |
 | `kind:bug` | kind | template | Something is not working. |
 | `kind:chore` | kind | template | Maintenance, refactor, or internal improvement. |
+| `kind:spike` | kind | `sdd-triage` phase A step 4a | A time-boxed spike sub-issue resolving a load-bearing assumption (issue #229). |
 | `priority:must-have` | priority | human | Must be done. |
 | `priority:should-have` | priority | human | Should be done. |
 | `priority:nice-to-have` | priority | human | Nice to have. |
@@ -376,16 +390,18 @@ confirm the install resolved its dependencies:
 1. **Workflows present.** Confirm the nine wrappers — the eight `sdd-*`
    wrappers (including `sdd-dispatch.yml`) and `distillery-sync.yml` — and
    the `sdd-pr-sanitize.yml`, `sdd-triage-dedupe-tasks.yml`,
-   `sdd-triage-promote-ready.yml`, and `sdd-monitor.yml` utility workflows
+   `sdd-triage-promote-ready.yml`, `sdd-monitor.yml`, `sdd-spike-actuator.yml`,
+   and `sdd-spike-reentry.yml` utility workflows
    appear under `.github/workflows/` on the target repository. The
    `.lock.yml` reusable workflows are hosted in the spectacles repository
    and are not copied onto the consumer.
 2. **Labels present.** Confirm the eight `sdd:*` lifecycle labels
    (`sdd:spec`, `sdd:fastpath`, `sdd:fastpath-review`, `sdd:triage`,
    `sdd:ready`, `sdd:in-progress`, `sdd:review`, `sdd:done`), the
-   `sdd:dispatched` cascade marker, the `plan:provided` translation marker,
-   the three `model:*` tier labels, the three `kind:*` labels, the three
-   `priority:*` labels, and `needs-human` all exist on the target repository.
+   `sdd:dispatched` cascade marker, the `sdd:spike-resolved` marker, the
+   `plan:provided` translation marker, the three `model:*` tier labels, the four
+   `kind:*` labels (including `kind:spike`), the three `priority:*` labels, and
+   `needs-human` all exist on the target repository.
    The full set is in "Labels installed" below.
 3. **MCP reachable.** Dispatch `distillery-sync` once and confirm its run logs
    a non-zero count of ingested specs, decisions, issues, or pull requests.

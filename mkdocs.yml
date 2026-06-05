@@ -41,6 +41,7 @@ nav:
   - Home: index.md
   - SDD:
       - The SDD pipeline: sdd/index.md
+      - Spikes: sdd/spikes.md
       - Installing the SDD suite: sdd/install.md
       - Spec frontmatter and doc states: sdd/spec-frontmatter-and-doc-states.md
       - MCP tools: sdd/mcp-tools.md
