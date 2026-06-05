@@ -18,7 +18,7 @@ The SDD suite runs LLM agents as hosted reusable workflows across consumer
 repositories, with no central view of token spend, run duration, or outcome
 rates. Each agent is a gh-aw source (`.github/workflows/<agent>.md`) compiled to
 a self-contained lock that a consumer invokes cross-owner by `uses:` (ADR 0004).
-gh-aw v0.74.3 emits an `observability.otlp` frontmatter block that, on compile,
+gh-aw v0.77.5 emits an `observability.otlp` frontmatter block that, on compile,
 inlines OTLP span export — token usage, duration, outcomes — into the lock: a
 workflow-level `OTEL_*` env, the collector host in the firewall allowlist, an
 MCP-gateway `opentelemetry` block, an observability-summary step, and an

@@ -26,7 +26,7 @@ network:
     - "*.run.app"
 # OpenTelemetry (ADR 0020): export agent spans — token usage, duration,
 # outcomes — over OTLP. The secret URL embeds a write-only ingest key, so no
-# auth header is needed (headerless also dodges the gh-aw v0.74.3 headers-YAML
+# auth header is needed (headerless also dodges the gh-aw headers-YAML
 # bug, github/gh-aw#37067). `if-missing: warn` degrades a missing secret to a
 # warning, so a consumer that has not set GH_AW_OTEL_ENDPOINT is unaffected.
 observability:
