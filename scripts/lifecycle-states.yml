@@ -55,6 +55,13 @@ markers:
   # Phase A when the architecture PR opens (or by sdd-spec on the
   # fast-path stub-spec exit).
   - plan:provided
+  # sdd:spike-resolved marks a kind:spike sub-issue whose experiment has
+  # been resolved (issue #229). It is orthogonal to the tracking-issue
+  # lifecycle state machine entirely: it lives on the spike sub-issue, not
+  # on the tracking issue, and never participates in a tracking-issue
+  # transition. Declared here so invariant 1 (every sdd:* label in the
+  # catalogue is classified) holds; it is a marker, not a lifecycle state.
+  - sdd:spike-resolved
 
 # Directed transition graph. Key is the source state; value is the
 # list of states reachable in one move from the source. Every state in

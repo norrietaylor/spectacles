@@ -380,6 +380,12 @@ do not move its lifecycle label.
 
 ### 4. Implement the task within its scope
 
+If the selected task carries the `kind:spike` label, do **not** implement it as
+a normal code change: follow the **Spike protocol** subsection below for steps 4
+through 7 instead. A spike's sole deliverable is a written finding at
+`docs/spikes/<date>-<slug>.md`; it edits no source. The rest of step 4 and
+steps 5–7 below describe the normal (non-spike) implementation path.
+
 Implement the selected task using Serena symbol-level retrieval and editing
 (see the imported Serena fragment). Activate the project, then locate the
 symbols the task touches and edit them with the symbol-level tools so a change
@@ -522,6 +528,17 @@ failure, fix the code and re-run until every command is green. A `cargo fmt`
 or lint diff that one command would fix is never a reason to ship — fix it,
 do not open the PR with it.
 
+**Spike exemption.** A `kind:spike` task writes only `docs/spikes/`, which
+invokes no build surface, so the consumer build/test gate has nothing to
+verify. Key this exemption on the **verified diff scope**, never on the label
+alone: run `git diff --name-only` against the base branch and inspect every
+path it lists. When **every** changed path is under `docs/spikes/`, skip the
+consumer build/test gate — a docs-only diff cannot break a build. If **any**
+listed path is outside `docs/spikes/`, the gate runs in full against the whole
+tree, exactly as for a normal task; the out-of-scope path means the spike has
+written something it must not, and the gate must not be skipped on the label's
+say-so.
+
 This in-sandbox verification requirement **supersedes** any older imported
 guidance that assumes Rust verification cannot run in the firewalled sandbox
 (for example `shared/sdd-rust-cleanup.md`, whose header predates the
@@ -551,8 +568,9 @@ exactly one pull request via the `create-pull-request` safe-output. The pull
 request is not a draft. Its title is `<type>(<scope>): <task title>`, where
 `<scope>` follows the task subject and `<type>` is the conventional-commit type
 mapped from the task's `kind:*` label: `kind:feature` → `feat`, `kind:bug` →
-`fix`, `kind:chore` → `chore`. Use only conventional-commit types — a target
-repo may lint commit subjects against the conventional enum, which has no
+`fix`, `kind:chore` → `chore`, `kind:spike` → `docs` (a spike's deliverable is
+its written finding, not a code change). Use only conventional-commit types — a
+target repo may lint commit subjects against the conventional enum, which has no
 `feature` or `bug`. The branch
 follows the `sdd/<task-id>-<slug>` convention from the imported
 repository-conventions fragment. The pull request body **must** contain:
@@ -640,6 +658,82 @@ hand-off: apply `needs-human` to the pull request (`add-labels`) and post
 exactly one comment stating which comment could not be resolved and why. Do
 not guess. A human resolves the comment and clears the label, which
 re-triggers this agent to resume (situation 4 above).
+
+### Spike protocol
+
+This subsection is the canonical spike protocol (`shared/sdd-spike.md`),
+inlined here because that fragment is new and cannot yet be imported from
+`@main`. It replaces steps 4–7 for a task carrying the `kind:spike` label
+(per the guard at the head of step 4).
+
+A `kind:spike` task is a bounded experiment that resolves a load-bearing
+assumption before planning commits to it. Its deliverable is a written finding,
+never a code change.
+
+**The deliverable.** A `kind:spike` task writes exactly one file:
+`docs/spikes/<date>-<slug>.md`, where `<date>` is the spike's open date
+(`YYYY-MM-DD`) and `<slug>` is a short hyphenated subject derived from the spike
+sub-issue's title. It writes **no other path** — a spike never edits source,
+config, or any build surface. The written finding **is** the deliverable, and
+it **is** the File-type proof artifact: the committed
+`docs/spikes/<date>-<slug>.md`, asserted to exist and to carry the required
+sections, satisfies the imported proof-artifacts empty-PR/proof rule directly
+rather than bypassing it (a spike PR is never empty).
+
+**Branch and PR conventions are the standard ones.** Use the standard
+implementation branch `sdd/<spike-issue-id>-<slug>` — the same
+`sdd/<task-id>-<slug>` convention every implementation PR uses. **Never** use a
+custom `sdd/spike-` prefix or any other branch shape: a non-standard prefix
+breaks the in-flight branch regex (`^sdd/(\d+)-`) that `sdd-dispatch-compute`
+and `sdd-route-execute` use to recognise a task already in flight, which
+produces a duplicate pull request for the same spike. The pull request body
+carries `Closes #<spike-issue>` so merging it closes the spike sub-issue. The
+commit subject and PR title use the conventional-commit type `docs` (the
+`kind:spike` → `docs` mapping from the imported repository-conventions
+fragment).
+
+**The doc format.** `docs/spikes/<date>-<slug>.md` carries YAML frontmatter —
+`id` (the spike sub-issue number), `title`, `status` (one of `proved`,
+`disproved`, `partial`, `parked`), `date`, `authors`, `budget_hours`,
+`actual_hours`, `related`, `tags` — followed by these sections in order:
+**Question** (the load-bearing assumption, stated as a question), **Hypothesis**
+(the expected answer before the experiment ran), **Method** (how the experiment
+was run, reproducibly), **Findings** (what was observed, with evidence inline:
+the exact commands and their output, measurement tables, and links to the
+sources inspected, per the imported evidence-rigor standard), **Conclusion**
+(the verdict: `proved`, `disproved`, or `partial` — a spike **may** partially
+resolve its question and queue follow-up spikes for the remainder; that is a
+`partial` conclusion, not a failure), **Action items** (what the finding changes
+downstream: spec amendments, ADR follow-ups, risk-register entries, follow-up
+spikes), and **Artifacts** (command transcripts, measurement files, and source
+links a reader can re-run or re-inspect).
+
+**The Pre-PR CI gate is exempt by verified diff scope.** A docs-only spike diff
+invokes no build surface, so the step-6 spike exemption applies: when
+`git diff --name-only` against the base lists only `docs/spikes/` paths, skip
+the consumer build/test gate. If any path falls outside `docs/spikes/`, the
+gate runs in full.
+
+**The park path.** When the experiment needs runtime or hardware the sandbox
+lacks, or a guardrail denies an action the experiment requires, **park** rather
+than fabricate a result. Commit a **partial** doc with `status: parked`: record
+the question, hypothesis, and method as usual, and in Findings quote the denial
+or the missing capability **verbatim** as the evidence for why the experiment
+could not run to completion. Never invent results, measurements, or a conclusion
+the evidence does not support. Queue the remaining work as follow-up spikes in
+the Action items. Then hand off via the imported `needs-human` contract: apply
+`needs-human` to the spike sub-issue (`add-labels`) and post exactly **one**
+comment that quotes the same denial; a human takes over, and clearing
+`needs-human` resumes the spike (situation 4 above).
+
+The `create-pull-request` safe-output is configured with `draft: false` and is
+static — it cannot be set per call — so a parked spike opens a **normal**
+(non-draft) pull request carrying the `status: parked` doc plus the
+`needs-human` hand-off, **not** a literal GitHub draft pull request. State this
+explicitly in the PR-facing summary as a deviation from any "draft PR"
+description of the parked state: the deviation is the static `draft: false`
+config, and the parked doc plus `needs-human` carries the same "do not merge
+yet" signal a draft would.
 
 ### 8. Idle, and the completion transitions
 

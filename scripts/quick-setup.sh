@@ -204,6 +204,10 @@ fi
 # `/dispatch` when the close-driven cascade stalls (issue #148 Tier 1); it
 # is disabled by default behind the SDD_MONITOR repo variable, so a
 # consumer that has not opted in carries the wrapper but pays no cost.
+# sdd-spike-actuator and sdd-spike-reentry drive the spike wave (issue #229):
+# the actuator posts /execute on a freshly-opened kind:spike sub-issue, and the
+# reentry wrapper re-enters triage phase B once every open spike is drained.
+# Both are deterministic (no engine), like sdd-monitor.
 wrappers=(
   "sdd-spec"
   "sdd-triage"
@@ -218,6 +222,8 @@ wrappers=(
   "sdd-triage-dedupe-tasks"
   "sdd-triage-promote-ready"
   "sdd-monitor"
+  "sdd-spike-actuator"
+  "sdd-spike-reentry"
 )
 
 # Sync the labels. labels.yml is a flat list of '- name:' records, so it is
@@ -326,6 +332,18 @@ install_issue_templates() {
       ".github/ISSUE_TEMPLATE/$tpl.md" \
       "chore: install $tpl issue template (spectacles quick-setup)"
   done
+}
+
+# Seed the spike-author README onto the consumer (issue #229). A kind:spike task
+# writes its finding under docs/spikes/ on the consumer; this README documents
+# the doc format, the standard branch/Closes convention, and the cleanup and
+# verbatim-denial hygiene a spike author must honor. Seeded at install so the
+# guidance is present before the first spike runs.
+install_spike_docs() {
+  echo "quick-setup: seeding docs/spikes/README.md."
+  install_file "$repo_root/docs/spikes/README.md" \
+    "docs/spikes/README.md" \
+    "docs: install spike-author README (spectacles quick-setup)"
 }
 
 # Ensure the target repository's .gitignore excludes Serena's working-tree
@@ -629,6 +647,7 @@ if [ "$suite" = "sdd" ]; then
   fi
   install_sdd_workflows
   install_issue_templates
+  install_spike_docs
   ensure_serena_gitignore
   detect_serena_language_server
   provision_distillery_config
