@@ -142,17 +142,19 @@ toggles with the defaults shown.
 
 Set with `gh secret set <NAME> --repo <owner>/<name>`.
 
-These four are the only operator-supplied secrets. They may be set at
-repository or organization level; an organization secret covers every consumer
-at once. The `GH_AW_*` token secrets that appear in the compiled locks are
-gh-aw boilerplate satisfied by the workflow's default `GITHUB_TOKEN`; the
-operator does not provision them.
+These are the operator-supplied secrets. They may be set at repository or
+organization level; an organization secret covers every consumer at once. The
+`GH_AW_*` token secrets that appear in the compiled locks are gh-aw boilerplate
+satisfied by the workflow's default `GITHUB_TOKEN`; the operator does not
+provision them. `GH_AW_OTEL_ENDPOINT` is optional — leave it unset and agents
+run unchanged.
 
 | Secret | Set by | Purpose |
 |---|---|---|
 | `COPILOT_GITHUB_TOKEN` | operator | The token for the Copilot engine that runs the agents. Consumed by every agent lock. |
 | `APP_PRIVATE_KEY` | operator | The private key (PEM) of the GitHub App that is the agents' write identity. Each agent run mints its own installation token from `APP_ID` and this key; nothing static is stored. The agents open PRs, create issues, and apply labels through that token. |
 | `DISTILLERY_OAUTH_TOKEN` | installer (from its environment) | The Distillery machine token — a pre-shared static bearer credential the workflows present to the Distillery MCP endpoint. Operator-issued; the installer sets it from `DISTILLERY_OAUTH_TOKEN` in its environment. See "The Distillery machine token" below. Despite the secret name, it is **not** a GitHub OAuth token. |
+| `GH_AW_OTEL_ENDPOINT` | operator (optional) | OTLP collector URL with a write-only ingest key embedded (headerless auth). When set, every agent exports spans — token usage, duration, outcomes — to it; the host must match the `*.run.app` firewall entry baked into the locks. Unset degrades to a warning (`if-missing: warn`), agents unaffected. The collector is write-only; a leaked key can push spans, not read them. See ADR 0020. |
 | `LEAK_DENYLIST` | operator | The leak-scan denylist, one term per line. Supplied as a secret so the private terms are never themselves committed to the public tree. Comment lines begin with `#`. Consumed by the `leak-scan` CI workflow, which runs in the spectacles repository, not on a consumer. |
 
 ### The GitHub App identity
