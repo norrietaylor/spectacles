@@ -109,7 +109,7 @@ through so this agent knows which entity it is operating on.
 
 ## Triggers this agent handles
 
-The wrapper invokes this agent for one of six situations. Determine which one
+The wrapper invokes this agent for one of seven situations. Determine which one
 applies from the workflow context before doing anything else.
 
 1. **A tracking issue gained the `sdd:triage` label.** Run phase A: design the
@@ -163,6 +163,23 @@ applies from the workflow context before doing anything else.
    tree; situation 6 amends the persisted architecture document. PRECONDITION:
    refuse while any task is in flight (the ADR 0010 clause-7 guard). Handle
    this in step 10 of the procedure.
+7. **The spike wave drained.** The last open `kind:spike` child of a tracking
+   issue that still carries `sdd:triage` has closed (or its `needs-human` was
+   cleared, leaving zero open spikes), so the assumptions phase A flagged
+   `needs-spike` are now resolved. Run phase B now: fold each resolved spike's
+   written finding (its `proof-of-resolution`, read from the closed spike
+   sub-issue) into the plan as settled ground, then compose and post the plan
+   comment (step 5). This is the deterministic re-entry the
+   `sdd-spike-reentry` wrapper synthesizes — phase B's natural arch-PR-merge
+   trigger already fired before the wave existed, so the drain re-enters phase
+   B explicitly. Resume **only** while the tracking issue still carries
+   `sdd:triage`; if it has moved on, emit `noop`. A spike that was **parked**
+   with `needs-human` (its experiment could not settle the question) is not a
+   resolution: clearing that `needs-human` re-enters phase B only when **zero**
+   open `kind:spike` children remain, and it must **not** silently re-run the
+   failed experiment — the human who cleared the label owns the next move on
+   that spike (a written finding, a revised ledger via `/revise`, or closing
+   the spike), and phase B proceeds only once the wave is genuinely drained.
 
 When the triggering item already carries the `needs-human` label, stop
 immediately and emit `noop`. A `needs-human`-labelled item is off-limits
@@ -229,6 +246,56 @@ Record the surfaced gaps, cited and scoped, in a short **Knowledge gaps**
 subsection of the architecture record. A contradiction with a prior decision
 record is a genuine fork: handle it with the `needs-human` hand-off below rather
 than overriding the prior decision silently.
+
+Then promote that knowledge-gap output into a structured **Assumption ledger**.
+Layered on the step-4 gap outputs above, the ledger is a `## Assumption ledger`
+subsection **within** this architecture record — not a new file — that records
+the load-bearing assumptions the chosen approach rests on. Write one row per
+load-bearing assumption, each carrying: a **stable slug row-key** (kebab-case,
+derived from the assumption statement, so the same assumption keeps the same key
+across `/revise` re-runs); a one-line **statement**; the **bucket**
+(`needs-spike` or `settled`); the **evidence / citation** that places it in its
+bucket (scoped and cited as the knowledge-gap pass cites — `(informed by #N)`,
+`(informed by ADR-0001)`, or a Serena file/symbol reference); and a
+**depends-on** field that binds the assumption **only** to architecture
+decisions or spec requirement IDs, never to tasks (no tasks exist at Phase A,
+and an assumption is a property of the design, not of an execution step).
+
+For each candidate the knowledge-gap pass surfaced, apply this per-row gate
+chain in order; the first gate that disqualifies the candidate stops the chain:
+
+- **Load-bearing gate.** Would the chosen approach change if the assumption were
+  false? A non-load-bearing assumption is **not** ledgered at all — drop it here.
+- **Settled gate.** Is the assumption already settled by a prior decision or
+  precedent — the `supersedes` / `corrects` traversal from the knowledge-gap
+  pass? If a decision record or merged work establishes it, ledger it in the
+  `settled` bucket with its citation.
+- **Repo-state gate.** Is the assumption settleable from the repository working
+  tree, confirmable at the Serena symbol-level baseline (the symbol, file, or
+  interface is in-tree and wired in, not a stub)? If so, ledger it in the
+  `settled` bucket with its file/symbol evidence.
+- **needs-spike residue.** An assumption that is load-bearing **and** not
+  settleable from repo state **nor** settled by precedent is the residue: mark
+  it `needs-spike` and ledger it in the `needs-spike` bucket.
+
+The **trigger for a spike** is exactly that residue — load-bearing **and** not
+settleable from repo state, nor settled by precedent. `needs-spike` versus
+`settled` are the whole partition of the ledger. `needs-spike` is a **ledger
+marker**, not a GitHub label: it lives in the architecture record's prose, is
+applied to no issue, and is not in the label catalog.
+
+This ledger pass is **strictly additive** to the step-5 baseline-against-repo
+pass: it reads the same Serena baseline and the same Distillery retrieval and
+informs the baseline, but it never removes or overrides a baseline finding. The
+gate chain needs both retrieval layers — Serena for the repo-state gate,
+Distillery for the settled gate and the knowledge-gap seeds. If a single layer
+is unreachable, degrade per its outage rule and prefer the conservative bucket.
+If **both** Serena and Distillery are unreachable, the agent cannot run the
+gates and must not guess buckets: hand off via the `needs-human` contract below
+rather than ledgering on a coin-flip. The ledger pass **still runs** under the
+`plan:provided` marker — a translated plan's assumptions are load-bearing for
+the architecture exactly as a from-scratch design's are, so run the gate chain
+over the plan's assumptions the same way.
 
 **Always** produce a per-feature architecture record. Write it to
 `docs/specs/NN-spec-<slug>/architecture.md`, alongside the spec file, where
@@ -419,16 +486,110 @@ sub-issue again. The triggering `/revise` comment is on the architecture pull re
 the safe-output pushes to that pull request's own branch and the same pull
 request updates in place.
 
+### 4a. Phase A: materialize the spike wave from the needs-spike residue
+
+This step runs right after the architecture pull request opens (step 4) and
+**before** phase B (step 5). It fires only when step 2's assumption ledger left
+`needs-spike` residue — one or more rows in the `needs-spike` bucket. When the
+ledger is all `settled`, this step is a no-op and phase B runs normally.
+
+The spike wave is the one materialization phase A performs. ADR 0010 scopes its
+all-or-nothing guarantee to the **main Unit/task tree** that `/approve` commits;
+the spike wave is carved out, because a spike's job is to settle a load-bearing
+assumption the plan itself rests on. The wave commits **before** any plan
+comment, gated only on the ledger residue, under the create-or-reuse-by-title
+guard below.
+
+For each `needs-spike` row in the ledger, emit one `create-issue` safe-output —
+a **direct child of the tracking issue**, with `parent` set to the tracking
+issue number, exactly as the architecture sub-issue is parented in step 4. Title
+it `spike: <one-line assumption statement>`. The body carries a structured
+`## Spike` block — deliberately a **distinct** heading from the `## Task` block
+of step 6, so the ADR 0008 `sdd-triage-dedupe-tasks` backstop, which filters on
+a `## Task` heading, ignores spike sub-issues entirely (a `## Spike` body never
+matches its `^## Task` guard). The block carries these fields:
+
+```text
+## Spike
+
+repo: <owner>/<repo>
+question: <the load-bearing question the experiment must answer>
+hypothesis: <the expected answer, stated so the experiment can falsify it>
+load-bearing-assumption: <the ledger row-key this spike resolves>
+depends-on: <architecture decisions or spec requirement IDs the assumption binds to>
+proof-of-resolution: <the observable artifact that settles the question>
+```
+
+- **repo**: the target repository for the spike, in `<owner>/<repo>` form;
+  defaults to the tracking issue's own repository.
+- **question**: the load-bearing question, taken verbatim from the ledger row's
+  statement, that the spike must answer before planning can proceed.
+- **hypothesis**: the design's current expected answer, phrased so the
+  experiment can confirm or falsify it.
+- **load-bearing-assumption**: the ledger row's stable slug row-key, so the
+  spike stays bound to the same assumption across `/revise` re-runs.
+- **depends-on**: the architecture decisions or spec requirement IDs the
+  assumption binds to — the same `depends-on` the ledger row carries, never a
+  task (no tasks exist at phase A).
+- **proof-of-resolution**: the observable artifact — a captured command result,
+  a probe output, a written finding — that settles the question.
+
+Set the `kind:spike` label **and** a `model:*` tier label in the `labels` field
+of that same `create-issue` call — never through `add-labels`, whose allowlist
+is `sdd:ready` and `needs-human` only, so a `kind:spike` or `model:*` write
+through it would be rejected at runtime (the same rule step 6 applies to a
+sub-task's `model:*` tier). Rate the spike's complexity and set the matching
+tier the same way a sub-task is tiered: `model:haiku` for a simple probe,
+`model:sonnet` for a moderate one, `model:opus` for a deep one. The tier label
+is what the matching `sdd-execute` variant keys on when the spike actuator posts
+`/execute` on the spike sub-issue.
+
+**Create-or-reuse by spike title.** Before emitting any spike `create-issue`,
+read the tracking issue's existing `sub_issues` and index the open ones by
+title. For each `needs-spike` row, match its `spike: <statement>` title against
+that index: if a sub-issue with that exact title already exists under the
+tracking issue, reuse it and emit no `create-issue`; only when none exists, emit
+exactly one. This mirrors the Unit create-or-reuse guard in phase C (step 6) and
+makes a `/revise` re-run idempotent on the spike layer — a re-derived ledger
+that keeps the same assumption keeps the same spike, not a duplicate.
+
+**Orphan cleanup on `/revise`.** A `/revise` re-run of phase A re-derives the
+ledger. A spike sub-issue that is **open** and whose `load-bearing-assumption`
+row-key is **no longer** in the revised ledger's `needs-spike` bucket is closed
+via `close-issue` with `state-reason: not_planned`, reusing the existing
+`close-issue` safe-output. An already-closed spike, or one whose assumption
+survives the revision, is left alone. This keeps the open spike set equal to the
+revised ledger's residue.
+
+The wave gates both later phases. While **any** open `kind:spike` child of the
+tracking issue exists, phase B posts **no** plan comment and phase C emits **no**
+Unit or task tree: both phases hold until the spike wave has drained to zero
+open `kind:spike` children. The drain is what re-enters phase B (situation 7);
+until then, the architecture is settled but the plan is not yet derivable,
+because it would rest on assumptions the open spikes have not yet resolved.
+
 ### 5. Phase B: post the proposed plan as one comment
 
-This phase runs on the merge of the architecture pull request. The merged pull
+This phase runs on the merge of the architecture pull request, **or** on the
+spike wave draining (situation 7). The merged pull
 request carries `Closes #<architecture-sub-issue>` (added by
 `sdd-pr-sanitize`), so the architecture sub-issue closes on merge without an
 agent step (ADR 0005); this phase does not close it.
 
-Phase B creates **no** sub-issues. The proposed plan is posted as a single
-comment on the tracking issue; `/approve` is the one gate at which structure
-is committed to the tree (ADR 0010).
+**Spike-wave gate.** Before composing anything, check for open `kind:spike`
+children of the tracking issue (the wave step 4a materialized). While **any**
+open `kind:spike` child remains, do **not** post a plan comment: the architecture
+is settled but the plan would rest on assumptions the open spikes have not yet
+resolved. Emit `noop` and wait — situation 7 re-enters this phase the moment the
+last spike closes, and on that re-entry the resolved spikes' findings (their
+written `proof-of-resolution`, read from the closed spike sub-issues) fold into
+the plan as settled ground. When the wave has drained — or when there was no
+residue and no wave was ever created — proceed.
+
+Phase B creates **no** main-tree sub-issues (no Unit, no task). The proposed plan
+is posted as a single comment on the tracking issue; `/approve` is the one gate
+at which the Unit/task tree is committed (ADR 0010). The earlier spike wave is
+the carved-out exception ADR 0010 names — it materialized in phase A, not here.
 
 Read the merged spec file's Demoable Units of Work section. For each demoable
 unit, draft the implementation sub-task list that `/approve` would
@@ -538,6 +699,16 @@ diverges from the preview, is a correctness bug.
 This phase runs on a `/approve` comment from a write-access author. Phase C
 creates the Unit sub-issues **and** the implementation task sub-issues in one
 phase (ADR 0010).
+
+**Spike-wave gate.** Before locating the plan, check for open `kind:spike`
+children of the tracking issue. While **any** open `kind:spike` child remains,
+emit **no** Unit or task `create-issue`: the plan a `/approve` would materialize
+rests on assumptions the open spikes have not resolved. Refuse with one comment
+pointing the human at the still-open spike sub-issues and emit `noop`; do not
+apply `needs-human` (this is a wait, not a hand-off — the wave drains on its own
+and re-enters phase B, which re-posts the plan). In normal flow phase C is never
+reached with an open spike, because phase B held the plan comment until the wave
+drained; this gate is the backstop for a `/approve` typed against a stale plan.
 
 Locate the active plan comment on the tracking issue by its
 `<\!-- sdd-triage:plan -->` sentinel (backslash is a prompt-escape only; the

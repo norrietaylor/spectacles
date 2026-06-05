@@ -2,6 +2,8 @@
 
 - Status: Accepted
 - Date: 2026-05-20
+- Amended: 2026-06-05 — all-or-nothing now scopes to the main Unit/task tree;
+  the spike wave is a separate bounded earlier materialization (#229).
 
 ## Context
 
@@ -33,7 +35,15 @@ comment, not a tree.
    title, `files in scope:`, 1 to 3 proof artifacts, `depends on:` edges, and
    `model:*` tier. The comment opens with the sentinel
    `<!-- sdd-triage:plan -->` so subsequent runs can locate it. Phase B
-   creates **no** sub-issues.
+   creates **no main-tree sub-issues** — no Unit and no implementation task.
+   The one exception is the **spike wave** (#229): when phase A's assumption
+   ledger leaves `needs-spike` residue, phase A materializes one `kind:spike`
+   sub-issue per `needs-spike` assumption *before* phase B runs, and phase B
+   does not post the plan until that wave has drained. The spike wave is a
+   bounded, earlier materialization that is deliberately outside the
+   plan-comment-then-tree guarantee, because the spikes resolve the
+   load-bearing assumptions the plan itself depends on; they are not part of
+   the Unit/task tree `/approve` commits.
 
 2. **Phase C, on `/approve`, materializes the plan as the Unit and task
    sub-issue tree.** It creates the Unit sub-issues parented to the tracking
@@ -45,8 +55,14 @@ comment, not a tree.
 3. **The cycle check and the spec-requirement-coverage check run before any
    `create-issue` is emitted in phase C.** A cycle or an unmapped requirement
    produces a `needs-human` hand-off comment and zero `create-issue`
-   safe-outputs; the tree is never partially created. The failure mode is
-   "plan rejected, no tree created," not "partial tree, needs cleanup."
+   safe-outputs; the **main Unit/task tree** is never partially created. The
+   failure mode is "plan rejected, no tree created," not "partial tree, needs
+   cleanup." This all-or-nothing guarantee scopes to the Unit/task tree that
+   `/approve` commits. The spike wave (#229) is carved out: it is a separate,
+   bounded materialization in phase A, gated only on the assumption ledger's
+   `needs-spike` residue, and it commits before any plan comment is posted, so
+   it is governed by its own create-or-reuse-by-title guard rather than by this
+   phase-C cycle/coverage gate.
 
 4. **`/approve` materializes exactly what the plan comment shows.** A
    sub-task that appears in phase C but not in the latest plan comment, or
@@ -102,11 +118,16 @@ without changing the gate semantics in clauses 1 to 7.
   agent has to undo writes it already made. Keeping the proposal in a comment
   until `/approve` aligns the cost of revision with the human's gate.
 - **Atomicity of the gate.** `/approve` is now the **only** point at which
-  the tree commits. The cycle and coverage checks run before any
-  `create-issue` is emitted, so the failure mode is "plan rejected, no tree
-  created" rather than "partial tree, needs cleanup." That matches what the
-  human expects when they approve a plan — they approve or they don't, and
-  nothing in between gets created.
+  the **main Unit/task tree** commits. The cycle and coverage checks run
+  before any `create-issue` is emitted, so the failure mode is "plan
+  rejected, no tree created" rather than "partial tree, needs cleanup." That
+  matches what the human expects when they approve a plan — they approve or
+  they don't, and nothing in between gets created. The spike wave (#229) is
+  the one carve-out: it materializes `kind:spike` sub-issues in phase A,
+  before the plan comment, because a spike's job is to settle a load-bearing
+  assumption the plan rests on. Scoping the all-or-nothing guarantee to the
+  Unit/task tree keeps `/approve`'s atomicity intact while letting the
+  earlier, narrower spike wave run on its own bounded gate.
 - **The full preview is the contract.** A plan comment that lists only Unit
   groupings would still leave the sub-task decomposition opaque until phase
   C creates the sub-issues; the human would then have to revise on a tree.
