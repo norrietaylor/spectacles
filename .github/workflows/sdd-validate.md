@@ -431,12 +431,20 @@ moves below target one of these two issues by `item_number`, not the PR.
   the tracking issue, even when a completeness Blocker (missing Action items)
   also fired on the same run — otherwise phase C wedges forever on a
   disproven-but-untidy doc that can never reach `sdd:spike-resolved`.
+- **Any other Blocker.** When a spike gate produces a Blocker outside the clean
+  `proved` path — a missing Conclusion (gate 1), or a `proved` Conclusion that
+  still carries a credential-in-diff Blocker — do **not** set
+  `sdd:spike-resolved`. Park the **tracking issue**: apply the `needs-human`
+  label (`add-labels`, `item_number` = the tracking issue) and post the single
+  permitted findings comment on the tracking issue, folding in the Blocker
+  evidence. This is the same one-comment, one-label budget as the
+  disproved/partial path.
 
 `sdd:spike-resolved` is a marker on the spike sub-issue, orthogonal to the
-tracking-issue lifecycle; it pairs with no `remove-labels`. `proved` and
-`disproved`/`partial` are mutually exclusive per run, so exactly one label move
-happens — either `sdd:spike-resolved` on the spike sub-issue or `needs-human`
-on the tracking issue. As with every boundary, the run exits successfully
+tracking-issue lifecycle; it pairs with no `remove-labels`. A run resolves to exactly
+one of these branches, so exactly one label move happens — either
+`sdd:spike-resolved` on the spike sub-issue (clean `proved`) or `needs-human`
+on the tracking issue (`disproved`/`partial`, or any other Blocker). As with every boundary, the run exits successfully
 regardless of the Conclusion; a Blocker hands off via `needs-human` and never
 fails the workflow.
 

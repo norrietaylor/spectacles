@@ -723,8 +723,12 @@ could not run to completion. Never invent results, measurements, or a conclusion
 the evidence does not support. Queue the remaining work as follow-up spikes in
 the Action items. Then hand off via the imported `needs-human` contract: apply
 `needs-human` to the spike sub-issue (`add-labels`) and post exactly **one**
-comment that quotes the same denial; a human takes over, and clearing
-`needs-human` resumes the spike (situation 4 above).
+comment that quotes the same denial. A human takes over. Because the parked
+spike keeps an **open** (non-draft) pull request, that open PR claims the task
+under the in-flight gate (step 2), so clearing `needs-human` alone does **not**
+resume it: drive the resume on the parked pull request (for example via
+`/revise`), or close the parked pull request first and then clear `needs-human`
+— otherwise step 2 treats the task as already in flight and emits `noop`.
 
 The `create-pull-request` safe-output is configured with `draft: false` and is
 static — it cannot be set per call — so a parked spike opens a **normal**

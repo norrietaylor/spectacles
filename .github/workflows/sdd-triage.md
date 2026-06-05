@@ -184,7 +184,13 @@ applies from the workflow context before doing anything else.
 When the triggering item already carries the `needs-human` label, stop
 immediately and emit `noop`. A `needs-human`-labelled item is off-limits
 during candidate selection (see the imported interaction contract); the
-hand-off comment has already been posted and must not be posted again.
+hand-off comment has already been posted and must not be posted again. This
+guard applies to the agent's **triggering item**. For a situation-7 re-entry the
+triggering item is the **tracking issue** (the `sdd-spike-reentry` wrapper
+synthesizes it once the wave has drained to zero open spikes), so a **closed**
+spike that still carries `needs-human` does not suppress re-entry — only the
+tracking issue's own `needs-human` (a `disproved`/`partial` spike park) holds
+phase B, by design.
 
 ## What this agent produces
 
