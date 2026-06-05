@@ -357,7 +357,8 @@ jobs:
             phase is **not** the commit type — encode it in the scope instead:
             `docs(spec-<slug>)`, `docs(arch-<slug>)`, and `<type>(<scope>)` mapped from
             the task's `kind:*` for implementation PRs (`kind:feature` → `feat`,
-            `kind:bug` → `fix`, `kind:chore` → `chore`).
+            `kind:bug` → `fix`, `kind:chore` → `chore`, `kind:spike` → `docs` — a
+            spike's deliverable is its written finding, not a code change).
           - A fix PR closes its issue with `Closes #N` in the description.
           - Never force-push a branch that has an open PR.
           
@@ -689,10 +690,36 @@ jobs:
           3. **No real credentials in the diff.** The diff introduces no real secret,
              token, key, or other credential. A credential in the diff is a Blocker.
           
+          ## Spike gates
+          
+          Applied at the spike boundary: a pull request that adds or changes a `*.md`
+          file under `docs/spikes/`. The boundary precedence is **spec, then
+          architecture, then spike, then implementation** — spike sits ahead of
+          implementation so a doc-only spike PR never falls through to the implementation
+          catch-all and draws a false Blocker on the empty-PR proof rule.
+          
+          A `kind:spike` task's deliverable is a written finding, not a code change, so
+          the spike doc write under `docs/spikes/` is itself the File-type proof (see the
+          imported proof-artifacts fragment). The implementation gate set does **not**
+          run on a spike PR: there are no behavior-demonstrating proof artifacts to
+          re-execute and no task files-in-scope block to check. The spike gates are
+          Blocker-only:
+          
+          1. **Conclusion present.** The spike doc carries a Conclusion stating the
+             verdict (`proved`, `disproved`, or `partial`). A doc with no Conclusion is a
+             Blocker.
+          2. **Action items present for an unresolved verdict.** A `disproved` or
+             `partial` Conclusion carries Action items describing what the finding
+             changes downstream (spec amendments, ADR follow-ups, risk-register entries,
+             follow-up spikes). A `disproved`/`partial` spike with no Action items is a
+             Blocker. A `proved` spike needs no Action items.
+          3. **No real credentials in the diff.** The diff introduces no real secret,
+             token, key, or other credential. A credential in the diff is a Blocker.
+          
           ## Verification
           
-          - This fragment names all four gate sets: spec gates, architecture gates,
-            triage gates, and implementation gates.
+          - This fragment names all five gate sets: spec gates, architecture gates,
+            triage gates, spike gates, and implementation gates.
           - `.github/workflows/sdd-validate.md` imports this fragment and resolves the
             boundary before applying a gate set.
           - Each gate set names the artifact it applies to and the boundary that selects

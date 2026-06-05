@@ -394,7 +394,8 @@ jobs:
             phase is **not** the commit type — encode it in the scope instead:
             `docs(spec-<slug>)`, `docs(arch-<slug>)`, and `<type>(<scope>)` mapped from
             the task's `kind:*` for implementation PRs (`kind:feature` → `feat`,
-            `kind:bug` → `fix`, `kind:chore` → `chore`).
+            `kind:bug` → `fix`, `kind:chore` → `chore`, `kind:spike` → `docs` — a
+            spike's deliverable is its written finding, not a code change).
           - A fix PR closes its issue with `Closes #N` in the description.
           - Never force-push a branch that has an open PR.
           
@@ -583,6 +584,10 @@ jobs:
           each is a health check, not a proof. It confirms the environment, not the
           unit. An agent drops it and replaces it with an artifact that fails before the
           unit and passes after.
+          
+          A `kind:spike` task is exempt from this empty-PR/proof rule because its sole
+          deliverable is the `docs/spikes/<date>-<slug>.md` write, whose existence is
+          itself the File-type proof artifact (see `sdd-spike.md`).
           
           ## How many per unit
           
