@@ -188,7 +188,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        # Pinned to the immutable v4 SHA (the pin recompile-locks.yml already
+        # uses) with persist-credentials: false — this job only reads the tree
+        # to run a node self-check, so it persists no git credentials
+        # (CodeRabbit, #239).
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          persist-credentials: false
       - name: Run the cycle-detect self-check
         run: node scripts/test-cycle-detect.mjs
 
