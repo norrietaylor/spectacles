@@ -1,4 +1,4 @@
-# gh-aw-metadata: {"schema_version":"v4","frontmatter_hash":"1915aea8558c0791959763e7f28627d00f04510c3ae2ce8414a1fe70405170cf","body_hash":"7484d0c8d02eeaef978237d08eb8fdb97d470e56d7d30f018b410f43f48bf9c4","compiler_version":"v0.77.5","agent_id":"copilot"}
+# gh-aw-metadata: {"schema_version":"v4","frontmatter_hash":"35fb6d6136cf58a426fe69ac368b149c6a0cddc22cbcb324c56e5a350230e415","body_hash":"7484d0c8d02eeaef978237d08eb8fdb97d470e56d7d30f018b410f43f48bf9c4","compiler_version":"v0.77.5","agent_id":"copilot"}
 # gh-aw-manifest: {"version":1,"secrets":["APP_PRIVATE_KEY","COPILOT_GITHUB_TOKEN","DISTILLERY_OAUTH_TOKEN","GH_AW_GITHUB_MCP_SERVER_TOKEN","GH_AW_GITHUB_TOKEN","GH_AW_OTEL_ENDPOINT","GITHUB_TOKEN"],"actions":[{"repo":"actions/checkout","sha":"de0fac2e4500dabe0009e67214ff5f5447ce83dd","version":"v6.0.2"},{"repo":"actions/create-github-app-token","sha":"bcd2ba49218906704ab6c1aa796996da409d3eb1","version":"v3.2.0"},{"repo":"actions/download-artifact","sha":"3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c","version":"v8.0.1"},{"repo":"actions/github-script","sha":"3a2844b7e9c422d3c10d287c895573f7108da1b3","version":"v9.0.0"},{"repo":"actions/setup-node","sha":"48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e","version":"v6.4.0"},{"repo":"actions/upload-artifact","sha":"043fb46d1a93c77aae656e7c1c64a875d1fc6a0a","version":"v7.0.1"},{"repo":"github/gh-aw-actions/setup","sha":"3ea13c02d765410340d533515cb31a7eef2baaf0","version":"v0.77.5"}],"containers":[{"image":"ghcr.io/github/gh-aw-firewall/agent:0.25.58"},{"image":"ghcr.io/github/gh-aw-firewall/api-proxy:0.25.58"},{"image":"ghcr.io/github/gh-aw-firewall/squid:0.25.58"},{"image":"ghcr.io/github/gh-aw-mcpg:v0.3.22"},{"image":"ghcr.io/github/github-mcp-server:v1.1.0"},{"image":"node:lts-alpine","digest":"sha256:2bdb65ed1dab192432bc31c95f94155ca5ad7fc1392fb7eb7526ab682fa5bf14","pinned_image":"node:lts-alpine@sha256:2bdb65ed1dab192432bc31c95f94155ca5ad7fc1392fb7eb7526ab682fa5bf14"}]}
 #    ___                   _   _      
 #   / _ \                 | | (_)     
@@ -234,20 +234,20 @@ jobs:
         run: |
           bash "${RUNNER_TEMP}/gh-aw/actions/create_prompt_first.sh"
           {
-          cat << 'GH_AW_PROMPT_1c6cc12865fc3514_EOF'
+          cat << 'GH_AW_PROMPT_bbaf5f4134988fb1_EOF'
           <system>
-          GH_AW_PROMPT_1c6cc12865fc3514_EOF
+          GH_AW_PROMPT_bbaf5f4134988fb1_EOF
           cat "${RUNNER_TEMP}/gh-aw/prompts/xpia.md"
           cat "${RUNNER_TEMP}/gh-aw/prompts/temp_folder_prompt.md"
           cat "${RUNNER_TEMP}/gh-aw/prompts/markdown.md"
           cat "${RUNNER_TEMP}/gh-aw/prompts/safe_outputs_prompt.md"
-          cat << 'GH_AW_PROMPT_1c6cc12865fc3514_EOF'
+          cat << 'GH_AW_PROMPT_bbaf5f4134988fb1_EOF'
           <safe-output-tools>
           Tools: add_comment, create_issue, update_issue, missing_tool, missing_data, noop
           </safe-output-tools>
-          GH_AW_PROMPT_1c6cc12865fc3514_EOF
+          GH_AW_PROMPT_bbaf5f4134988fb1_EOF
           cat "${RUNNER_TEMP}/gh-aw/prompts/mcp_cli_tools_prompt.md"
-          cat << 'GH_AW_PROMPT_1c6cc12865fc3514_EOF'
+          cat << 'GH_AW_PROMPT_bbaf5f4134988fb1_EOF'
           <github-context>
           The following GitHub context information is available for this workflow:
           {{#if github.actor}}
@@ -276,9 +276,9 @@ jobs:
           {{/if}}
           </github-context>
           
-          GH_AW_PROMPT_1c6cc12865fc3514_EOF
+          GH_AW_PROMPT_bbaf5f4134988fb1_EOF
           cat "${RUNNER_TEMP}/gh-aw/prompts/github_mcp_tools_with_safeoutputs_prompt.md"
-          cat << 'GH_AW_PROMPT_1c6cc12865fc3514_EOF'
+          cat << 'GH_AW_PROMPT_bbaf5f4134988fb1_EOF'
           </system>
           # Distillery sync
           
@@ -504,7 +504,7 @@ jobs:
             `distillery_relations(action="get", entry_id=<new ADR entry>)` shows a
             `supersedes` edge to the prior ADR's entry.
           
-          GH_AW_PROMPT_1c6cc12865fc3514_EOF
+          GH_AW_PROMPT_bbaf5f4134988fb1_EOF
           } > "$GH_AW_PROMPT"
       - name: Interpolate variables and render templates
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
@@ -720,9 +720,9 @@ jobs:
           mkdir -p "${RUNNER_TEMP}/gh-aw/safeoutputs"
           mkdir -p /tmp/gh-aw/safeoutputs
           mkdir -p /tmp/gh-aw/mcp-logs/safeoutputs
-          cat > "${RUNNER_TEMP}/gh-aw/safeoutputs/config.json" << 'GH_AW_SAFE_OUTPUTS_CONFIG_28bda9a9221566b5_EOF'
+          cat > "${RUNNER_TEMP}/gh-aw/safeoutputs/config.json" << 'GH_AW_SAFE_OUTPUTS_CONFIG_befc0d246e72d783_EOF'
           {"add_comment":{"max":1,"target":"*"},"create_issue":{"max":1},"create_report_incomplete_issue":{},"missing_data":{},"missing_tool":{},"noop":{"max":1,"report-as-issue":"true"},"report_incomplete":{},"update_issue":{"allow_body":true,"allow_title":true,"max":1,"target":"*"}}
-          GH_AW_SAFE_OUTPUTS_CONFIG_28bda9a9221566b5_EOF
+          GH_AW_SAFE_OUTPUTS_CONFIG_befc0d246e72d783_EOF
       - name: Generate Safe Outputs Tools
         env:
           GH_AW_TOOLS_META_JSON: |
@@ -1009,7 +1009,7 @@ jobs:
           
           mkdir -p /home/runner/.copilot
           GH_AW_NODE=$(which node 2>/dev/null || command -v node 2>/dev/null || echo node)
-          cat << GH_AW_MCP_CONFIG_8d0058002aad8932_EOF | "$GH_AW_NODE" "${RUNNER_TEMP}/gh-aw/actions/start_mcp_gateway.cjs"
+          cat << GH_AW_MCP_CONFIG_22ea7178b6d26fb6_EOF | "$GH_AW_NODE" "${RUNNER_TEMP}/gh-aw/actions/start_mcp_gateway.cjs"
           {
             "mcpServers": {
               "distillery": {
@@ -1081,7 +1081,7 @@ jobs:
               }
             }
           }
-          GH_AW_MCP_CONFIG_8d0058002aad8932_EOF
+          GH_AW_MCP_CONFIG_22ea7178b6d26fb6_EOF
       - name: Mount MCP servers as CLIs
         id: mount-mcp-clis
         continue-on-error: true
@@ -1209,6 +1209,7 @@ jobs:
           SECRET_GH_AW_GITHUB_TOKEN: ${{ secrets.GH_AW_GITHUB_TOKEN }}
           SECRET_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Redact OTLP endpoint from artifacts
+        if: always()
         run: |
           if [ -n "${GH_AW_OTEL_ENDPOINT:-}" ]; then
             find /tmp/gh-aw -type f -exec sed -i "s#${GH_AW_OTEL_ENDPOINT}#[REDACTED-OTEL-ENDPOINT]#g" {} + 2>/dev/null || true

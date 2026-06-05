@@ -40,6 +40,10 @@ observability:
 secret-masking:
   steps:
     - name: Redact OTLP endpoint from artifacts
+      # always(): the artifact upload runs on failure paths too (if: always()),
+      # and the built-in redaction is always() — match it so a failed run cannot
+      # upload the endpoint unredacted.
+      if: always()
       env:
         GH_AW_OTEL_ENDPOINT: ${{ secrets.GH_AW_OTEL_ENDPOINT }}
       run: |
