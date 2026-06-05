@@ -10,6 +10,15 @@ inputs:
     description: 'Token for the REST calls in the route logic.'
     required: false
     default: ${{ github.token }}
+  reentry-tracking-issue:
+    description: >
+      Spike-wave re-entry (issue #229). When set to a tracking issue number,
+      the action short-circuits the webhook routing and emits aw_context naming
+      that tracking issue with phase B. The sdd-spike-reentry wrapper passes
+      this after it has confirmed the wave drained, to re-enter phase B whose
+      natural arch-PR-merge trigger already fired before the wave existed.
+    required: false
+    default: ''
 
 outputs:
   should_run:
@@ -37,6 +46,8 @@ runs:
     - name: Decide whether to run and build aw_context
       id: decide
       uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+      env:
+        REENTRY_TRACKING_ISSUE: ${{ inputs.reentry-tracking-issue }}
       with:
         github-token: ${{ inputs.github-token }}
         script: |
@@ -44,6 +55,33 @@ runs:
             const payload = context.payload;
             let run = false;
             let ctx = {};
+
+            // Spike-wave re-entry (issue #229). When the sdd-spike-reentry
+            // wrapper passes a tracking issue number, short-circuit the
+            // webhook routing: emit aw_context naming that tracking issue and
+            // set phase B. Phase B's natural arch-PR-merge trigger fired
+            // before the spike wave existed, so the wave draining cannot
+            // re-fire it through a real webhook — the wrapper synthesizes the
+            // re-entry deterministically and routes it here. Phase is B (post
+            // the plan), never C, so the sdd-triage wrapper's cycle-detect job
+            // (gated on phase C) does not fire on a re-entry.
+            const reentry = (process.env.REENTRY_TRACKING_ISSUE || '').trim();
+            if (reentry) {
+              const reentryNum = parseInt(reentry, 10);
+              if (Number.isInteger(reentryNum) && reentryNum > 0) {
+                core.setOutput('should_run', 'true');
+                core.setOutput('aw_context', JSON.stringify({
+                  item_type: 'issue',
+                  item_number: reentryNum,
+                  reentry: 'spike-wave-drained',
+                }));
+                core.setOutput('phase', 'B');
+                core.setOutput('item_number', String(reentryNum));
+                return;
+              }
+              core.info('reentry-tracking-issue is not a positive integer ('
+                + reentry + '); ignoring.');
+            }
             // The SDD triage phase this event drives, surfaced as an output so
             // the wrapper's deterministic cycle-detect job can gate on phase C
             // (the /approve materialization). 'A' = architecture design,

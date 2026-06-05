@@ -44,6 +44,10 @@ each is a health check, not a proof. It confirms the environment, not the
 unit. An agent drops it and replaces it with an artifact that fails before the
 unit and passes after.
 
+A `kind:spike` task is exempt from this empty-PR/proof rule because its sole
+deliverable is the `docs/spikes/<date>-<slug>.md` write, whose existence is
+itself the File-type proof artifact (see `sdd-spike.md`).
+
 ## How many per unit
 
 Each demoable unit carries **1 to 3 proof artifacts**. One is enough when a

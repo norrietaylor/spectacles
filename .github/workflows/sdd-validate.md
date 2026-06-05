@@ -75,7 +75,7 @@ safe-outputs:
     max: 1
     hide-older-comments: true
   add-labels:
-    allowed: [needs-human, sdd:review]
+    allowed: [needs-human, sdd:review, sdd:spike-resolved]
     max: 1
   remove-labels:
     allowed: [sdd:in-progress]
@@ -153,7 +153,10 @@ Blocker finding. On a clean implementation-boundary pass against a full-path
 feature it moves the linked tracking issue from `sdd:in-progress` to
 `sdd:review`. On a fast-path feature (ADR 0012) it does **not** move the
 lifecycle: `sdd-execute` writes `sdd:done` when the implementation pull
-request merges, and this agent is not the declared writer of `sdd:done`. It
+request merges, and this agent is not the declared writer of `sdd:done`. On a
+spike-boundary pass it resolves the spike outcome instead: a `proved` spike
+gains `sdd:spike-resolved` on the spike sub-issue; a `disproved` or `partial`
+spike parks the tracking issue at `needs-human` with one pointer comment. It
 opens no pull request and creates no issue.
 
 ## Procedure
@@ -175,16 +178,22 @@ this run is validating before applying any gate:
   under `docs/specs/`.
 - **Architecture boundary.** The pull request adds or changes an
   `architecture.md` file under `docs/specs/`, or any file under `decisions/`.
+- **Spike boundary.** The pull request adds or changes a `*.md` file under
+  `docs/spikes/`. The spike's written finding is the deliverable; the spike's
+  own gate set (step 3) applies, not the implementation gate set.
 - **Implementation boundary.** The pull request changes any other file, that
-  is, a change that is neither a spec file nor an architecture or decisions
-  file.
+  is, a change that is neither a spec file, nor an architecture or decisions
+  file, nor a spike file.
 - **Triage boundary.** The trigger is an `sdd:ready` label event on a tracking
   issue. The task graph is the set of linked sub-issues, not a pull request.
 
 A pull request resolves to exactly one boundary. When a pull request touches
 files of more than one boundary, resolve to the boundary of the most
-significant change in this order: spec, then architecture, then
-implementation. State the resolved boundary in the findings comment.
+significant change in this order: spec, then architecture, then spike, then
+implementation. Placing spike ahead of implementation stops a spike PR — which
+carries no behavior-demonstrating proof artifact by design — from falling
+through to the implementation catch-all and drawing a false Blocker on the
+empty-PR rule. State the resolved boundary in the findings comment.
 
 **Fast-path awareness** (ADR 0012). When the tracking issue linked to
 the triggering item carries `sdd:fastpath`, `sdd:fastpath-review`, or
@@ -233,12 +242,23 @@ fragment. The four gate sets are defined there, not here:
   masquerading as a decision.
 - **Triage gates:** every spec R-ID covered by a task, dependencies form a
   DAG, each task single-session sized, every task carries a `repo:` field.
+- **Spike gates:** a Conclusion is present; for a `disproved` or `partial`
+  conclusion, Action items are present; no real credentials in the diff.
 - **Implementation gates:** proof artifacts re-executed and passing, changed
   files within task scope, no real credentials in the diff.
 
 Apply each gate as one checkable property. Apply the 80% confidence floor from
 the imported evidence-rigor standard before filing any finding: an uncertain
 pattern is a note, not a Blocker.
+
+On a spike boundary, read the spike doc's Conclusion (`proved`, `disproved`, or
+`partial`) and apply the spike gate set only. Do **not** re-run the
+implementation gate set on a spike PR: a spike carries no behavior-demonstrating
+proof artifact, so the proof-re-execution and files-in-scope gates do not apply
+— the doc write under `docs/spikes/` is itself the File-type proof (see the
+imported proof-artifacts fragment). The spike gates are Blocker-only: a missing
+Conclusion is a Blocker; missing Action items on a `disproved` or `partial`
+conclusion is a Blocker; a real credential in the diff stays a Blocker.
 
 For the implementation gate **proof artifacts re-executed and passing**, apply
 this refinement, which **supersedes** the imported validation-gates fragment's
@@ -267,8 +287,11 @@ covers.
 
 Post exactly one comment, via the `add-comment` safe-output, on the triggering
 item: the pull request for a pull request trigger (the spec, architecture, or
-implementation boundary), or the tracking issue for the triage boundary. The
-comment lists every finding with:
+implementation boundary), or the tracking issue for the triage boundary. On the
+**spike boundary**, step 7 is the sole authority for comment placement and
+content — do not post here; that step posts the one permitted comment (and folds
+in the Action-items pointer) on the issue it selects. The comment lists every
+finding with:
 
 - A severity: **Blocker**, **Warning**, or **Info**, per the imported
   validation-gates fragment.
@@ -290,7 +313,12 @@ When any gate produced a Blocker finding, apply the `needs-human` label via the
 architecture, or implementation boundary; the tracking issue for the triage
 boundary — and make sure the findings comment names the failed gate and its
 citing evidence. This is the `needs-human` hand-off from the imported
-interaction contract and ADR 0001.
+interaction contract and ADR 0001. On the **spike boundary**, do not apply the
+hand-off here: step 7 is the sole authority for label placement and already
+parks the **tracking issue** at `needs-human` on a `disproved` or `partial`
+conclusion (including when a completeness Blocker fired), so labelling here as
+well would mistarget `needs-human` to the pull request and collide with step 7's
+single permitted `add-labels`.
 
 A proof artifact recorded as **deferred to consumer CI** is an Info finding,
 not a Blocker: it does not apply `needs-human` and does not stall the cascade.
@@ -364,11 +392,71 @@ human pushes a fix for an earlier Blocker and the `pull_request: synchronize`
 re-validation passes clean against a full-path feature, this same step
 advances the feature from `sdd:in-progress` to `sdd:review`.
 
+### 7. Resolve the lifecycle on a spike boundary
+
+When the boundary is the spike boundary, the outcome is read from the spike
+doc's Conclusion and the spike gate set, and the lifecycle move is on the
+**spike sub-issue** or the **tracking issue**, never the implementation
+feature flow.
+
+On the spike boundary this step is the **sole authority** for both the comment
+and the label: steps 4 and 5 defer here and post nothing and label nothing, so
+exactly one `add-comment` and at most one `add-labels` are emitted, staying
+within the `max: 1` budget. The single permitted comment is the findings comment
+described below, and the single permitted label move is this step's.
+
+Resolve the two issue numbers first. The spike PR body carries
+`Closes #<spike-issue>`, which names the spike sub-issue. Walk the GitHub
+sub-issue parent link from the spike sub-issue to its parent to reach the
+**tracking issue** (the architecture-ledger entry that queued the spike). Both
+moves below target one of these two issues by `item_number`, not the PR.
+
+- **Proved.** When the Conclusion is `proved` and no spike gate produced a
+  Blocker, the experiment resolved its assumption. Apply the
+  `sdd:spike-resolved` label (`add-labels`) to the **spike sub-issue**
+  (`item_number` = the spike sub-issue number). This mirrors `sdd:dispatched`:
+  one marker on the sub-issue, no tracking-issue move. Post the single permitted
+  findings comment (the comment step 4 deferred here) on the **pull request**,
+  naming the resolved spike boundary and the clean spike gate set.
+- **Disproved or partial.** When the Conclusion is `disproved` or `partial`,
+  the assumption did not hold (or held only in part) and a human must decide
+  how the plan adapts. Park the **tracking issue**: apply the `needs-human`
+  label (`add-labels`) to the tracking issue (`item_number` = the tracking
+  issue number) and post the single permitted `add-comment` on the tracking
+  issue. Fold the Action-items pointer into that one findings comment — it is
+  the same comment step 4 deferred here, now carrying both the spike findings
+  (with the Blocker evidence, if any) and a pointer at the spike doc's Action
+  items; do not emit a second comment. Do **not** auto-replan and do **not** set
+  `sdd:spike-resolved`. A `disproved` or `partial` conclusion **always** parks
+  the tracking issue, even when a completeness Blocker (missing Action items)
+  also fired on the same run — otherwise phase C wedges forever on a
+  disproven-but-untidy doc that can never reach `sdd:spike-resolved`.
+- **Any other Blocker.** When a spike gate produces a Blocker outside the clean
+  `proved` path — a missing Conclusion (gate 1), or a `proved` Conclusion that
+  still carries a credential-in-diff Blocker — do **not** set
+  `sdd:spike-resolved`. Park the **tracking issue**: apply the `needs-human`
+  label (`add-labels`, `item_number` = the tracking issue) and post the single
+  permitted findings comment on the tracking issue, folding in the Blocker
+  evidence. This is the same one-comment, one-label budget as the
+  disproved/partial path.
+
+`sdd:spike-resolved` is a marker on the spike sub-issue, orthogonal to the
+tracking-issue lifecycle; it pairs with no `remove-labels`. A run resolves to exactly
+one of these branches, so exactly one label move happens — either
+`sdd:spike-resolved` on the spike sub-issue (clean `proved`) or `needs-human`
+on the tracking issue (`disproved`/`partial`, or any other Blocker). As with every boundary, the run exits successfully
+regardless of the Conclusion; a Blocker hands off via `needs-human` and never
+fails the workflow.
+
 ## Boundaries
 
 - This agent never edits `.github/`, `decisions/`, `templates/.github/`, or
   secrets. It writes only a comment and label moves through safe-outputs.
 - This agent never opens a pull request and never creates an issue.
+- On a spike boundary this agent moves a label on the spike sub-issue
+  (`sdd:spike-resolved`) or on the tracking issue (`needs-human`) through
+  safe-outputs; it never edits the spike doc and never auto-replans a
+  disproved or partial spike.
 - This agent never merges or approves a pull request. Merge authority stays
   with humans and the consumer repository's CI.
 - This agent never removes the `needs-human` label. Only a human clears it.
@@ -396,3 +484,10 @@ advances the feature from `sdd:in-progress` to `sdd:review`.
   `needs-human` and pushes a fix: the `pull_request: synchronize` event re-runs
   the gate set. The wrapper subscribes to no `unlabeled` event, so clearing
   `needs-human` on its own re-triggers nothing.
+- A spike pull request (a `docs/spikes/**` change on an `sdd/` branch) resolves
+  to the spike boundary and is checked against the spike gate set only. A
+  `proved` spike with no Blocker gains `sdd:spike-resolved` on the spike
+  sub-issue; a `disproved` or `partial` spike parks the tracking issue at
+  `needs-human` with one pointer comment, even when a missing-Action-items
+  Blocker also fired. The implementation gate set does not run on a spike PR,
+  so its empty-PR proof rule files no false Blocker on the doc-only diff.

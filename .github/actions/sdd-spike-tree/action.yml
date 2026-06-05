@@ -1,0 +1,175 @@
+name: sdd-spike-tree
+description: >
+  Walk the spike wave around one kind:spike sub-issue (issue #229). Resolves the
+  spike's parent tracking issue via GraphQL `Issue.parent` (the only reliable
+  child->parent pointer for native sub-issues, per sdd-route-dispatch / issue
+  #133), confirms the tracking issue is still in triage (carries sdd:triage),
+  and — in reentry mode — counts the tracking issue's remaining OPEN kind:spike
+  children to decide whether the wave has drained. Mechanical walk extracted from
+  the two spike wrappers (ADR 0015) so both share one source of truth.
+
+inputs:
+  mode:
+    description: >
+      'actuator' resolves the parent tracking issue and whether it is armed
+      (carries sdd:triage). 'reentry' additionally counts open kind:spike
+      children and reports whether the wave has drained to zero.
+    required: true
+  spike-issue:
+    description: The kind:spike sub-issue number this event fired on.
+    required: true
+  github-token:
+    description: Token for the GraphQL parent walk and the REST sub-issue listing.
+    required: false
+    default: ${{ github.token }}
+
+outputs:
+  armed:
+    description: >
+      'true' when the spike's parent tracking issue exists and still carries
+      sdd:triage. 'false' when there is no parent, the parent is not a triage
+      tracking issue, or the walk could not resolve it.
+    value: ${{ steps.walk.outputs.armed }}
+  tracking_issue:
+    description: >
+      The parent tracking issue number; empty when armed is false.
+    value: ${{ steps.walk.outputs.tracking_issue }}
+  drained:
+    description: >
+      reentry mode only: 'true' when zero open kind:spike children remain under
+      the tracking issue, so phase B may re-enter. Empty in actuator mode.
+    value: ${{ steps.walk.outputs.drained }}
+
+runs:
+  using: composite
+  steps:
+    - name: Walk the spike wave
+      id: walk
+      uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+      env:
+        MODE: ${{ inputs.mode }}
+        SPIKE_ISSUE: ${{ inputs.spike-issue }}
+      with:
+        github-token: ${{ inputs.github-token }}
+        script: |
+          const mode = process.env.MODE;
+          const spike = parseInt(process.env.SPIKE_ISSUE, 10);
+
+          // Resolve the spike sub-issue's node id, then its parent via
+          // GraphQL `Issue.parent`. GitHub does not populate the
+          // child->parent pointer on the REST `GET /issues/{n}` payload for
+          // a native sub-issue (parent_issue_url is empty), so GraphQL is
+          // the only reliable seed — the same mechanism sdd-route-dispatch
+          // uses for the cascade walk (issue #133).
+          async function parentOf(spikeNumber) {
+            let nodeId;
+            try {
+              const { data } = await github.rest.issues.get({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: spikeNumber,
+              });
+              nodeId = data.node_id;
+            } catch (err) {
+              core.info('Could not fetch spike #' + spikeNumber + ': '
+                + err.message);
+              return { kind: 'error' };
+            }
+            try {
+              const result = await github.graphql(
+                'query($id: ID!) {' +
+                '  node(id: $id) {' +
+                '    ... on Issue {' +
+                '      parent {' +
+                '        number' +
+                '        labels(first: 50) { nodes { name } }' +
+                '      }' +
+                '    }' +
+                '  }' +
+                '}',
+                { id: nodeId });
+              const parent = result && result.node && result.node.parent;
+              if (!parent) {
+                return { kind: 'none' };
+              }
+              const labels = ((parent.labels && parent.labels.nodes) || [])
+                .map((l) => l.name);
+              return { kind: 'ok', number: parent.number, labels };
+            } catch (err) {
+              core.info('GraphQL parent lookup failed for spike #'
+                + spikeNumber + ': ' + err.message);
+              return { kind: 'error' };
+            }
+          }
+
+          const parent = await parentOf(spike);
+          // No parent, or the walk errored: not an armed triage spike. Bail
+          // closed — a transient error must not be read as "drained" and
+          // re-enter phase B on a tree that still has open spikes.
+          if (parent.kind !== 'ok') {
+            core.setOutput('armed', 'false');
+            core.setOutput('tracking_issue', '');
+            core.setOutput('drained', '');
+            core.info('Spike #' + spike + ' has no resolvable triage parent ('
+              + parent.kind + ').');
+            return;
+          }
+
+          const tracking = parent.number;
+          const armed = parent.labels.includes('sdd:triage');
+          if (!armed) {
+            core.setOutput('armed', 'false');
+            core.setOutput('tracking_issue', '');
+            core.setOutput('drained', '');
+            core.info('Parent #' + tracking + ' does not carry sdd:triage;'
+              + ' not an armed spike wave.');
+            return;
+          }
+
+          core.setOutput('armed', 'true');
+          core.setOutput('tracking_issue', String(tracking));
+
+          if (mode !== 'reentry') {
+            core.setOutput('drained', '');
+            return;
+          }
+
+          // reentry mode: count the tracking issue's OPEN kind:spike
+          // children. The wave is drained when zero remain. The
+          // sub_issues endpoint returns each child's state and labels, so
+          // no body parsing is needed; pages so a wave wider than 100
+          // spikes is still counted. A listing error keeps drained='false'
+          // (do not re-enter on a partial view).
+          let openSpikes = 0;
+          try {
+            for (let page = 1; ; page += 1) {
+              const { data } = await github.request(
+                'GET /repos/{owner}/{repo}/issues/{issue_number}/sub_issues',
+                {
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: tracking,
+                  per_page: 100,
+                  page,
+                });
+              for (const child of data) {
+                const labels = (child.labels || []).map(
+                  (l) => (typeof l === 'string' ? l : l.name));
+                if (child.state === 'open'
+                    && labels.includes('kind:spike')) {
+                  openSpikes += 1;
+                }
+              }
+              if (data.length < 100) {
+                break;
+              }
+            }
+          } catch (err) {
+            core.info('Could not list sub-issues of #' + tracking + ': '
+              + err.message);
+            core.setOutput('drained', 'false');
+            return;
+          }
+          core.setOutput('drained', openSpikes === 0 ? 'true' : 'false');
+          core.info('Tracking #' + tracking + ' has ' + openSpikes
+            + ' open kind:spike child(ren).');

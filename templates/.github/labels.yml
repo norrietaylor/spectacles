@@ -16,6 +16,9 @@
 - name: kind:chore
   color: ededed
   description: Maintenance, refactor, or internal improvement.
+- name: kind:spike
+  color: c2e0c6
+  description: A bounded spike that resolves a load-bearing assumption before planning. See ADR 0010, issue 229.
 - name: priority:must-have
   color: b60205
   description: Must be done.
@@ -52,6 +55,9 @@
 - name: sdd:dispatched
   color: 5319e7
   description: Cascade execution is armed. sdd-dispatch re-fires on every task close until the tree is empty.
+- name: sdd:spike-resolved
+  color: 0e8a16
+  description: Marker - a kind:spike sub-issue's experiment is resolved; its finding feeds the plan. See issue 229.
 - name: model:haiku
   color: c5def5
   description: Tier - a low-complexity task; run by the haiku sdd-execute variant.

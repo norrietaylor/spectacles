@@ -1,4 +1,4 @@
-# gh-aw-metadata: {"schema_version":"v4","frontmatter_hash":"7bc8065ef461f2d348bd5211196982e4bd12ec7a3529f0baf023f1691f6d7020","body_hash":"c8ab51cddda565a6c512993da60a464fae4b1db40c1103df823e17589d98e665","compiler_version":"v0.77.5","agent_id":"copilot","agent_model":"claude-opus-4.6"}
+# gh-aw-metadata: {"schema_version":"v4","frontmatter_hash":"e58b3b8614c3cc3dec4de366b7ce2b2b6b9427857300055b84b80816f5f08628","body_hash":"b10d4aeb31950fe0e0aa1ddc1d1a602c025ffa3fd78d94ad2200261f41bcf059","compiler_version":"v0.77.5","agent_id":"copilot","agent_model":"claude-opus-4.6"}
 # gh-aw-manifest: {"version":1,"secrets":["APP_PRIVATE_KEY","COPILOT_GITHUB_TOKEN","GH_AW_CI_TRIGGER_TOKEN","GH_AW_GITHUB_MCP_SERVER_TOKEN","GH_AW_GITHUB_TOKEN","GH_AW_OTEL_ENDPOINT","GITHUB_TOKEN"],"actions":[{"repo":"actions/checkout","sha":"de0fac2e4500dabe0009e67214ff5f5447ce83dd","version":"v6.0.2"},{"repo":"actions/create-github-app-token","sha":"bcd2ba49218906704ab6c1aa796996da409d3eb1","version":"v3.2.0"},{"repo":"actions/download-artifact","sha":"3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c","version":"v8.0.1"},{"repo":"actions/github-script","sha":"3a2844b7e9c422d3c10d287c895573f7108da1b3","version":"v9.0.0"},{"repo":"actions/setup-node","sha":"48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e","version":"v6.4.0"},{"repo":"actions/upload-artifact","sha":"043fb46d1a93c77aae656e7c1c64a875d1fc6a0a","version":"v7.0.1"},{"repo":"dtolnay/rust-toolchain","sha":"29eef336d9b2848a0b548edc03f92a220660cdb8","version":"29eef336d9b2848a0b548edc03f92a220660cdb8"},{"repo":"github/gh-aw-actions/setup","sha":"3ea13c02d765410340d533515cb31a7eef2baaf0","version":"v0.77.5"}],"containers":[{"image":"ghcr.io/github/gh-aw-firewall/agent:0.25.58"},{"image":"ghcr.io/github/gh-aw-firewall/api-proxy:0.25.58"},{"image":"ghcr.io/github/gh-aw-firewall/squid:0.25.58"},{"image":"ghcr.io/github/gh-aw-mcpg:v0.3.22"},{"image":"ghcr.io/github/github-mcp-server:v1.1.0"},{"image":"ghcr.io/github/serena-mcp-server:latest","digest":"sha256:bf343399e3725c45528f531a230f3a04521d4cdef29f9a5af6282ff0d3c393c5","pinned_image":"ghcr.io/github/serena-mcp-server:latest@sha256:bf343399e3725c45528f531a230f3a04521d4cdef29f9a5af6282ff0d3c393c5"},{"image":"mcr.microsoft.com/playwright/mcp:v0.0.75"},{"image":"node:lts-alpine","digest":"sha256:2bdb65ed1dab192432bc31c95f94155ca5ad7fc1392fb7eb7526ab682fa5bf14","pinned_image":"node:lts-alpine@sha256:2bdb65ed1dab192432bc31c95f94155ca5ad7fc1392fb7eb7526ab682fa5bf14"}]}
 #    ___                   _   _      
 #   / _ \                 | | (_)     
@@ -250,24 +250,24 @@ jobs:
         run: |
           bash "${RUNNER_TEMP}/gh-aw/actions/create_prompt_first.sh"
           {
-          cat << 'GH_AW_PROMPT_0c63d1c5b96eb985_EOF'
+          cat << 'GH_AW_PROMPT_d052314be4e45ba4_EOF'
           <system>
-          GH_AW_PROMPT_0c63d1c5b96eb985_EOF
+          GH_AW_PROMPT_d052314be4e45ba4_EOF
           cat "${RUNNER_TEMP}/gh-aw/prompts/xpia.md"
           cat "${RUNNER_TEMP}/gh-aw/prompts/temp_folder_prompt.md"
           cat "${RUNNER_TEMP}/gh-aw/prompts/markdown.md"
           cat "${RUNNER_TEMP}/gh-aw/prompts/safe_outputs_prompt.md"
-          cat << 'GH_AW_PROMPT_0c63d1c5b96eb985_EOF'
+          cat << 'GH_AW_PROMPT_d052314be4e45ba4_EOF'
           <safe-output-tools>
           Tools: add_comment, update_issue, create_pull_request, add_labels(max:2), remove_labels(max:2), push_to_pull_request_branch, missing_tool, missing_data, noop
-          GH_AW_PROMPT_0c63d1c5b96eb985_EOF
+          GH_AW_PROMPT_d052314be4e45ba4_EOF
           cat "${RUNNER_TEMP}/gh-aw/prompts/safe_outputs_create_pull_request.md"
           cat "${RUNNER_TEMP}/gh-aw/prompts/safe_outputs_push_to_pr_branch.md"
-          cat << 'GH_AW_PROMPT_0c63d1c5b96eb985_EOF'
+          cat << 'GH_AW_PROMPT_d052314be4e45ba4_EOF'
           </safe-output-tools>
-          GH_AW_PROMPT_0c63d1c5b96eb985_EOF
+          GH_AW_PROMPT_d052314be4e45ba4_EOF
           cat "${RUNNER_TEMP}/gh-aw/prompts/mcp_cli_tools_prompt.md"
-          cat << 'GH_AW_PROMPT_0c63d1c5b96eb985_EOF'
+          cat << 'GH_AW_PROMPT_d052314be4e45ba4_EOF'
           <github-context>
           The following GitHub context information is available for this workflow:
           {{#if github.actor}}
@@ -296,9 +296,9 @@ jobs:
           {{/if}}
           </github-context>
           
-          GH_AW_PROMPT_0c63d1c5b96eb985_EOF
+          GH_AW_PROMPT_d052314be4e45ba4_EOF
           cat "${RUNNER_TEMP}/gh-aw/prompts/github_mcp_tools_with_safeoutputs_prompt.md"
-          cat << 'GH_AW_PROMPT_0c63d1c5b96eb985_EOF'
+          cat << 'GH_AW_PROMPT_d052314be4e45ba4_EOF'
           </system>
           # Core principles
           
@@ -1182,6 +1182,12 @@ jobs:
           
           ### 4. Implement the task within its scope
           
+          If the selected task carries the `kind:spike` label, do **not** implement it as
+          a normal code change: follow the **Spike protocol** subsection below for steps 4
+          through 7 instead. A spike's sole deliverable is a written finding at
+          `docs/spikes/<date>-<slug>.md`; it edits no source. The rest of step 4 and
+          steps 5–7 below describe the normal (non-spike) implementation path.
+          
           Implement the selected task using Serena symbol-level retrieval and editing
           (see the imported Serena fragment). Activate the project, then locate the
           symbols the task touches and edit them with the symbol-level tools so a change
@@ -1324,6 +1330,17 @@ jobs:
           or lint diff that one command would fix is never a reason to ship — fix it,
           do not open the PR with it.
           
+          **Spike exemption.** A `kind:spike` task writes only `docs/spikes/`, which
+          invokes no build surface, so the consumer build/test gate has nothing to
+          verify. Key this exemption on the **verified diff scope**, never on the label
+          alone: run `git diff --name-only` against the base branch and inspect every
+          path it lists. When **every** changed path is under `docs/spikes/`, skip the
+          consumer build/test gate — a docs-only diff cannot break a build. If **any**
+          listed path is outside `docs/spikes/`, the gate runs in full against the whole
+          tree, exactly as for a normal task; the out-of-scope path means the spike has
+          written something it must not, and the gate must not be skipped on the label's
+          say-so.
+          
           This in-sandbox verification requirement **supersedes** any older imported
           guidance that assumes Rust verification cannot run in the firewalled sandbox
           (for example `shared/sdd-rust-cleanup.md`, whose header predates the
@@ -1353,8 +1370,9 @@ jobs:
           request is not a draft. Its title is `<type>(<scope>): <task title>`, where
           `<scope>` follows the task subject and `<type>` is the conventional-commit type
           mapped from the task's `kind:*` label: `kind:feature` → `feat`, `kind:bug` →
-          `fix`, `kind:chore` → `chore`. Use only conventional-commit types — a target
-          repo may lint commit subjects against the conventional enum, which has no
+          `fix`, `kind:chore` → `chore`, `kind:spike` → `docs` (a spike's deliverable is
+          its written finding, not a code change). Use only conventional-commit types — a
+          target repo may lint commit subjects against the conventional enum, which has no
           `feature` or `bug`. The branch
           follows the `sdd/<task-id>-<slug>` convention from the imported
           repository-conventions fragment. The pull request body **must** contain:
@@ -1443,6 +1461,86 @@ jobs:
           not guess. A human resolves the comment and clears the label, which
           re-triggers this agent to resume (situation 4 above).
           
+          ### Spike protocol
+          
+          This subsection is the canonical spike protocol (`shared/sdd-spike.md`),
+          inlined here because that fragment is new and cannot yet be imported from
+          `@main`. It replaces steps 4–7 for a task carrying the `kind:spike` label
+          (per the guard at the head of step 4).
+          
+          A `kind:spike` task is a bounded experiment that resolves a load-bearing
+          assumption before planning commits to it. Its deliverable is a written finding,
+          never a code change.
+          
+          **The deliverable.** A `kind:spike` task writes exactly one file:
+          `docs/spikes/<date>-<slug>.md`, where `<date>` is the spike's open date
+          (`YYYY-MM-DD`) and `<slug>` is a short hyphenated subject derived from the spike
+          sub-issue's title. It writes **no other path** — a spike never edits source,
+          config, or any build surface. The written finding **is** the deliverable, and
+          it **is** the File-type proof artifact: the committed
+          `docs/spikes/<date>-<slug>.md`, asserted to exist and to carry the required
+          sections, satisfies the imported proof-artifacts empty-PR/proof rule directly
+          rather than bypassing it (a spike PR is never empty).
+          
+          **Branch and PR conventions are the standard ones.** Use the standard
+          implementation branch `sdd/<spike-issue-id>-<slug>` — the same
+          `sdd/<task-id>-<slug>` convention every implementation PR uses. **Never** use a
+          custom `sdd/spike-` prefix or any other branch shape: a non-standard prefix
+          breaks the in-flight branch regex (`^sdd/(\d+)-`) that `sdd-dispatch-compute`
+          and `sdd-route-execute` use to recognise a task already in flight, which
+          produces a duplicate pull request for the same spike. The pull request body
+          carries `Closes #<spike-issue>` so merging it closes the spike sub-issue. The
+          commit subject and PR title use the conventional-commit type `docs` (the
+          `kind:spike` → `docs` mapping from the imported repository-conventions
+          fragment).
+          
+          **The doc format.** `docs/spikes/<date>-<slug>.md` carries YAML frontmatter —
+          `id` (the spike sub-issue number), `title`, `status` (one of `proved`,
+          `disproved`, `partial`, `parked`), `date`, `authors`, `budget_hours`,
+          `actual_hours`, `related`, `tags` — followed by these sections in order:
+          **Question** (the load-bearing assumption, stated as a question), **Hypothesis**
+          (the expected answer before the experiment ran), **Method** (how the experiment
+          was run, reproducibly), **Findings** (what was observed, with evidence inline:
+          the exact commands and their output, measurement tables, and links to the
+          sources inspected, per the imported evidence-rigor standard), **Conclusion**
+          (the verdict: `proved`, `disproved`, or `partial` — a spike **may** partially
+          resolve its question and queue follow-up spikes for the remainder; that is a
+          `partial` conclusion, not a failure), **Action items** (what the finding changes
+          downstream: spec amendments, ADR follow-ups, risk-register entries, follow-up
+          spikes), and **Artifacts** (command transcripts, measurement files, and source
+          links a reader can re-run or re-inspect).
+          
+          **The Pre-PR CI gate is exempt by verified diff scope.** A docs-only spike diff
+          invokes no build surface, so the step-6 spike exemption applies: when
+          `git diff --name-only` against the base lists only `docs/spikes/` paths, skip
+          the consumer build/test gate. If any path falls outside `docs/spikes/`, the
+          gate runs in full.
+          
+          **The park path.** When the experiment needs runtime or hardware the sandbox
+          lacks, or a guardrail denies an action the experiment requires, **park** rather
+          than fabricate a result. Commit a **partial** doc with `status: parked`: record
+          the question, hypothesis, and method as usual, and in Findings quote the denial
+          or the missing capability **verbatim** as the evidence for why the experiment
+          could not run to completion. Never invent results, measurements, or a conclusion
+          the evidence does not support. Queue the remaining work as follow-up spikes in
+          the Action items. Then hand off via the imported `needs-human` contract: apply
+          `needs-human` to the spike sub-issue (`add-labels`) and post exactly **one**
+          comment that quotes the same denial. A human takes over. Because the parked
+          spike keeps an **open** (non-draft) pull request, that open PR claims the task
+          under the in-flight gate (step 2), so clearing `needs-human` alone does **not**
+          resume it: drive the resume on the parked pull request (for example via
+          `/revise`), or close the parked pull request first and then clear `needs-human`
+          — otherwise step 2 treats the task as already in flight and emits `noop`.
+          
+          The `create-pull-request` safe-output is configured with `draft: false` and is
+          static — it cannot be set per call — so a parked spike opens a **normal**
+          (non-draft) pull request carrying the `status: parked` doc plus the
+          `needs-human` hand-off, **not** a literal GitHub draft pull request. State this
+          explicitly in the PR-facing summary as a deviation from any "draft PR"
+          description of the parked state: the deviation is the static `draft: false`
+          config, and the parked doc plus `needs-human` carries the same "do not merge
+          yet" signal a draft would.
+          
           ### 8. Idle, and the completion transitions
           
           When step 2 found no eligible task, this agent has nothing to implement. Check
@@ -1518,7 +1616,7 @@ jobs:
             moves to `sdd:done` and gains `needs-human`, and the tracking issue is not
             closed by the agent.
           
-          GH_AW_PROMPT_0c63d1c5b96eb985_EOF
+          GH_AW_PROMPT_d052314be4e45ba4_EOF
           } > "$GH_AW_PROMPT"
       - name: Interpolate variables and render templates
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
@@ -1745,9 +1843,9 @@ jobs:
           mkdir -p "${RUNNER_TEMP}/gh-aw/safeoutputs"
           mkdir -p /tmp/gh-aw/safeoutputs
           mkdir -p /tmp/gh-aw/mcp-logs/safeoutputs
-          cat > "${RUNNER_TEMP}/gh-aw/safeoutputs/config.json" << 'GH_AW_SAFE_OUTPUTS_CONFIG_c8a34eeeceea9383_EOF'
+          cat > "${RUNNER_TEMP}/gh-aw/safeoutputs/config.json" << 'GH_AW_SAFE_OUTPUTS_CONFIG_dc09d72df977841a_EOF'
           {"add_comment":{"max":1},"add_labels":{"allowed":["sdd:in-progress","sdd:done","needs-human"],"max":2},"create_pull_request":{"draft":false,"max":1,"max_patch_files":100,"max_patch_size":1024,"protect_top_level_dot_folders":true,"protected_files":["bun.lockb","bunfig.toml","deno.json","deno.jsonc","deno.lock","global.json","NuGet.Config","Directory.Packages.props","mix.exs","mix.lock","go.mod","go.sum","stack.yaml","stack.yaml.lock","pom.xml","build.gradle","build.gradle.kts","settings.gradle","settings.gradle.kts","gradle.properties","requirements.txt","Pipfile","Pipfile.lock","setup.py","setup.cfg","Gemfile","Gemfile.lock","uv.lock","CODEOWNERS","DESIGN.md","README.md","CONTRIBUTING.md","CHANGELOG.md","SECURITY.md","CODE_OF_CONDUCT.md","AGENTS.md","CLAUDE.md","GEMINI.md"],"protected_files_policy":"fallback-to-issue"},"create_report_incomplete_issue":{},"missing_data":{},"missing_tool":{},"noop":{"max":1,"report-as-issue":"true"},"push_to_pull_request_branch":{"if_no_changes":"warn","max":1,"max_patch_size":1024,"protect_top_level_dot_folders":true,"protected_files":["bun.lockb","bunfig.toml","deno.json","deno.jsonc","deno.lock","global.json","NuGet.Config","Directory.Packages.props","mix.exs","mix.lock","go.mod","go.sum","stack.yaml","stack.yaml.lock","pom.xml","build.gradle","build.gradle.kts","settings.gradle","settings.gradle.kts","gradle.properties","requirements.txt","Pipfile","Pipfile.lock","setup.py","setup.cfg","Gemfile","Gemfile.lock","uv.lock","CODEOWNERS","DESIGN.md","README.md","CONTRIBUTING.md","CHANGELOG.md","SECURITY.md","CODE_OF_CONDUCT.md","AGENTS.md","CLAUDE.md","GEMINI.md"]},"remove_labels":{"allowed":["sdd:ready","sdd:review","sdd:fastpath","sdd:in-progress"],"max":2},"report_incomplete":{},"update_issue":{"allow_body":true,"allow_status":true,"max":1,"target":"*"}}
-          GH_AW_SAFE_OUTPUTS_CONFIG_c8a34eeeceea9383_EOF
+          GH_AW_SAFE_OUTPUTS_CONFIG_dc09d72df977841a_EOF
       - name: Generate Safe Outputs Tools
         env:
           GH_AW_TOOLS_META_JSON: |
@@ -2099,7 +2197,7 @@ jobs:
           
           mkdir -p /home/runner/.copilot
           GH_AW_NODE=$(which node 2>/dev/null || command -v node 2>/dev/null || echo node)
-          cat << GH_AW_MCP_CONFIG_1287aea8b045332d_EOF | "$GH_AW_NODE" "${RUNNER_TEMP}/gh-aw/actions/start_mcp_gateway.cjs"
+          cat << GH_AW_MCP_CONFIG_ad15cc7749c00230_EOF | "$GH_AW_NODE" "${RUNNER_TEMP}/gh-aw/actions/start_mcp_gateway.cjs"
           {
             "mcpServers": {
               "github": {
@@ -2225,7 +2323,7 @@ jobs:
               }
             }
           }
-          GH_AW_MCP_CONFIG_1287aea8b045332d_EOF
+          GH_AW_MCP_CONFIG_ad15cc7749c00230_EOF
       - name: Mount MCP servers as CLIs
         id: mount-mcp-clis
         continue-on-error: true
