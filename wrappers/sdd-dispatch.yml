@@ -105,6 +105,7 @@ jobs:
       precondition: ${{ steps.compute.outputs.precondition }}
       tracking_state: ${{ steps.compute.outputs.tracking_state }}
       reason: ${{ steps.compute.outputs.reason }}
+      closeable_units: ${{ steps.compute.outputs.closeable_units }}
     steps:
       - name: Compute ready set and precondition state
         id: compute
@@ -283,6 +284,7 @@ jobs:
           READY_COUNT: ${{ needs.compute.outputs.ready_count }}
           OPEN_TASK_COUNT: ${{ needs.compute.outputs.open_task_count }}
           TRACKING_STATE: ${{ needs.compute.outputs.tracking_state }}
+          CLOSEABLE_UNITS: ${{ needs.compute.outputs.closeable_units }}
         with:
           github-token: ${{ env.APP_TOKEN }}
           script: |
@@ -298,6 +300,63 @@ jobs:
             // posts the refusal.
             if (precondition !== 'ok') {
               return;
+            }
+
+            // Deterministic Unit-close (#233). compute's tree walk
+            // nominates every Unit under this tracking issue whose every
+            // task child is now closed while the Unit itself is still open
+            // (the fail-closed test lives in sdd-dispatch-compute: a child
+            // whose state cannot be read is not 'closed', so its Unit is
+            // never nominated). We close those Units here, on the same
+            // deterministic event that drains the tree — replacing the
+            // prompt-driven Unit-close that ADR 0005 §4-5 parked on
+            // sdd-execute's step-8 sweep, which only fired on a merged-PR
+            // run and missed manual closes. sdd-execute retains that sweep
+            // as an idempotent backup during the transition (#233).
+            //
+            // Loop safety: closing a Unit re-fires this wrapper on the
+            // Unit's own issues.closed event, but sdd-route-dispatch only
+            // arms the cascade when the closed issue is a *task* (its
+            // parent walk reaches the tracker in exactly two hops). A Unit
+            // is one hop below the tracker, so the walk yields walked === 1,
+            // route emits should_run = false, and every dispatch job skips.
+            // A Unit has no parent Unit, so there is no further Unit to
+            // cascade-close. The close therefore terminates here; the only
+            // downstream effect is that the tracker's existing drain logic
+            // (openTaskCount === 0 -> sdd:done, below) may run on the next
+            // task close. No infinite loop is possible.
+            //
+            // Idempotency: compute only nominates Units that are still open,
+            // but the close is also wrapped in try/catch so a redundant
+            // close on an already-closed Unit (or any transient API error)
+            // is a no-op, mirroring the dual-path sdd:done contract below.
+            // The write uses the App installation token (issues: write),
+            // the same token this job uses to mutate labels.
+            let closeableUnits = [];
+            try {
+              closeableUnits = JSON.parse(process.env.CLOSEABLE_UNITS || '[]');
+            } catch (err) {
+              // A malformed payload must not crash the lifecycle job (which
+              // also owns the sdd:done drain below); treat it as "no Units
+              // to close" — fail-closed, never a false close.
+              core.info('Could not parse CLOSEABLE_UNITS; skipping Unit-close: '
+                + err.message);
+              closeableUnits = [];
+            }
+            for (const unit of closeableUnits) {
+              try {
+                await github.rest.issues.update({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: unit,
+                  state: 'closed',
+                });
+                core.info('All tasks closed under Unit #' + unit
+                  + '; closed the Unit.');
+              } catch (err) {
+                core.info('Could not close Unit #' + unit + ': '
+                  + err.message);
+              }
             }
 
             // First /dispatch: move sdd:ready -> sdd:in-progress and add
