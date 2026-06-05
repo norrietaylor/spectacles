@@ -177,15 +177,20 @@ one applies from the workflow context before doing anything else.
    here, it is not this agent's concern: do not author a spec, do not move
    any label, and emit `noop`.
 8. **A write-access author commented `/revise <note>` on a tracking issue
-   whose spec pull request has already MERGED.** This is the post-merge
-   amendment case (ADR 0021), distinct from situation 4 (a `/revise` on an
-   *open* spec PR) and situation 5 (a `/revise` on a fast-path tracking
-   issue before `/approve`). The spec file is already on `main`; there is no
-   open PR branch to push onto, so re-author the spec **in place** on a
-   fresh branch and open an **amendment PR** via `create-pull-request` — do
-   not use `push-to-pull-request-branch`. PRECONDITION: refuse while any
-   task is in flight (the ADR 0010 clause-7 guard). Handle this in step 9 of
-   the procedure.
+   whose spec pull request has already MERGED, asking to amend the merged
+   spec document.** This is the post-merge amendment case (ADR 0021),
+   distinct from situation 4 (a `/revise` on an *open* spec PR) and
+   situation 5 (a `/revise` on a fast-path tracking issue before
+   `/approve`). The spec file is already on `main`; there is no open PR
+   branch to push onto, so re-author the spec **in place** on a fresh branch
+   and open an **amendment PR** via `create-pull-request` — do not use
+   `push-to-pull-request-branch`. A `/revise` on a tracking issue triggers
+   both this agent and `sdd-triage`; a note asking to amend the merged
+   `architecture.md` is `sdd-triage`'s situation 6, not this one. Act only
+   when the note targets the **spec** document; if it targets the
+   architecture record or the plan/tree, emit `noop` and let `sdd-triage`
+   handle it. PRECONDITION: refuse while any task is in flight (the ADR 0010
+   clause-7 guard). Handle this in step 9 of the procedure.
 
 When the triggering item already carries the `needs-human` label, stop
 immediately and emit `noop`. A `needs-human`-labelled item is off-limits
@@ -783,6 +788,14 @@ request, this one on the tracking issue — and confirm the spec PR has merged
 (the tracking issue has advanced past `sdd:spec`/`sdd:fastpath-review`, and a
 spec file for it exists on `main`; the file carries `tracking-issue:
 <tracking-issue>`).
+
+**Target the spec document only.** A `/revise` on a tracking issue triggers
+this agent **and** `sdd-triage` (its situation 6 amends the merged
+`architecture.md`). Read the note: act only when it asks to amend the
+**spec**. If the note targets the architecture record, or the plan / sub-issue
+tree, this is not your situation — emit `noop` with no comment and let the
+other agent (or the open-PR/plan `/revise` paths) handle it. Do not open a
+spec amendment PR for a note that never asked to change the spec.
 
 **Precondition — refuse while any task is in flight.** Reuse the ADR 0010
 clause-7 guard. Treat as in flight any open task sub-issue under the tracking
