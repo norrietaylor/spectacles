@@ -27,6 +27,7 @@ comments, labels, and pull requests. There is no separate tool and no UI.
 |---|---|---|
 | Spec | `sdd-spec` | a structured spec, delivered as a PR |
 | Architecture and triage | `sdd-triage` | an architecture record, then a task graph of linked sub-issues |
+| Dispatch | `sdd-dispatch` | event-driven fan-out of ready tasks to `sdd-execute`, re-fired on every task close until the tree drains |
 | Execute | `sdd-execute` | an implementation PR with captured proof artifacts |
 | Validate | `sdd-validate` | advisory gate findings at every phase boundary |
 | Review | `sdd-review` | correctness, security, and spec-compliance review comments |
@@ -38,7 +39,7 @@ See [`decisions/0001-needs-human.md`](decisions/0001-needs-human.md).
 ## Status
 
 The suite is built. The repository foundation, the human-interaction
-contract, the shared MCP tooling, and all five pipeline agents are in place;
+contract, the shared MCP tooling, and all six pipeline agents are in place;
 the [issue-native SDD spec](docs/specs/01-spec-issue-native-sdd/01-spec-issue-native-sdd.md)
 defines the full design across ten demoable units. The first live pipeline
 run is an operator acceptance step: see the
