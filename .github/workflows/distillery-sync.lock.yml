@@ -1,4 +1,4 @@
-# gh-aw-metadata: {"schema_version":"v4","frontmatter_hash":"35fb6d6136cf58a426fe69ac368b149c6a0cddc22cbcb324c56e5a350230e415","body_hash":"7484d0c8d02eeaef978237d08eb8fdb97d470e56d7d30f018b410f43f48bf9c4","compiler_version":"v0.77.5","agent_id":"copilot"}
+# gh-aw-metadata: {"schema_version":"v4","frontmatter_hash":"d8059dc49b5d6aad673b3f04a1f2cb2da72bc472ef675d86a4561e9009cea181","body_hash":"ec46bca199d780f8f9a472e1dba50a0c10d5a6cf2aa280632aaae96d9c5e3f62","compiler_version":"v0.77.5","agent_id":"copilot","agent_model":"claude-haiku-4.5"}
 # gh-aw-manifest: {"version":1,"secrets":["APP_PRIVATE_KEY","COPILOT_GITHUB_TOKEN","DISTILLERY_OAUTH_TOKEN","GH_AW_GITHUB_MCP_SERVER_TOKEN","GH_AW_GITHUB_TOKEN","GH_AW_OTEL_ENDPOINT","GITHUB_TOKEN"],"actions":[{"repo":"actions/checkout","sha":"de0fac2e4500dabe0009e67214ff5f5447ce83dd","version":"v6.0.2"},{"repo":"actions/create-github-app-token","sha":"bcd2ba49218906704ab6c1aa796996da409d3eb1","version":"v3.2.0"},{"repo":"actions/download-artifact","sha":"3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c","version":"v8.0.1"},{"repo":"actions/github-script","sha":"3a2844b7e9c422d3c10d287c895573f7108da1b3","version":"v9.0.0"},{"repo":"actions/setup-node","sha":"48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e","version":"v6.4.0"},{"repo":"actions/upload-artifact","sha":"043fb46d1a93c77aae656e7c1c64a875d1fc6a0a","version":"v7.0.1"},{"repo":"github/gh-aw-actions/setup","sha":"3ea13c02d765410340d533515cb31a7eef2baaf0","version":"v0.77.5"}],"containers":[{"image":"ghcr.io/github/gh-aw-firewall/agent:0.25.58"},{"image":"ghcr.io/github/gh-aw-firewall/api-proxy:0.25.58"},{"image":"ghcr.io/github/gh-aw-firewall/squid:0.25.58"},{"image":"ghcr.io/github/gh-aw-mcpg:v0.3.22"},{"image":"ghcr.io/github/github-mcp-server:v1.1.0"},{"image":"node:lts-alpine","digest":"sha256:2bdb65ed1dab192432bc31c95f94155ca5ad7fc1392fb7eb7526ab682fa5bf14","pinned_image":"node:lts-alpine@sha256:2bdb65ed1dab192432bc31c95f94155ca5ad7fc1392fb7eb7526ab682fa5bf14"}]}
 #    ___                   _   _      
 #   / _ \                 | | (_)     
@@ -59,6 +59,11 @@ on:
       aw_context:
         default: ""
         description: "Agent caller context (used internally by Agentic Workflows)."
+        required: false
+        type: string
+      doc_globs:
+        default: ""
+        description: Comma/newline-separated documentation globs that replace the default set. Wired from vars.DISTILLERY_DOC_GLOBS by the wrapper.
         required: false
         type: string
     outputs:
@@ -148,7 +153,7 @@ jobs:
         env:
           GH_AW_INFO_ENGINE_ID: "copilot"
           GH_AW_INFO_ENGINE_NAME: "GitHub Copilot CLI"
-          GH_AW_INFO_MODEL: ${{ vars.GH_AW_MODEL_AGENT_COPILOT || vars.GH_AW_DEFAULT_MODEL_COPILOT || 'claude-sonnet-4.6' }}
+          GH_AW_INFO_MODEL: "claude-haiku-4.5"
           GH_AW_INFO_VERSION: "1.0.55"
           GH_AW_INFO_AGENT_VERSION: "1.0.55"
           GH_AW_INFO_CLI_VERSION: "v0.77.5"
@@ -230,24 +235,25 @@ jobs:
           GH_AW_GITHUB_REPOSITORY: ${{ github.repository }}
           GH_AW_GITHUB_RUN_ID: ${{ github.run_id }}
           GH_AW_GITHUB_WORKSPACE: ${{ github.workspace }}
+          GH_AW_INPUTS_DOC_GLOBS: ${{ inputs.doc_globs }}
         # poutine:ignore untrusted_checkout_exec
         run: |
           bash "${RUNNER_TEMP}/gh-aw/actions/create_prompt_first.sh"
           {
-          cat << 'GH_AW_PROMPT_bbaf5f4134988fb1_EOF'
+          cat << 'GH_AW_PROMPT_d6f4cc720a73a3c8_EOF'
           <system>
-          GH_AW_PROMPT_bbaf5f4134988fb1_EOF
+          GH_AW_PROMPT_d6f4cc720a73a3c8_EOF
           cat "${RUNNER_TEMP}/gh-aw/prompts/xpia.md"
           cat "${RUNNER_TEMP}/gh-aw/prompts/temp_folder_prompt.md"
           cat "${RUNNER_TEMP}/gh-aw/prompts/markdown.md"
           cat "${RUNNER_TEMP}/gh-aw/prompts/safe_outputs_prompt.md"
-          cat << 'GH_AW_PROMPT_bbaf5f4134988fb1_EOF'
+          cat << 'GH_AW_PROMPT_d6f4cc720a73a3c8_EOF'
           <safe-output-tools>
           Tools: add_comment, create_issue, update_issue, missing_tool, missing_data, noop
           </safe-output-tools>
-          GH_AW_PROMPT_bbaf5f4134988fb1_EOF
+          GH_AW_PROMPT_d6f4cc720a73a3c8_EOF
           cat "${RUNNER_TEMP}/gh-aw/prompts/mcp_cli_tools_prompt.md"
-          cat << 'GH_AW_PROMPT_bbaf5f4134988fb1_EOF'
+          cat << 'GH_AW_PROMPT_d6f4cc720a73a3c8_EOF'
           <github-context>
           The following GitHub context information is available for this workflow:
           {{#if github.actor}}
@@ -276,9 +282,9 @@ jobs:
           {{/if}}
           </github-context>
           
-          GH_AW_PROMPT_bbaf5f4134988fb1_EOF
+          GH_AW_PROMPT_d6f4cc720a73a3c8_EOF
           cat "${RUNNER_TEMP}/gh-aw/prompts/github_mcp_tools_with_safeoutputs_prompt.md"
-          cat << 'GH_AW_PROMPT_bbaf5f4134988fb1_EOF'
+          cat << 'GH_AW_PROMPT_d6f4cc720a73a3c8_EOF'
           </system>
           # Distillery sync
           
@@ -304,25 +310,30 @@ jobs:
              `github` entries. It dedups by an `external_id` it derives, so re-running it
              updates existing entries in place. `distillery_gh_sync` ingests issues and
              pull requests only; it does not read, take, or ingest spec or ADR files.
-          2. **Specs, architecture records, and ADRs.** Stored as Distillery knowledge
-             entries, one per file, keyed deterministically by the file's repository path
-             so the entry stays a 1:1 mirror of the file as it evolves. The spec files
-             and per-feature `architecture.md` records under `docs/specs/` and the
-             numbered ADR files under `decisions/` are read from the checked-out working
-             tree. On a first run against an empty project store, the workflow also
-             backfills pre-existing documentation discovered across common locations
-             (see the backfill step), so spectacles can be installed onto a repository
-             that never followed the SDD process and still bring its existing knowledge
-             into the store.
+          2. **Documentation files.** Stored as Distillery knowledge entries, one per
+             file, keyed deterministically by the file's repository path so the entry
+             stays a 1:1 mirror of the file as it evolves. The set of files that counts as
+             documentation is configurable — see **Document roots** — and defaults to the
+             SDD artifacts (`docs/specs/**`, `decisions/**`) plus common project docs
+             (`README*`, `docs/**`, `ARCHITECTURE.md`, …) and per-crate `README.md` files
+             in a Cargo workspace. Files are read from the checked-out working tree. On a
+             first run against an empty project store the workflow backfills the full
+             document set, so spectacles can be installed onto a repository that never
+             followed the SDD process and still bring its existing knowledge into the
+             store; thereafter it processes only the documents that **changed since the
+             last sync** (see the sync cursor, step 1).
           
           The run opens no pull request. It maintains exactly **one persistent status
           issue** per repository by upsert: the first run (or a run after the prior status
           issue was deleted) creates it; every later run updates that same issue in place
           and adds a run-summary comment, never opening a second issue (step 7). Both
           Distillery passes are idempotent: `distillery_gh_sync` is incremental on the
-          GitHub side, and the document pass is made incremental by the per-file
-          source-path key described in the procedure below — re-running never creates a
-          duplicate.
+          GitHub side, and the document pass is made incremental two ways — by the
+          **commit-delta cursor** that bounds each run to changed files (step 3), and by
+          the per-file source-path key that makes a re-processed file update in place.
+          `distillery_store` also runs a server-side similarity precheck and auto-skips a
+          near-duplicate, so an overlapping glob set or a re-run never creates a duplicate
+          even before those guards apply.
           
           ## Project scoping
           
@@ -330,6 +341,52 @@ jobs:
           (the configured project slug). The store may be shared, so this workflow
           ingests only this repository's content and files it under this repository's
           project. It never ingests, reads, or writes another project's content.
+          
+          ## Document roots
+          
+          The document pass discovers files from a set of globs relative to the
+          repository root. The set is configurable so a repository whose documentation
+          does not live under `docs/specs/**` — for example a Rust workspace whose
+          knowledge lives in per-crate `README.md` files (and, in a follow-up, crate-root
+          `//!` module docs) — can declare its own roots without forking this workflow.
+          
+          The configured value arrives as `__GH_AW_INPUTS_DOC_GLOBS__` (empty when the
+          consumer has not set the `DISTILLERY_DOC_GLOBS` repository variable — the
+          wrapper threads the variable into this input, because `vars.*` cannot be read in
+          the prompt directly). Parse it by splitting on commas **and** newlines and
+          trimming each entry; ignore blank entries. When the parsed list is non-empty it
+          **replaces** the default set below, for both the backfill set (step 3a) and the
+          commit-delta intersection (step 3b). When it is empty, use the default set:
+          
+          - `docs/specs/**/*.md`
+          - `decisions/*.md`
+          - `README*`, `docs/**/*.md`, `ARCHITECTURE.md`, `DESIGN.md`
+          - `adr/**/*.md`, `doc/adr/**/*.md`, `docs/adr/**/*.md`
+          - `crates/*/README.md` — per-crate overview docs in a Cargo workspace
+          
+          In every set, **skip** `docs/specs/TEMPLATE.md`, `decisions/TEMPLATE.md`, and
+          any file whose basename starts with `_`; these are skeletons, not knowledge.
+          
+          The push trigger in this agent's wrapper still fires only on `docs/specs/**` and
+          `decisions/**`, so a doc added under a custom root is picked up by the daily
+          scheduled run (via the commit-delta below), not instantly on merge. Widening the
+          wrapper's push paths is a separate, wrapper-only change.
+          
+          ## Incremental sync cursor
+          
+          Each run records the commit it ingested up to, so the next run processes only
+          what changed. The cursor is the commit SHA persisted in the status issue body as
+          a machine marker on its own line:
+          
+          ```
+          <!-- distillery-sync-cursor: <40-hex-sha> -->
+          ```
+          
+          Step 1 reads it; step 7 writes the current tip back. The cursor is **absent**
+          when no status issue exists or its body carries no marker (first run, or the
+          status issue was deleted) — that case takes the backfill path. The marker is the
+          only authority for "where we left off"; never infer the cursor from entry
+          timestamps or `distillery_gh_sync` output.
           
           ## Deterministic per-file identity
           
@@ -355,12 +412,19 @@ jobs:
           
           ## Procedure
           
-          1. Determine the repository from the workflow context. Resolve the project
-             slug: use `vars.DISTILLERY_PROJECT` when it is set; otherwise fall back to
-             the repository **name** (the segment after `/` in `owner/repo`), which is the
-             value the installer provisions. Resolve it once and deterministically so the
-             fallback never files this run's content under a different project than a
-             provisioned run; every entry is filed under the resolved slug.
+          1. **Resolve identity and read the cursor.** Determine the repository from the
+             workflow context. Resolve the project slug: use `vars.DISTILLERY_PROJECT`
+             when it is set; otherwise fall back to the repository **name** (the segment
+             after `/` in `owner/repo`), which is the value the installer provisions.
+             Resolve it once and deterministically so the fallback never files this run's
+             content under a different project than a provisioned run; every entry is
+             filed under the resolved slug.
+             - Capture the current tip: `git rev-parse HEAD`. This becomes the next cursor
+               in step 7.
+             - Read the **sync cursor** (see *Incremental sync cursor*): find the status
+               issue (same search as step 7) and parse the
+               `` marker from its body. The cursor
+               is that SHA, or **absent** when no status issue or no marker exists.
           2. **Sync issues and pull requests.** Call `distillery_gh_sync` with this
              repository (`owner/repo`, derived from the workflow context, not a file
              path) and the resolved project. `distillery_gh_sync` fetches the
@@ -378,23 +442,34 @@ jobs:
                the summary as "sync dispatched; result unconfirmed (client timeout)"
                qualified by that probe (store non-empty vs empty). At most one such probe;
                do not poll (step 8's no-loop rule).
-          3. **Decide the document set.** Probe the store with
-             `distillery_list(project=<slug>, limit=1)`. If it returns no entries for
-             this project, this is a **backfill** run (step 3a). Otherwise it is an
-             **incremental** run (step 3b).
-             - **3a. Backfill set (empty store).** Enumerate, in the working tree:
-               `docs/specs/**/*.md`, `decisions/*.md`, and pre-existing documentation —
-               `README*`, `docs/**/*.md`, `ARCHITECTURE.md`, `DESIGN.md`, `adr/**/*.md`,
-               `doc/adr/**/*.md`, `docs/adr/**/*.md`. De-duplicate the file list (a file
-               matched by two globs is ingested once, by its source-path key). Cap the
-               count at 500 files; if more match, ingest the first 500 by path order and
-               **log every path skipped by the cap** — never truncate silently.
-             - **3b. Incremental set (non-empty store).** Enumerate only
-               `docs/specs/**/*.md` and `decisions/*.md`. These are the SDD artifacts a
-               merge changes.
-             - In both sets, **skip** `docs/specs/TEMPLATE.md`, `decisions/TEMPLATE.md`,
-               and any file whose basename starts with `_`. These are skeletons, not
-               knowledge.
+          3. **Decide the document set.** Resolve the document globs once (the configured
+             `DISTILLERY_DOC_GLOBS` value or the default set — see *Document roots*). The
+             cursor from step 1 selects backfill vs. incremental; a `distillery_list(
+             project=<slug>, limit=1)` probe is the tiebreak when the cursor is absent.
+             - **3a. Backfill set (cursor absent, or absent cursor *and* empty store).**
+               This is the first run or a recovery after the status issue was lost.
+               Enumerate the full document globs in the working tree. De-duplicate the
+               file list (a file matched by two globs is ingested once, by its source-path
+               key). Cap the count at 500 files; if more match, ingest the first 500 by
+               path order and **log every path skipped by the cap** — never truncate
+               silently.
+             - **3b. Incremental set (cursor present).** Compute the files changed since
+               the cursor and intersect them with the document globs:
+               - Ensure the cursor commit is present locally — the agent's checkout is
+                 shallow. Run `git cat-file -e <cursor>^{commit}` and, if it fails,
+                 `git fetch --depth=1 origin <cursor>` (then re-check).
+               - If the cursor resolves, the changed set is
+                 `git diff --name-only --diff-filter=d <cursor>..HEAD` (drop deletions:
+                 a removed source file leaves its entry in place — pruning is out of
+                 scope here). Intersect that list with the document globs.
+               - If the cursor **cannot** be resolved (history rewrite, force-push, fetch
+                 blocked), **fall back to enumerating the full document globs** as in 3a
+                 (bounded by the 500 cap) and log the fallback — correctness over cost on
+                 the rare broken-cursor run.
+               - An empty changed set is a valid, cheap run: no documents to process. Do
+                 not fall back to a full enumeration just because the delta is empty.
+             - In both sets, apply the skip rules from *Document roots* (`TEMPLATE.md`,
+               leading-`_` basenames).
           4. **Store, update, or skip each file.** For each file in the set, read its
              contents, compute its source-path tag (the `srcpath/<slug>` canonicalization
              above), classify its `doctype`
@@ -442,10 +517,13 @@ jobs:
                store.
           6. **Compose the run summary.** Capture: how many issues and pull requests
              `distillery_gh_sync` ingested or refreshed; whether this was a backfill or
-             incremental run; how many documents were created, updated, or skipped; how
-             many supersedes and citation relations were written; the resolved project
-             slug; a UTC timestamp; and every path dropped by the backfill cap. Log it to
-             the run, and reuse it as the status-issue payload in step 7.
+             incremental run; for an incremental run the cursor range (`<cursor>..HEAD`)
+             and the changed-file count; whether the document globs were the default set
+             or a configured `DISTILLERY_DOC_GLOBS` value; how many documents were
+             created, updated, or skipped; how many supersedes and citation relations were
+             written; the resolved project slug; a UTC timestamp; and every path dropped
+             by the backfill cap. Log it to the run, and reuse it as the status-issue
+             payload in step 7.
              - **When step 2 hit a client timeout,** report the issue/PR line as
                "dispatched; result unconfirmed (client timeout); store <empty|non-empty>"
                using the step-3 probe result — **never** `0 ingested`. A `0/0` from a
@@ -462,15 +540,24 @@ jobs:
                the `distillery-sync` label whose title begins with the
                `[distillery-sync] Status` marker (use the `github` toolset:
                `search_issues` / `list_issues`).
+             - **Write the cursor into the body.** The issue body is both the human
+               summary (step 6) and the machine cursor. Append, on its own line, the
+               marker `` using the tip captured in
+               step 1 — but **only when the document pass completed without an unhandled
+               failure** (a clean backfill, or an incremental run whose changed set was
+               processed). If the run errored out before finishing the document pass
+               (step 8), leave the prior marker untouched so the next run re-attempts from
+               the same point rather than skipping the unprocessed range. Emit exactly one
+               marker line; if the prior body already had one, replace it.
              - **None found → create.** Emit one `create-issue` (label `distillery-sync`,
-               title `Status — <run type>, <UTC date>`, body = the step 6 summary). This
-               is the first run, or the prior status issue was deleted or closed and is
-               gone.
+               title `Status — <run type>, <UTC date>`, body = the step 6 summary plus the
+               cursor marker). This is the first run, or the prior status issue was
+               deleted or closed and is gone.
              - **Found → update and comment.** Emit one `update-issue` targeting that
                issue number to refresh its title (`[distillery-sync] Status — <run type>,
-               <UTC date>`) and its body to the step 6 summary, and one `add-comment` on
-               the same issue number carrying this run's summary. Do **not** emit a
-               `create-issue` — never open a second status issue.
+               <UTC date>`) and its body to the step 6 summary plus the cursor marker, and
+               one `add-comment` on the same issue number carrying this run's summary. Do
+               **not** emit a `create-issue` — never open a second status issue.
           8. If the Distillery store cannot be reached on either mechanism, log the
              failure, upsert the status issue (step 7) recording the failure in the
              summary, and exit. Do not retry in a loop: a missed sync is recovered by the
@@ -490,10 +577,23 @@ jobs:
             `background=true` retry and no synchronous `0/0` dedup retry, and its summary
             reports "dispatched; result unconfirmed (client timeout)" with the store-probe
             result, never `0 ingested`.
-          - A second run with no source changes logs every document as **skipped** and
-            creates no duplicate entry (idempotence). Each document's `srcpath/<slug>` tag
-            stores successfully (the validator accepts it) and is recomputed identically,
-            so the dedup lookup hits.
+          - The compiled lock pins the engine model to `claude-haiku-4.5`
+            (`GH_AW_INFO_MODEL` / `COPILOT_MODEL` are the literal string, not a
+            `vars.GH_AW_*_MODEL_COPILOT` expression), so a consumer's default-model
+            variable cannot raise this agent back to a costlier model.
+          - A run after a prior successful run reads the `distillery-sync-cursor` marker,
+            computes `git diff --name-only <cursor>..HEAD`, and processes only the
+            intersection with the document globs. A run with no changed documents
+            processes **zero** documents (empty delta) and still upserts the status issue,
+            advancing the cursor to the new `HEAD`.
+          - A run whose cursor cannot be resolved (rewritten history) falls back to a full
+            glob enumeration and logs the fallback — it does not crash or skip silently.
+          - With `DISTILLERY_DOC_GLOBS` set, the document set is drawn from the configured
+            globs (verified by ingesting a file matched only by a configured glob, e.g. a
+            Rust crate `README.md`); with it unset, the default set applies. An
+            overlapping or re-run glob set creates no duplicate: the `srcpath/<slug>` key
+            hits and `distillery_store`'s server-side near-duplicate auto-skip is the
+            backstop.
           - A second run does **not** open a new status issue: it updates the existing
             `[distillery-sync] Status` issue and adds one comment. Only the first run (or
             one after the prior status issue was deleted) emits a `create-issue`.
@@ -504,13 +604,14 @@ jobs:
             `distillery_relations(action="get", entry_id=<new ADR entry>)` shows a
             `supersedes` edge to the prior ADR's entry.
           
-          GH_AW_PROMPT_bbaf5f4134988fb1_EOF
+          GH_AW_PROMPT_d6f4cc720a73a3c8_EOF
           } > "$GH_AW_PROMPT"
       - name: Interpolate variables and render templates
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         env:
           GH_AW_PROMPT: /tmp/gh-aw/aw-prompts/prompt.txt
           GH_AW_ENGINE_ID: "copilot"
+          GH_AW_INPUTS_DOC_GLOBS: ${{ inputs.doc_globs }}
         with:
           script: |
             const { setupGlobals } = require('${{ runner.temp }}/gh-aw/actions/setup_globals.cjs');
@@ -529,6 +630,7 @@ jobs:
           GH_AW_GITHUB_REPOSITORY: ${{ github.repository }}
           GH_AW_GITHUB_RUN_ID: ${{ github.run_id }}
           GH_AW_GITHUB_WORKSPACE: ${{ github.workspace }}
+          GH_AW_INPUTS_DOC_GLOBS: ${{ inputs.doc_globs }}
           GH_AW_MCP_CLI_SERVERS_LIST: '- `safeoutputs` — run `safeoutputs --help` to see available tools'
           GH_AW_NEEDS_PRE_ACTIVATION_OUTPUTS_ACTIVATED: ${{ needs.pre_activation.outputs.activated }}
         with:
@@ -550,6 +652,7 @@ jobs:
                 GH_AW_GITHUB_REPOSITORY: process.env.GH_AW_GITHUB_REPOSITORY,
                 GH_AW_GITHUB_RUN_ID: process.env.GH_AW_GITHUB_RUN_ID,
                 GH_AW_GITHUB_WORKSPACE: process.env.GH_AW_GITHUB_WORKSPACE,
+                GH_AW_INPUTS_DOC_GLOBS: process.env.GH_AW_INPUTS_DOC_GLOBS,
                 GH_AW_MCP_CLI_SERVERS_LIST: process.env.GH_AW_MCP_CLI_SERVERS_LIST,
                 GH_AW_NEEDS_PRE_ACTIVATION_OUTPUTS_ACTIVATED: process.env.GH_AW_NEEDS_PRE_ACTIVATION_OUTPUTS_ACTIVATED
               }
@@ -720,9 +823,9 @@ jobs:
           mkdir -p "${RUNNER_TEMP}/gh-aw/safeoutputs"
           mkdir -p /tmp/gh-aw/safeoutputs
           mkdir -p /tmp/gh-aw/mcp-logs/safeoutputs
-          cat > "${RUNNER_TEMP}/gh-aw/safeoutputs/config.json" << 'GH_AW_SAFE_OUTPUTS_CONFIG_befc0d246e72d783_EOF'
+          cat > "${RUNNER_TEMP}/gh-aw/safeoutputs/config.json" << 'GH_AW_SAFE_OUTPUTS_CONFIG_250fc3391cb32ce6_EOF'
           {"add_comment":{"max":1,"target":"*"},"create_issue":{"max":1},"create_report_incomplete_issue":{},"missing_data":{},"missing_tool":{},"noop":{"max":1,"report-as-issue":"true"},"report_incomplete":{},"update_issue":{"allow_body":true,"allow_title":true,"max":1,"target":"*"}}
-          GH_AW_SAFE_OUTPUTS_CONFIG_befc0d246e72d783_EOF
+          GH_AW_SAFE_OUTPUTS_CONFIG_250fc3391cb32ce6_EOF
       - name: Generate Safe Outputs Tools
         env:
           GH_AW_TOOLS_META_JSON: |
@@ -1009,7 +1112,7 @@ jobs:
           
           mkdir -p /home/runner/.copilot
           GH_AW_NODE=$(which node 2>/dev/null || command -v node 2>/dev/null || echo node)
-          cat << GH_AW_MCP_CONFIG_22ea7178b6d26fb6_EOF | "$GH_AW_NODE" "${RUNNER_TEMP}/gh-aw/actions/start_mcp_gateway.cjs"
+          cat << GH_AW_MCP_CONFIG_b51ff16a0cd8b172_EOF | "$GH_AW_NODE" "${RUNNER_TEMP}/gh-aw/actions/start_mcp_gateway.cjs"
           {
             "mcpServers": {
               "distillery": {
@@ -1081,7 +1184,7 @@ jobs:
               }
             }
           }
-          GH_AW_MCP_CONFIG_22ea7178b6d26fb6_EOF
+          GH_AW_MCP_CONFIG_b51ff16a0cd8b172_EOF
       - name: Mount MCP servers as CLIs
         id: mount-mcp-clis
         continue-on-error: true
@@ -1139,7 +1242,7 @@ jobs:
           COPILOT_AGENT_RUNNER_TYPE: STANDALONE
           COPILOT_DUMMY_BYOK: dummy-byok-key-for-offline-mode
           COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
-          COPILOT_MODEL: ${{ vars.GH_AW_MODEL_AGENT_COPILOT || vars.GH_AW_DEFAULT_MODEL_COPILOT || 'claude-sonnet-4.6' }}
+          COPILOT_MODEL: claude-haiku-4.5
           DISTILLERY_OAUTH_TOKEN: ${{ secrets.DISTILLERY_OAUTH_TOKEN }}
           GH_AW_MCP_CONFIG: /home/runner/.copilot/mcp-config.json
           GH_AW_PHASE: agent
@@ -1685,7 +1788,7 @@ jobs:
           COPILOT_AGENT_RUNNER_TYPE: STANDALONE
           COPILOT_DUMMY_BYOK: dummy-byok-key-for-offline-mode
           COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
-          COPILOT_MODEL: ${{ vars.GH_AW_MODEL_DETECTION_COPILOT || vars.GH_AW_DEFAULT_MODEL_COPILOT || 'claude-sonnet-4.6' }}
+          COPILOT_MODEL: claude-haiku-4.5
           GH_AW_PHASE: detection
           GH_AW_PROMPT: /tmp/gh-aw/aw-prompts/prompt.txt
           GH_AW_VERSION: v0.77.5
@@ -1797,7 +1900,7 @@ jobs:
       GH_AW_DETECTION_REASON: ${{ needs.detection.outputs.detection_reason }}
       GH_AW_EFFECTIVE_TOKENS: ${{ needs.agent.outputs.effective_tokens }}
       GH_AW_ENGINE_ID: "copilot"
-      GH_AW_ENGINE_MODEL: ${{ needs.agent.outputs.model }}
+      GH_AW_ENGINE_MODEL: "claude-haiku-4.5"
       GH_AW_ENGINE_VERSION: "1.0.55"
       GH_AW_WORKFLOW_ID: "distillery-sync"
       GH_AW_WORKFLOW_NAME: "Distillery sync"
