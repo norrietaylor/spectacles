@@ -238,6 +238,45 @@ fragment. Read the tracking issue: its title, body, and every comment. If the
 trigger is a `/revise` on a spec pull request, also read that pull request,
 its diff, and the `/revise` note.
 
+### 1a. Guard against a duplicate spec (a spec PR already exists)
+
+`sdd-spec` opens **at most one** spec pull request per tracking issue. A
+re-fired `/spec`, or a re-applied `sdd:spec` label, while a spec PR is already
+open must **never** open a second one (bug `norrietaylor/spectacles#246`: a
+`/spec` re-run cut a `spec/<slug>-v2` branch and opened a duplicate spec PR).
+
+Run this guard **only on a draft trigger**: situation 1 (`sdd:spec` label
+gain), situation 2 (`/spec` on the tracking issue) **when the tracking issue's
+lifecycle is `sdd:spec`** (not `sdd:fastpath` / `sdd:fastpath-review` — that is
+the situation-2 misclassification reset, which has its own flow), and the
+situation-6 `needs-human` resume. Skip it on a `/revise` (situations 4, 5, 8),
+on a merged-PR advance (situation 7), and on the fast path (situation 3) —
+those already operate on a specific pull request or stub.
+
+Using the `github` toolset, find the spec pull request for this tracking issue:
+search the repository's pull requests whose head branch begins with `spec/` and
+whose body references this tracking issue (`#<tracking-issue>`); equivalently,
+resolve the spec sub-issue under the tracking issue and its linked pull request.
+Then branch on its state:
+
+- **An OPEN spec PR exists → do not author, do not open a second.** Post exactly
+  one `add-comment` on the tracking issue naming the open spec PR by title and
+  instructing the human to **comment `/revise <note>` on that spec PR** to change
+  it; state plainly that `/spec` does not revise an open spec PR. Emit `noop` and
+  exit **now** — do not run steps 2–7, do not emit `create-issue` or
+  `create-pull-request`. `/spec` cannot push onto the open PR's branch from a
+  tracking-issue trigger (`push-to-pull-request-branch` acts on the *triggering*
+  pull request, which a tracking-issue trigger does not provide), so routing the
+  human to `/revise` on the PR is the correct action, not forking a second spec.
+- **The spec PR already MERGED → the spec phase is complete; do not author.**
+  `/spec` is not the post-merge revision path. Post one `add-comment` directing
+  the human to comment `/revise <note>` on the **tracking issue** for a
+  post-merge amendment (situation 8), and emit `noop`. Never open a new spec PR
+  over a merged spec.
+- **No spec PR exists, or the only prior spec PR was CLOSED WITHOUT MERGE →
+  author fresh.** A closed-unmerged spec leaves no open PR and no merged spec, so
+  a new spec is the correct outcome. Continue to step 2.
+
 ### 2. Assess the target repository with Serena
 
 Before authoring anything, perform a context assessment of the target
