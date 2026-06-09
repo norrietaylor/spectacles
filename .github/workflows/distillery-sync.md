@@ -206,7 +206,7 @@ Each run records the commit it ingested up to, so the next run processes only
 what changed. The cursor is the commit SHA persisted in the status issue body as
 a machine marker on its own line:
 
-```
+```text
 <!-- distillery-sync-cursor: <40-hex-sha> -->
 ```
 
