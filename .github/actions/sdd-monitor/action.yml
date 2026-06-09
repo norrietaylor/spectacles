@@ -7,11 +7,24 @@ description: >
   activation-stage, issue #201): re-dispatches an sdd:ready / sdd:in-progress
   task that has no open sdd/ PR and no in-flight run, then escalates to
   needs-human after a bounded number of attempts. Extracted verbatim
-  (ADR 0015). The caller mints the App token and passes it as github-token.
+  (ADR 0015). The caller mints the App token and passes it as github-token;
+  the in-flight run-status gate uses a separate runs-token (the workflow
+  GITHUB_TOKEN), so the App installation never needs the Actions permission.
 
 inputs:
   github-token:
-    description: 'App-installation token for reads and the /dispatch comment.'
+    description: >
+      App-installation token for PR/issue reads and the /dispatch comment
+      (needs pull-requests:read + issues:write). Does NOT need actions:read —
+      the run-status gate uses runs-token instead.
+    required: true
+  runs-token:
+    description: >
+      Workflow GITHUB_TOKEN (actions:read) used only for the in-flight
+      run-status gate (listWorkflowRunsForRepo). Kept separate from the App
+      token so the monitor does not require the Actions permission on the App
+      installation — requesting an ungranted scope 422s the whole token mint
+      (issue #249).
     required: true
   debounce-min:
     description: 'Debounce window in minutes; empty falls back to the script default.'
@@ -21,40 +34,27 @@ inputs:
 runs:
   using: composite
   steps:
-    - name: Nudge armed-but-idle trackers
+    # In-flight gate, on the workflow GITHUB_TOKEN. If any sdd-execute-* run is
+    # in_progress or queued in this repo, defer the pass (the main step is
+    # gated on this output). Run via runs-token, NOT the App token: only the
+    # Actions API (listWorkflowRunsForRepo) needs actions:read, and routing it
+    # through GITHUB_TOKEN (which carries actions:read from the job
+    # permissions) lets the App token stay scoped to pull-requests:read +
+    # issues:write — so a consumer whose App install lacks the Actions
+    # permission no longer 422s at mint (issue #249).
+    - name: In-flight gate
+      id: inflight
       uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
-      env:
-        SDD_MONITOR_DEBOUNCE_MIN: ${{ inputs.debounce-min }}
       with:
-        github-token: ${{ inputs.github-token }}
+        github-token: ${{ inputs.runs-token }}
         script: |
-            // The job-level if: gate already ensured SDD_MONITOR == '1';
-            // if execution reaches this script the monitor is enabled.
-
             const { owner, repo } = context.repo;
-            // Default to 5 minutes; treat a missing, empty, or
-            // non-numeric SDD_MONITOR_DEBOUNCE_MIN as "use the default".
-            // parseInt('', 10) and parseInt('abc', 10) both return NaN,
-            // and Math.max(1, NaN) is NaN — without this guard a typo
-            // in the repo var silently disables the debounce gate
-            // (every `ageMs < NaN` is false).
-            const parsedDebounce = parseInt(
-              process.env.SDD_MONITOR_DEBOUNCE_MIN || '', 10);
-            const debounceMin =
-              Number.isFinite(parsedDebounce) && parsedDebounce > 0
-                ? parsedDebounce
-                : 5;
-            const debounceMs = debounceMin * 60 * 1000;
-
-            // In-flight gate. If any sdd-execute-* run is in_progress or
-            // queued in this repo, exit without dispatching. The dispatch
-            // wrapper's per-task-per-tier concurrency group will cancel an
-            // in-flight cell when a new /dispatch fans out onto the same
-            // task, so even a single stacked /dispatch can kill productive
-            // work. The conservative repo-wide gate is the simplest way
-            // to make Tier 1 storm-proof; the cron backstop reruns every
-            // ten minutes so a missed window is recovered on the next
-            // pass.
+            // The dispatch wrapper's per-task-per-tier concurrency group will
+            // cancel an in-flight cell when a new /dispatch fans out onto the
+            // same task, so even a single stacked /dispatch can kill
+            // productive work. The conservative repo-wide gate is the simplest
+            // way to make Tier 1 storm-proof; the cron backstop reruns every
+            // ten minutes so a missed window is recovered on the next pass.
             const variantNames = [
               'sdd-execute-haiku',
               'sdd-execute-sonnet',
@@ -71,6 +71,7 @@ runs:
                   core.info(
                     'Could not list ' + status + ' runs: ' + err.message
                     + '; treating as in-flight to stay safe.');
+                  core.setOutput('in_flight', 'true');
                   return;
                 }
                 const hit = runs.find((r) => r.name === wf);
@@ -78,10 +79,42 @@ runs:
                   core.info(
                     'In-flight gate: ' + wf + ' run #' + hit.id + ' is '
                     + status + '; deferring monitor pass.');
+                  core.setOutput('in_flight', 'true');
                   return;
                 }
               }
             }
+            core.setOutput('in_flight', 'false');
+
+    - name: Nudge armed-but-idle trackers
+      # Deferred when the in-flight gate found a live sdd-execute-* run.
+      if: steps.inflight.outputs.in_flight != 'true'
+      uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+      env:
+        SDD_MONITOR_DEBOUNCE_MIN: ${{ inputs.debounce-min }}
+      with:
+        github-token: ${{ inputs.github-token }}
+        script: |
+            // The job-level if: gate already ensured SDD_MONITOR == '1';
+            // if execution reaches this script the monitor is enabled. The
+            // preceding step's in-flight gate has already cleared (no
+            // sdd-execute-* run in_progress or queued), so any deps-closed
+            // open task with no PR and no run is genuinely stranded.
+
+            const { owner, repo } = context.repo;
+            // Default to 5 minutes; treat a missing, empty, or
+            // non-numeric SDD_MONITOR_DEBOUNCE_MIN as "use the default".
+            // parseInt('', 10) and parseInt('abc', 10) both return NaN,
+            // and Math.max(1, NaN) is NaN — without this guard a typo
+            // in the repo var silently disables the debounce gate
+            // (every `ageMs < NaN` is false).
+            const parsedDebounce = parseInt(
+              process.env.SDD_MONITOR_DEBOUNCE_MIN || '', 10);
+            const debounceMin =
+              Number.isFinite(parsedDebounce) && parsedDebounce > 0
+                ? parsedDebounce
+                : 5;
+            const debounceMs = debounceMin * 60 * 1000;
 
             // Candidate trackers: open issues carrying sdd:dispatched, not
             // carrying needs-human or sdd:done. The search index can lag a
@@ -240,9 +273,10 @@ runs:
               // or failing in activation — leaves its task at sdd:ready /
               // sdd:in-progress with no PR and no run, and files no
               // failure issue (report-failure-as-issue only covers an
-              // agent-stage failure). The repo-wide in-flight gate above
-              // already proved no sdd-execute-* run is in_progress or
-              // queued, so any deps-closed open task labelled sdd:ready or
+              // agent-stage failure). The repo-wide in-flight gate in the
+              // preceding step already proved no sdd-execute-* run is
+              // in_progress or queued, so any deps-closed open task labelled
+              // sdd:ready or
               // sdd:in-progress with no open sdd/ PR has been silently
               // dropped. Collect those as stranded so the recovery tier
               // below re-dispatches them (bounded) or escalates.
