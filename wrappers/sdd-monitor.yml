@@ -77,8 +77,11 @@ on:
 
 permissions:
   contents: read
-  # actions: read is required to list sdd-execute-* workflow runs filtered
-  # by status so the in-flight gate can decide whether to dispatch.
+  # actions: read on the workflow GITHUB_TOKEN backs the in-flight gate's
+  # listWorkflowRunsForRepo call. The token is passed to the sdd-monitor
+  # action as runs-token; the App token deliberately does NOT request this
+  # scope (issue #249), so the gate's Actions access rides on GITHUB_TOKEN
+  # here, never on the App installation grant.
   actions: read
   # pull-requests: read lists open sdd/ implementation PRs, which the
   # armed-but-idle check excludes from candidate trackers.
@@ -132,17 +135,28 @@ jobs:
           owner: ${{ github.repository_owner }}
           repositories: ${{ github.event.repository.name }}
           # Least-privilege scope. Without permission-* inputs the minted
-          # token inherits the App installation's full grant; the
-          # sdd-monitor action only needs:
-          #   actions:read        list sdd-execute-* runs (in-flight gate)
+          # token inherits the App installation's full grant; the App token
+          # only needs:
           #   pull-requests:read  list open sdd/ implementation PRs
           #   issues:write        label + post /dispatch on tracking issues
           # It reads no repo contents, so contents is omitted.
-          permission-actions: read
+          #
+          # NOT actions:read. The in-flight run-status gate
+          # (listWorkflowRunsForRepo) runs on the workflow GITHUB_TOKEN
+          # (runs-token below), which carries actions:read from the job
+          # permissions. Requesting actions:read here would 422 the entire
+          # mint on any App installation that was not granted the Actions
+          # permission, taking the whole monitor down (issue #249). Keeping it
+          # off GITHUB_TOKEN decouples the monitor from the App install's
+          # Actions grant.
           permission-pull-requests: read
           permission-issues: write
       - name: Nudge armed-but-idle trackers
         uses: norrietaylor/spectacles/.github/actions/sdd-monitor@main
         with:
+          # App token: PR/issue reads + the /dispatch comment (App-authored so
+          # the dispatch wrapper's carve-out admits it).
           github-token: ${{ steps.app.outputs.token }}
+          # Workflow GITHUB_TOKEN: actions:read for the in-flight gate only.
+          runs-token: ${{ github.token }}
           debounce-min: ${{ vars.SDD_MONITOR_DEBOUNCE_MIN }}
