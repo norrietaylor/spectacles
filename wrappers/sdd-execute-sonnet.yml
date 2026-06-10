@@ -215,6 +215,8 @@ jobs:
           tier: sonnet
           app-id: ${{ vars.APP_ID }}
           max-review-iterations: ${{ vars.SDD_MAX_REVIEW_ITERATIONS }}
+          revise-on-checks: ${{ vars.SDD_REVISE_ON_CHECKS }}
+          revise-checks-exclude: ${{ vars.SDD_REVISE_CHECKS_EXCLUDE }}
           github-token: ${{ github.token }}
 
   sdd-execute-sonnet:
