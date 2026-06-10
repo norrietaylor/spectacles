@@ -93,7 +93,7 @@ jobs:
       aw_context: ${{ needs.route.outputs.aw_context }}
       # Task-bundling diff floor (ADR 0022). Maps the consumer's optional
       # SDD_TRIAGE_MIN_TASK variable into the lock's min_task input; unset
-      # passes empty and the agent falls back to 60.
+      # passes empty and the agent falls back to 300.
       min_task: ${{ vars.SDD_TRIAGE_MIN_TASK }}
     # Mapped explicitly, not `secrets: inherit`: inherit does not pass secrets
     # to a reusable workflow in a different owner than the caller.
