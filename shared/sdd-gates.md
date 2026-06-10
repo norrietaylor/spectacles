@@ -96,7 +96,7 @@ architecture sub-issue, and one **Unit sub-issue per demoable unit**; each Unit
 sub-issue's own sub-issues are the **task sub-issues** that carry the
 structured body block (the `## Task` block with `repo:`, `spec:`,
 `requirements:`, `files in scope:`, `proof artifacts:`, `verification:`, and
-`depends on:` fields — see `.github/workflows/sdd-triage.md` step 6). All four
+`depends on:` fields — see `.github/workflows/sdd-triage.md` step 6). All five
 gates below inspect those task sub-issues, that is, the **grandchildren** of
 the feature — Feature → Unit → task — not the Units themselves. A Unit
 sub-issue has no structured body block, no `repo:` field, and no `blocked by`
