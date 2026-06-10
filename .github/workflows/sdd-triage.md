@@ -1,6 +1,16 @@
 ---
 on:
   workflow_call:
+    inputs:
+      min_task:
+        description: >
+          Task-bundling diff floor in net lines, from the consumer's
+          SDD_TRIAGE_MIN_TASK repository variable (the wrapper maps it in).
+          Blank means the variable is unset; the agent falls back to 60. `0`
+          disables bundling. See step 5.
+        type: string
+        required: false
+        default: ''
 permissions:
   contents: read
   issues: read
@@ -604,6 +614,42 @@ approves the actual decomposition, not just the unit grouping. The plan
 preview is composed against the real working tree (Serena resolves the files
 in scope) and the merged spec's requirement IDs, exactly as phase C would
 compose it.
+
+**Size each task to a cohesive unit of review, not one function or file.**
+The single-session sizing above is an upper bound; this is the lower one. Each
+task materializes its own pull request, CI run, `sdd-validate` pass,
+`sdd-review` pass, and merge, so an over-split plan pays that fixed per-task
+overhead many times over for little delivered diff. Under a Unit, fold two
+previewed sub-tasks into one task when either of these holds — unless a
+`blocked by` edge to a *third* task forces them apart:
+
+- their `files in scope:` overlap (one is a subset of, or shares a file with,
+  the other), or
+- they form a strict produce-then-consume chain with no other consumer (one
+  sub-task exists only to feed another).
+
+Layer a soft tie-breaker on the cohesion test: a candidate task whose estimated
+change — your pre-implementation judgment of net changed lines across its `files
+in scope:`, the same basis as the single-session estimate — is under the
+`SDD_TRIAGE_MIN_TASK` floor and that has a cohesive sibling is folded into that
+sibling. The floor resolves at run time to:
+
+```text
+SDD_TRIAGE_MIN_TASK = ${{ inputs.min_task }}
+```
+
+A blank value means the variable is unset — use 60. A value of `0` disables
+bundling, restoring one task per requirement. The line count never forces two
+unrelated tasks together: cohesion is the gate, the floor only breaks ties. The
+aim is that a feature whose whole scope is a few hundred lines across a handful
+of files materializes as one or two tasks, not six. This is the fastpath
+instinct (ADR 0012) — which collapses a single-session *feature* to one
+execution plan with no tree — applied *within* a tree.
+
+Folding two previewed tasks unions their `depends on:` edges to other tasks and
+dissolves any edge between the pair. It only removes edges, so it cannot create
+a cycle the latent-edge pass and the `sdd-cycle-detect` backstop below would not
+already catch.
 
 **Baseline each requirement against the repository before drafting tasks
 (required).** Plan composition is repo-grounded, not requirement-driven: a

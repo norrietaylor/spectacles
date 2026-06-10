@@ -126,11 +126,21 @@ issue to enumerate Units, and once from each Unit to enumerate its tasks.
    implementable in a single agent session. A task that is too large for one
    session is a Warning. Apply this to tasks, not to Units; a Unit is a
    demoable unit and is expected to span multiple tasks by design.
+   The lower bound is gate 5.
 4. **Every task has a `repo:` field.** Every **task sub-issue**'s structured
    body carries a `repo:` field. A task missing the `repo:` field is a Blocker:
    `sdd-execute` reads that field to decide whether the task is local. Unit
    sub-issues do not carry a structured body and are not inputs to this gate;
    a Unit "missing" `repo:` is by design and not a finding.
+5. **No under-decomposed task.** The lower-bound companion to gate 3. Within a
+   single Unit, a **task sub-issue** that should have been folded into a sibling
+   is a Warning: its `files in scope:` is a subset of a sibling's, or it forms a
+   strict produce-then-consume chain with that sibling and no other consumer, or
+   its estimated diff is below `SDD_TRIAGE_MIN_TASK` (default 60 net lines) while
+   such a cohesive sibling exists. Two tasks that share no files and stand in no
+   producer/consumer relation are independent however small — do not flag them.
+   A genuine `blocked by` edge from either task to a *third* task justifies the
+   split and clears the finding. See `.github/workflows/sdd-triage.md` step 5.
 
 ## Implementation gates
 
