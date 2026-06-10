@@ -136,7 +136,7 @@ issue to enumerate Units, and once from each Unit to enumerate its tasks.
    single Unit, a **task sub-issue** that should have been folded into a sibling
    is a Warning: its `files in scope:` is a subset of a sibling's, or it forms a
    strict produce-then-consume chain with that sibling and no other consumer, or
-   its estimated diff is below `SDD_TRIAGE_MIN_TASK` (default 60 net lines) while
+   its estimated diff is below `SDD_TRIAGE_MIN_TASK` (default 300 net lines) while
    such a cohesive sibling exists. Two tasks that share no files and stand in no
    producer/consumer relation are independent however small — do not flag them.
    A genuine `blocked by` edge from either task to a *third* task justifies the

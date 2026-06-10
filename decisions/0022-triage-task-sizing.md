@@ -45,7 +45,7 @@ delivered diff was poor.
    - they form a strict produce-then-consume chain with no other consumer.
 2. **A configurable estimated-diff floor breaks ties.** A candidate task whose
    pre-implementation estimate is under `SDD_TRIAGE_MIN_TASK` net changed lines
-   (default `60`) and that has a cohesive sibling is folded into it.
+   (default `300`) and that has a cohesive sibling is folded into it.
    `SDD_TRIAGE_MIN_TASK = 0` disables bundling and restores one task per
    requirement. The value reaches the prompt through a `min_task` workflow_call
    input on the triage lock: the `sdd-triage` wrapper maps
@@ -53,7 +53,7 @@ delivered diff was poor.
    `${{ inputs.min_task }}`. gh-aw rejects a new `${{ vars.* }}` reference in
    prompt prose (only an allowlisted set of variable names is permitted there),
    so a `workflow_call` input — which gh-aw does allow in the prompt — is the
-   channel; an unset variable passes blank and the agent falls back to 60.
+   channel; an unset variable passes blank and the agent falls back to 300.
 3. **The validate gate gains a lower-bound companion.** Triage gate 5 in
    `shared/sdd-gates.md` ("No under-decomposed task") flags a Warning, symmetric
    to gate 3's too-large Warning. It is advisory, never a Blocker.
@@ -81,18 +81,18 @@ delivered diff was poor.
 ## Verification
 
 - `sdd-triage.md` step 5 states the cohesion rule, the `min_task` floor
-  (`${{ inputs.min_task }}`, blank → 60), and the `0`-disables path; the
+  (`${{ inputs.min_task }}`, blank → 300), and the `0`-disables path; the
   `sdd-triage` wrapper maps `vars.SDD_TRIAGE_MIN_TASK` into that input.
 - `shared/sdd-gates.md` triage gate 5 flags an under-decomposed task as a
   Warning and exempts tasks separated by a real `blocked by` edge.
-- `docs/sdd/install.md` documents `SDD_TRIAGE_MIN_TASK` (default `60`).
+- `docs/sdd/install.md` documents `SDD_TRIAGE_MIN_TASK` (default `300`).
 - A feature whose total scope is ~250 lines across a handful of files
   materializes as one or two tasks, not six.
 
 ## Consequences
 
 - A new optional repository variable, `SDD_TRIAGE_MIN_TASK`. Unset, triage
-  bundles at the 60-line default; consumers that want the old fine granularity
+  bundles at the 300-line default; consumers that want the old fine granularity
   set it to `0`.
 - Triage gate 5 is added to the triage gate set, taking it from four gates to
   five. No change to gate severities elsewhere.
