@@ -1,15 +1,20 @@
 ---
-# Host-side Node/TypeScript cleanup, post-agent, pre-PR. The agent edits TS/JS
-# from inside the firewalled container (no npm-registry egress, no Node
-# toolchain) so it cannot run `prettier --write`/`eslint --fix` or refresh the
-# lockfile to self-verify; the safe-output patch carries prettier-dirty,
-# eslint-dirty code and a stale lockfile. Any consumer CI that runs
-# `prettier --check`, `eslint`, or an install with a frozen lockfile
-# (`npm ci`, `pnpm install --frozen-lockfile`, `yarn install --frozen-lockfile`)
-# rejects the PR — the Node analog of the Rust failure mode #160 fixed. These
-# post-steps run on the host runner (outside the firewall sandbox, per gh-aw's
-# post-steps contract), detect a Node edit (*.ts/*.tsx/*.js/*.jsx/*.mjs/*.cjs
-# or package.json) in the agent's patch, install Node on the host, then in a
+# Host-side Node/TypeScript cleanup, post-agent, pre-PR. The agent CAN run the
+# Node toolchain from inside the firewalled container — `registry.npmjs.org` is
+# in gh-aw's default egress allow-list and Node is already on the agent runner
+# — and the execute agents' pre-PR CI gate (issue #205, extended to Node by
+# issue #258) requires it to: install against the lockfile, then run the
+# consumer's declared typecheck/lint, test, and build scripts green before any
+# PR opens or updates. These post-steps are the deterministic belt-and-braces
+# behind that gate, not a substitute for it: a run that skipped a fixer would
+# otherwise ship a safe-output patch carrying prettier-dirty, eslint-dirty code
+# or a stale lockfile, which any consumer CI that runs `prettier --check`,
+# `eslint`, or an install with a frozen lockfile (`npm ci`,
+# `pnpm install --frozen-lockfile`, `yarn install --frozen-lockfile`) rejects —
+# the Node analog of the Rust failure mode #160 fixed. The post-steps run on
+# the host runner (outside the firewall sandbox, per gh-aw's post-steps
+# contract), detect a Node edit (*.ts/*.tsx/*.js/*.jsx/*.mjs/*.cjs or
+# package.json) in the agent's patch, install Node on the host, then in a
 # single refresh: detect the consumer's package manager from the lockfile
 # present (npm/pnpm/yarn), refresh that lockfile (when package.json changed),
 # run the consumer's own prettier and eslint fixers (only when the consumer
@@ -19,8 +24,8 @@
 # actually touching Node — no install on doc-only or non-Node task runs. The
 # amend lands inside the agent's existing commit, so gh-aw's signed-commit push
 # (ADR 0004) re-attributes the cleanup to the App identity at PR-create time.
-# Tool/registry egress stays on the host runner only: the agent container's
-# firewall is never widened (consistent with #152/#153 and the Rust analog).
+# The agent container's firewall is never widened beyond gh-aw's defaults for
+# this (consistent with #152/#153 and the Rust analog).
 # Best-effort + self-heal posture mirrors shared/sdd-rust-cleanup.md (#163):
 # a fixer that exits non-zero never aborts the post-step (that would block PR
 # creation and lose the agent's work); a residual diff after the consumer's own
@@ -411,13 +416,19 @@ post-steps:
 This fragment is the Node analog of `shared/sdd-rust-cleanup.md`. It carries the
 post-agent, pre-PR host cleanup that lets `sdd-execute` open implementation pull
 requests a Node/TypeScript consumer's CI accepts without manual fixup. The agent
-edits TS/JS from inside gh-aw's network-restricted container, which has no
-npm-registry egress and no Node toolchain, so it cannot run `prettier --write`,
-`eslint --fix`, or refresh the lockfile to self-verify. The safe-output patch
-therefore carries prettier-dirty, eslint-dirty code and a stale lockfile, which
-a consumer's `prettier --check`, `eslint`, or frozen-lockfile install
-(`npm ci`, `pnpm install --frozen-lockfile`, `yarn install --frozen-lockfile`)
-gate rejects — the Node analog of the Rust failure mode #160 fixed.
+edits TS/JS from inside gh-aw's network-restricted container, where the Node
+toolchain works: `registry.npmjs.org` is in gh-aw's default egress allow-list
+and Node is already on the agent runner, so corepack, pnpm, npm, and yarn all
+resolve and install in-sandbox. The execute agents' pre-PR CI gate (issue #205,
+extended to Node by issue #258) requires the agent to use that toolchain before
+any PR opens or updates: install against the lockfile, then run the consumer's
+declared typecheck/lint, test, and build scripts green. This post-step is the
+deterministic belt-and-braces behind that gate: should a run skip a fixer, the
+safe-output patch would carry prettier-dirty, eslint-dirty code or a stale
+lockfile, which a consumer's `prettier --check`, `eslint`, or frozen-lockfile
+install (`npm ci`, `pnpm install --frozen-lockfile`,
+`yarn install --frozen-lockfile`) gate rejects — the Node analog of the Rust
+failure mode #160 fixed.
 
 The `post-steps` run on the GitHub runner, outside the firewall sandbox, after
 the agent and before `safe_outputs` materializes the PR. When the agent's patch
@@ -464,14 +475,19 @@ exit. The whole block is best-effort: a parse error, unfixable eslint rule, or
 failed install is left untouched (not masked) and never aborts the post-step,
 which would block PR creation and lose the agent's work.
 
-### No registry egress on the agent
+### Belt-and-braces behind the in-sandbox gate
 
-All npm-registry traffic is on the host runner only, outside the agent's
-firewall sandbox; the agent container's network is never widened (consistent
-with #152/#153 and `shared/sdd-rust-cleanup.md`). `node_modules` is never
-staged or committed.
+The agent itself runs the consumer's install, typecheck, lint, and tests
+in-sandbox as part of the pre-PR CI gate — `registry.npmjs.org` is in gh-aw's
+default egress allow-list, so the agent container's firewall is never widened
+beyond the defaults for this (consistent with #152/#153 and
+`shared/sdd-rust-cleanup.md`). This host post-step repeats only the
+deterministic fixers and the lockfile refresh, so a properly-gated tree and the
+final PR tree converge. `node_modules` is never staged or committed.
 
 ### Out of scope
 
-Test execution (`npm test`) and type-checking (`tsc`) are the consumer CI's job
-(mirrors #154). Stacks beyond Node/Rust are separate follow-ups.
+Test execution (`npm test`) and type-checking (`tsc`) belong to the in-sandbox
+pre-PR CI gate, which has already run them green by the time this post-step
+fires; the post-step applies only the deterministic fixers and the lockfile
+refresh, never tests. Stacks beyond Node/Rust are separate follow-ups.
