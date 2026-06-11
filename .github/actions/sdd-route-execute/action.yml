@@ -483,6 +483,9 @@ runs:
                   // error is logged and contributes nothing).
                   const mode = (process.env.SDD_REVISE_ON_CHECKS || '')
                     .trim().toLowerCase() || 'all';
+                  if (mode !== 'all' && mode !== 'required') {
+                    core.info(`unrecognized revise-on-checks value "${mode}"; treating as "all"`);
+                  }
                   const requiredOnly = mode === 'required';
                   const requiredContexts = new Set();
                   if (requiredOnly && baseBranch) {
