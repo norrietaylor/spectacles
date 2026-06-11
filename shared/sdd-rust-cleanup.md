@@ -309,5 +309,7 @@ aborts the post-step, which would block PR creation and lose the agent's work.
 ### Out of scope
 
 Dead-code suppression (#158 non-goal): `clippy --fix` never adds
-`#[allow(dead_code)]` or gates a module. Test execution is the consumer CI's job
-(#154). Non-Rust formatters are follow-ups.
+`#[allow(dead_code)]` or gates a module. Test execution (`cargo test`) belongs
+to the in-sandbox pre-PR CI gate, which has already run it green by the time
+this post-step fires; the post-step applies only the deterministic formatting
+and lint fixes, never tests. Non-Rust formatters are follow-ups.
