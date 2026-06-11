@@ -3,7 +3,7 @@ description: >
   Decision logic shared by the three sdd-execute model-tier wrapper variants.
   Resolves which trigger fired, gates /execute and /revise on real repository
   permission (or the configured App identity), enforces the model:<tier> gate,
-  handles the CHANGES_REQUESTED and failed-required-check auto-revise loops with
+  handles the CHANGES_REQUESTED and failed-check auto-revise loops with
   their iteration cap, and emits should_run plus the aw_context JSON the hosted
   lock consumes. Extracted
   verbatim from the wrappers so the routing logic lives in one place; the only
@@ -23,6 +23,22 @@ inputs:
     default: ''
   max-review-iterations:
     description: 'Cap on auto-revise cycles per PR. Defaults to 3 when empty.'
+    required: false
+    default: ''
+  revise-on-checks:
+    description: >
+      Which failing check runs on a completed check_suite trigger the implicit
+      /revise (issue #259): 'all' treats every failure-conclusion check run as
+      actionable; 'required' restricts the trigger to checks that gate merge
+      (repository rulesets merged with classic branch protection). Defaults to
+      'all' when empty.
+    required: false
+    default: ''
+  revise-checks-exclude:
+    description: >
+      Comma-separated check-run-name globs (* matches any run of characters);
+      a failing check run whose name matches any glob is ignored when deciding
+      whether to trigger the implicit /revise (issue #259).
     required: false
     default: ''
   github-token:
@@ -47,6 +63,8 @@ runs:
       env:
         APP_ID: ${{ inputs.app-id }}
         SDD_MAX_REVIEW_ITERATIONS: ${{ inputs.max-review-iterations }}
+        SDD_REVISE_CHECKS_EXCLUDE: ${{ inputs.revise-checks-exclude }}
+        SDD_REVISE_ON_CHECKS: ${{ inputs.revise-on-checks }}
         TIER: ${{ inputs.tier }}
       with:
         github-token: ${{ inputs.github-token }}
@@ -63,7 +81,7 @@ runs:
             let reviewAutoRevise = false;
             let reviewPrNumber = 0;
             // Hidden marker that tracks the auto-revise cap. Defaults to the
-            // CHANGES_REQUESTED marker (issue #128); the failed-required-check
+            // CHANGES_REQUESTED marker (issue #128); the failed-check
             // revise path (issue #203) overrides it so the two remediation
             // loops carry independent retry budgets.
             let reviseMarker = '<!-- sdd-execute:auto-revise -->';
@@ -367,16 +385,20 @@ runs:
               }
             }
 
-            // A required CI check failed on an open sdd/ PR (issue #203). A
-            // post-approval (or pre-approval) red required check leaves the PR
+            // A CI check failed on an open sdd/ PR (issue #203). A
+            // post-approval (or pre-approval) red check leaves the PR
             // BLOCKED with no remediation: the CHANGES_REQUESTED auto-revise
             // path above fires only on a review verdict, never on a red check.
             // Treat a check_suite that completed with a failure conclusion on
             // an sdd/ head branch as an implicit /revise, mirroring that path:
             // the directive names the failing check(s) and points at the run
             // logs, and the same iteration cap (post-tier-gate block below)
-            // bounds the retries before escalating with needs-human. The agent
-            // confirms ownership (sdd/ head ref + body marker) at step 7
+            // bounds the retries before escalating with needs-human. Which
+            // failing checks count is governed by the revise-on-checks input
+            // (issue #259): 'all' by default, 'required' to restrict to
+            // merge-gating checks; a check run matching a
+            // revise-checks-exclude glob never counts in either mode. The
+            // agent confirms ownership (sdd/ head ref + body marker) at step 7
             // exactly as it does for a CHANGES_REQUESTED review.
             if (event === 'check_suite' && payload.action === 'completed') {
               const suite = payload.check_suite || {};
@@ -445,15 +467,61 @@ runs:
                   core.info('check_suite failure on ' + headBranch
                     + ' has no open PR; ignoring.');
                 } else {
-                  // Only checks that actually gate merge should fire an
-                  // implicit /revise. An optional/advisory suite failure never
-                  // blocks merge, so triggering on it would burn the retry
-                  // budget and can escalate needs-human for nothing. Fetch the
-                  // base branch's required status check contexts; if branch
-                  // protection is absent or the call throws, treat it as "no
-                  // required contexts" and do NOT trigger.
+                  // Which failing check runs are actionable (issue #259).
+                  // Mode 'all' (the default when revise-on-checks is empty):
+                  // every failure-conclusion check run in the suite counts,
+                  // with no protection lookup at all. The old required-only
+                  // behaviour was silently dead on most repos: classic
+                  // getBranchProtection needs administration:read, which the
+                  // default GITHUB_TOKEN lacks, so the call 403'd, the error
+                  // was swallowed as "no required contexts", and no failure
+                  // ever triggered a revise. Mode 'required' restricts the
+                  // trigger to checks that gate merge: required contexts are
+                  // resolved from repository rulesets (the rules/branches
+                  // endpoint, readable with a plain read token) merged
+                  // best-effort with classic branch protection (a classic-API
+                  // error is logged and contributes nothing).
+                  const mode = (process.env.SDD_REVISE_ON_CHECKS || '')
+                    .trim().toLowerCase() || 'all';
+                  if (mode !== 'all' && mode !== 'required') {
+                    core.info(`unrecognized revise-on-checks value "${mode}"; treating as "all"`);
+                  }
+                  const requiredOnly = mode === 'required';
                   const requiredContexts = new Set();
-                  if (baseBranch) {
+                  if (requiredOnly && baseBranch) {
+                    // Repository rulesets: the modern protection mechanism.
+                    // GET /repos/{owner}/{repo}/rules/branches/{branch}
+                    // returns the active rules that apply to the branch,
+                    // across every ruleset, and needs only contents: read.
+                    try {
+                      const rules = await github.paginate(
+                        'GET /repos/{owner}/{repo}/rules/branches/{branch}',
+                        {
+                          owner: context.repo.owner,
+                          repo: context.repo.repo,
+                          branch: baseBranch,
+                          per_page: 100,
+                        });
+                      for (const rule of rules) {
+                        if (rule.type !== 'required_status_checks') {
+                          continue;
+                        }
+                        const checks = (rule.parameters
+                          && rule.parameters.required_status_checks) || [];
+                        for (const c of checks) {
+                          if (c && c.context) {
+                            requiredContexts.add(c.context);
+                          }
+                        }
+                      }
+                    } catch (err) {
+                      core.info('Could not read branch rules for '
+                        + baseBranch + ': ' + err.message);
+                    }
+                    // Classic branch protection, merged in best-effort. The
+                    // endpoint needs administration: read, which the default
+                    // GITHUB_TOKEN lacks; an error (403/404) is logged and
+                    // treated as contributing no contexts.
                     try {
                       const { data: prot } =
                         await github.rest.repos.getBranchProtection({
@@ -467,14 +535,35 @@ runs:
                         requiredContexts.add(c);
                       }
                     } catch (err) {
-                      core.info('No branch protection for ' + baseBranch
-                        + ' (or not accessible): ' + err.message);
+                      core.info('No classic branch protection for '
+                        + baseBranch + ' (or not accessible): '
+                        + err.message);
                     }
                   }
+                  // Exclusion globs (issue #259): comma-separated
+                  // check-run-name patterns where * matches any run of
+                  // characters. A failed run whose name matches any pattern
+                  // is ignored in either mode — typically advisory E2E or
+                  // build matrices whose flakes would burn the retry budget
+                  // for nothing.
+                  const excludeGlobs =
+                    (process.env.SDD_REVISE_CHECKS_EXCLUDE || '')
+                      .split(',')
+                      .map((g) => g.trim())
+                      .filter((g) => g.length > 0);
+                  const globToRegExp = (glob) => new RegExp('^'
+                    + glob.split('*')
+                      .map((s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+                      .join('.*')
+                    + '$');
+                  const excludeRes = excludeGlobs.map(globToRegExp);
+                  const isExcluded = (name) =>
+                    excludeRes.some((re) => re.test(name));
                   // Name the failing check runs so the revise directive is
                   // actionable, and point at the suite's run logs. A failed
-                  // run's `html_url` is the per-run logs page. Only failed runs
-                  // whose name matches a required context count toward firing.
+                  // run's `html_url` is the per-run logs page. In 'required'
+                  // mode only failed runs whose name matches a required
+                  // context count toward firing.
                   const failed = [];
                   try {
                     const runs = await github.paginate(
@@ -487,11 +576,19 @@ runs:
                     for (const r of runs) {
                       const c = (r.conclusion || '').toLowerCase();
                       const name = r.name || r.check_name || '';
-                      if ((c === 'failure' || c === 'timed_out'
-                          || c === 'cancelled' || c === 'action_required')
-                          && requiredContexts.has(name)) {
-                        failed.push({ name, url: r.html_url });
+                      if (c !== 'failure' && c !== 'timed_out'
+                          && c !== 'cancelled' && c !== 'action_required') {
+                        continue;
                       }
+                      if (isExcluded(name)) {
+                        core.info('Failed check "' + name + '" matches a'
+                          + ' revise-checks-exclude glob; ignoring it.');
+                        continue;
+                      }
+                      if (requiredOnly && !requiredContexts.has(name)) {
+                        continue;
+                      }
+                      failed.push({ name, url: r.html_url });
                     }
                   } catch (err) {
                     core.info('Could not list check runs for suite '
@@ -499,9 +596,10 @@ runs:
                   }
                   if (!failed.length) {
                     core.info('check_suite failure on ' + headBranch
-                      + ' has no failed REQUIRED check; ignoring.');
+                      + ' has no actionable failed check (' + mode
+                      + ' mode); ignoring.');
                   } else {
-                    const lines = ['A required CI check failed on this pull'
+                    const lines = ['A CI check failed on this pull'
                       + ' request. Fix the cause and push to the same branch.'];
                     lines.push('Failing checks:');
                     for (const f of failed) {
