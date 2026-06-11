@@ -531,10 +531,12 @@ the `network.allowed` block above admits `index.crates.io` and
 `static.crates.io` so cargo can resolve and fetch dependencies in-sandbox.
 
 For a **Node** consumer, detect the package manager from the lockfile present
-(`pnpm-lock.yaml` → pnpm, `package-lock.json` / `npm-shrinkwrap.json` → npm,
-`yarn.lock` → yarn), run `corepack enable`, then install with the
-frozen-lockfile flag (`pnpm install --frozen-lockfile`, `npm ci`,
-`yarn install --frozen-lockfile` — `--immutable` on Yarn 2+). Use a non-frozen
+(`pnpm-lock.yaml` → pnpm, `yarn.lock` → yarn, `package-lock.json` /
+`npm-shrinkwrap.json` → npm; when several are present the first match in that
+order wins, matching `detect_pm` in the imported fragment), run
+`corepack enable`, then install with the frozen-lockfile flag
+(`pnpm install --frozen-lockfile`, `yarn install --frozen-lockfile` —
+`--immutable` on Yarn 2+ — `npm ci`). Use a non-frozen
 install only for a workspace root whose `package.json` this task itself
 changed, mirroring the per-root rule in the imported
 `shared/sdd-node-cleanup.md`: a manifest edit invalidates only its own root's
