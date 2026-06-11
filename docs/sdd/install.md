@@ -339,7 +339,7 @@ history, not only a greenfield one. Before and after the install, confirm:
       mirrors, but not every language's registry — `pypi.org` is not on it.
       For a Node consumer the registry is covered, so `sdd-execute` runs the
       repository's declared checks in-sandbox before opening a pull request:
-      it detects the package manager from the lockfile (pnpm/npm/yarn),
+      it detects the package manager from the lockfile (pnpm/yarn/npm),
       installs against the frozen lockfile, and runs the declared typecheck,
       lint, test, and build scripts — a PR opens only once they pass. If
       the build or test command the agents read from `CLAUDE.md` fetches from

@@ -33,6 +33,12 @@ network:
     - defaults
     - "index.crates.io"
     - "static.crates.io"
+    # Corepack bootstraps Yarn from Yarn's own hosts, not the npm registry:
+    # repo.yarnpkg.com serves the release binary, registry.yarnpkg.com the
+    # release metadata/tags. Without both, `corepack enable` + yarn fails
+    # before the Node pre-PR gate (step 6) can install anything (issue #258).
+    - "repo.yarnpkg.com"
+    - "registry.yarnpkg.com"
     # OTLP span export to the observability collector on Cloud Run (ADR 0020).
     - "*.run.app"
 # OpenTelemetry (ADR 0020): export agent spans — token usage, duration,
@@ -537,17 +543,20 @@ order wins, matching `detect_pm` in the imported fragment), run
 `corepack enable`, then install with the frozen-lockfile flag
 (`pnpm install --frozen-lockfile`, `yarn install --frozen-lockfile` —
 `--immutable` on Yarn 2+ — `npm ci`). Use a non-frozen
-install only for a workspace root whose `package.json` this task itself
-changed, mirroring the per-root rule in the imported
-`shared/sdd-node-cleanup.md`: a manifest edit invalidates only its own root's
-lockfile, never another root's. Then run the consumer's declared scripts
+install only for a lockfile root that contains a `package.json` changed by
+this task, mirroring the per-root rule in the imported
+`shared/sdd-node-cleanup.md`: a workspace member's manifest edit invalidates
+its enclosing lockfile root's lockfile, never another root's. Then run the consumer's declared scripts
 cheap-to-expensive — typecheck and lint first (for example `tsc --noEmit`,
 `eslint`), unit tests next, build last — so the cheapest failure surfaces
 first. The npm registry needs no extra egress entry: `registry.npmjs.org` is
 in gh-aw's default firewall allow-list (the `defaults` token in
-`network.allowed` above), and Node is already on the agent runner, so
-corepack/pnpm/npm/yarn all work in-sandbox. Inability to reach the npm
-registry is therefore never a valid reason to skip this gate.
+`network.allowed` above); `repo.yarnpkg.com` and `registry.yarnpkg.com` are
+admitted above because corepack bootstraps Yarn from Yarn's own hosts, not
+the npm registry. Node is already on the agent runner, so
+corepack/pnpm/npm/yarn all work in-sandbox. Inability to reach a
+package-manager registry is therefore never a valid reason to skip this
+gate.
 
 **Spike exemption.** A `kind:spike` task writes only `docs/spikes/`, which
 invokes no build surface, so the consumer build/test gate has nothing to
