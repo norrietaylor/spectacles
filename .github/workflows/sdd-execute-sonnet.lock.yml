@@ -1,4 +1,4 @@
-# gh-aw-metadata: {"schema_version":"v4","frontmatter_hash":"92d4923c906cf504aee570db532c7348691c11e6f3f2477c3eaa6bef1c084cee","body_hash":"2234a3152ba75e87a5c271c18b018db95dbca3a06c9f2da9bf5e38b02278c0b3","compiler_version":"v0.77.5","agent_id":"copilot","agent_model":"claude-sonnet-4.6"}
+# gh-aw-metadata: {"schema_version":"v4","frontmatter_hash":"830db09a7bc4e39adf94919f78dd4f2c3b4354f1db386c2d949f0f5b19173ae3","body_hash":"a62d376051404ae892b987259b4cf3a47ae74c647173482da967300e45630b3e","compiler_version":"v0.77.5","agent_id":"copilot","agent_model":"claude-sonnet-4.6"}
 # gh-aw-manifest: {"version":1,"secrets":["APP_PRIVATE_KEY","COPILOT_GITHUB_TOKEN","GH_AW_CI_TRIGGER_TOKEN","GH_AW_GITHUB_MCP_SERVER_TOKEN","GH_AW_GITHUB_TOKEN","GH_AW_OTEL_ENDPOINT","GITHUB_TOKEN"],"actions":[{"repo":"actions/checkout","sha":"de0fac2e4500dabe0009e67214ff5f5447ce83dd","version":"v6.0.2"},{"repo":"actions/create-github-app-token","sha":"bcd2ba49218906704ab6c1aa796996da409d3eb1","version":"v3.2.0"},{"repo":"actions/download-artifact","sha":"3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c","version":"v8.0.1"},{"repo":"actions/github-script","sha":"3a2844b7e9c422d3c10d287c895573f7108da1b3","version":"v9.0.0"},{"repo":"actions/setup-node","sha":"48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e","version":"v6.4.0"},{"repo":"actions/upload-artifact","sha":"043fb46d1a93c77aae656e7c1c64a875d1fc6a0a","version":"v7.0.1"},{"repo":"dtolnay/rust-toolchain","sha":"29eef336d9b2848a0b548edc03f92a220660cdb8","version":"29eef336d9b2848a0b548edc03f92a220660cdb8"},{"repo":"github/gh-aw-actions/setup","sha":"3ea13c02d765410340d533515cb31a7eef2baaf0","version":"v0.77.5"}],"containers":[{"image":"ghcr.io/github/gh-aw-firewall/agent:0.25.58"},{"image":"ghcr.io/github/gh-aw-firewall/api-proxy:0.25.58"},{"image":"ghcr.io/github/gh-aw-firewall/squid:0.25.58"},{"image":"ghcr.io/github/gh-aw-mcpg:v0.3.22"},{"image":"ghcr.io/github/github-mcp-server:v1.1.0"},{"image":"ghcr.io/github/serena-mcp-server:latest","digest":"sha256:bf343399e3725c45528f531a230f3a04521d4cdef29f9a5af6282ff0d3c393c5","pinned_image":"ghcr.io/github/serena-mcp-server:latest@sha256:bf343399e3725c45528f531a230f3a04521d4cdef29f9a5af6282ff0d3c393c5"},{"image":"mcr.microsoft.com/playwright/mcp:v0.0.75"},{"image":"node:lts-alpine","digest":"sha256:2bdb65ed1dab192432bc31c95f94155ca5ad7fc1392fb7eb7526ab682fa5bf14","pinned_image":"node:lts-alpine@sha256:2bdb65ed1dab192432bc31c95f94155ca5ad7fc1392fb7eb7526ab682fa5bf14"}]}
 #    ___                   _   _      
 #   / _ \                 | | (_)     
@@ -250,24 +250,24 @@ jobs:
         run: |
           bash "${RUNNER_TEMP}/gh-aw/actions/create_prompt_first.sh"
           {
-          cat << 'GH_AW_PROMPT_302d3beaaa469fb3_EOF'
+          cat << 'GH_AW_PROMPT_801a36bb7662a695_EOF'
           <system>
-          GH_AW_PROMPT_302d3beaaa469fb3_EOF
+          GH_AW_PROMPT_801a36bb7662a695_EOF
           cat "${RUNNER_TEMP}/gh-aw/prompts/xpia.md"
           cat "${RUNNER_TEMP}/gh-aw/prompts/temp_folder_prompt.md"
           cat "${RUNNER_TEMP}/gh-aw/prompts/markdown.md"
           cat "${RUNNER_TEMP}/gh-aw/prompts/safe_outputs_prompt.md"
-          cat << 'GH_AW_PROMPT_302d3beaaa469fb3_EOF'
+          cat << 'GH_AW_PROMPT_801a36bb7662a695_EOF'
           <safe-output-tools>
           Tools: add_comment, update_issue, create_pull_request, add_labels(max:2), remove_labels(max:2), push_to_pull_request_branch, missing_tool, missing_data, noop
-          GH_AW_PROMPT_302d3beaaa469fb3_EOF
+          GH_AW_PROMPT_801a36bb7662a695_EOF
           cat "${RUNNER_TEMP}/gh-aw/prompts/safe_outputs_create_pull_request.md"
           cat "${RUNNER_TEMP}/gh-aw/prompts/safe_outputs_push_to_pr_branch.md"
-          cat << 'GH_AW_PROMPT_302d3beaaa469fb3_EOF'
+          cat << 'GH_AW_PROMPT_801a36bb7662a695_EOF'
           </safe-output-tools>
-          GH_AW_PROMPT_302d3beaaa469fb3_EOF
+          GH_AW_PROMPT_801a36bb7662a695_EOF
           cat "${RUNNER_TEMP}/gh-aw/prompts/mcp_cli_tools_prompt.md"
-          cat << 'GH_AW_PROMPT_302d3beaaa469fb3_EOF'
+          cat << 'GH_AW_PROMPT_801a36bb7662a695_EOF'
           <github-context>
           The following GitHub context information is available for this workflow:
           {{#if github.actor}}
@@ -296,9 +296,9 @@ jobs:
           {{/if}}
           </github-context>
           
-          GH_AW_PROMPT_302d3beaaa469fb3_EOF
+          GH_AW_PROMPT_801a36bb7662a695_EOF
           cat "${RUNNER_TEMP}/gh-aw/prompts/github_mcp_tools_with_safeoutputs_prompt.md"
-          cat << 'GH_AW_PROMPT_302d3beaaa469fb3_EOF'
+          cat << 'GH_AW_PROMPT_801a36bb7662a695_EOF'
           </system>
           # Core principles
           
@@ -1326,14 +1326,33 @@ jobs:
           run the target repository's own declared CI/validation commands and require them
           green — never open a PR you have not locally verified. Discover those commands
           from the repository's CI configuration (`.github/workflows/*`), then `CLAUDE.md`,
-          then a `Makefile` / `justfile` / `package.json` scripts, in that order; for a
-          Rust consumer this is at minimum `cargo fmt --all -- --check`, `cargo build`,
-          `cargo clippy --all-targets -- -D warnings`, and `cargo test`. Run them from
-          inside the sandbox (the `network.allowed` block above admits `index.crates.io`
-          and `static.crates.io` so cargo can resolve and fetch dependencies). On a
-          failure, fix the code and re-run until every command is green. A `cargo fmt`
-          or lint diff that one command would fix is never a reason to ship — fix it,
-          do not open the PR with it.
+          then a `Makefile` / `justfile` / `package.json` scripts, in that order. The gate
+          is stack-neutral: whatever toolchain the consumer's CI exercises, run its
+          commands from inside the sandbox. On a failure, fix the code and re-run until
+          every command is green. A formatter or lint diff that one command would fix is
+          never a reason to ship — fix it, do not open the PR with it.
+          
+          For a **Rust** consumer this is at minimum `cargo fmt --all -- --check`,
+          `cargo build`, `cargo clippy --all-targets -- -D warnings`, and `cargo test`;
+          the `network.allowed` block above admits `index.crates.io` and
+          `static.crates.io` so cargo can resolve and fetch dependencies in-sandbox.
+          
+          For a **Node** consumer, detect the package manager from the lockfile present
+          (`pnpm-lock.yaml` → pnpm, `package-lock.json` / `npm-shrinkwrap.json` → npm,
+          `yarn.lock` → yarn), run `corepack enable`, then install with the
+          frozen-lockfile flag (`pnpm install --frozen-lockfile`, `npm ci`,
+          `yarn install --frozen-lockfile` — `--immutable` on Yarn 2+). Use a non-frozen
+          install only for a workspace root whose `package.json` this task itself
+          changed, mirroring the per-root rule in the imported
+          `shared/sdd-node-cleanup.md`: a manifest edit invalidates only its own root's
+          lockfile, never another root's. Then run the consumer's declared scripts
+          cheap-to-expensive — typecheck and lint first (for example `tsc --noEmit`,
+          `eslint`), unit tests next, build last — so the cheapest failure surfaces
+          first. The npm registry needs no extra egress entry: `registry.npmjs.org` is
+          in gh-aw's default firewall allow-list (the `defaults` token in
+          `network.allowed` above), and Node is already on the agent runner, so
+          corepack/pnpm/npm/yarn all work in-sandbox. Inability to reach the npm
+          registry is therefore never a valid reason to skip this gate.
           
           **Spike exemption.** A `kind:spike` task writes only `docs/spikes/`, which
           invokes no build surface, so the consumer build/test gate has nothing to
@@ -1347,16 +1366,20 @@ jobs:
           say-so.
           
           This in-sandbox verification requirement **supersedes** any older imported
-          guidance that assumes Rust verification cannot run in the firewalled sandbox
-          (for example `shared/sdd-rust-cleanup.md`, whose header predates the
-          `index.crates.io`/`static.crates.io` egress added for this gate): with both
-          crates.io hosts admitted you **can** run cargo here, so you must. The host-side
-          post-cleanup that runs after this gate (`shared/sdd-rust-cleanup.md`,
-          `shared/sdd-node-cleanup.md`) is limited to the same deterministic formatters
-          and lock refresh the gate already enforces green (`cargo fmt --all`,
-          `cargo clippy --fix` machine-applicable lints, `cargo update --workspace`), so a
-          properly-gated tree and the final PR tree converge; never rely on that
-          post-cleanup to fix a gate failure.
+          guidance that assumes a stack's verification cannot run in the firewalled
+          sandbox — `shared/sdd-rust-cleanup.md`, whose header predates the
+          `index.crates.io`/`static.crates.io` egress added for this gate, and any
+          revision of `shared/sdd-node-cleanup.md` claiming the sandbox cannot reach the
+          npm registry or run the Node toolchain: with the crates.io hosts admitted and
+          `registry.npmjs.org` in the firewall defaults you **can** run cargo and the
+          Node toolchain here, so you must. The host-side post-cleanup that runs after
+          this gate (`shared/sdd-rust-cleanup.md`, `shared/sdd-node-cleanup.md`) is
+          limited to the same deterministic formatters and lock refresh the gate already
+          enforces green (`cargo fmt --all` / `cargo clippy --fix` machine-applicable
+          lints / `cargo update --workspace` on Rust; `prettier --write` /
+          `eslint --fix` / the per-root lockfile refresh on Node), so a properly-gated
+          tree and the final PR tree converge; never rely on that post-cleanup to fix a
+          gate failure.
           
           If you **cannot run** the gate — a required toolchain is missing, or the
           firewall blocks a host the toolchain must reach (a "Firewall blocked … domain"
@@ -1621,7 +1644,7 @@ jobs:
             moves to `sdd:done` and gains `needs-human`, and the tracking issue is not
             closed by the agent.
           
-          GH_AW_PROMPT_302d3beaaa469fb3_EOF
+          GH_AW_PROMPT_801a36bb7662a695_EOF
           } > "$GH_AW_PROMPT"
       - name: Interpolate variables and render templates
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
@@ -1848,9 +1871,9 @@ jobs:
           mkdir -p "${RUNNER_TEMP}/gh-aw/safeoutputs"
           mkdir -p /tmp/gh-aw/safeoutputs
           mkdir -p /tmp/gh-aw/mcp-logs/safeoutputs
-          cat > "${RUNNER_TEMP}/gh-aw/safeoutputs/config.json" << 'GH_AW_SAFE_OUTPUTS_CONFIG_a7af0eebc34b792a_EOF'
+          cat > "${RUNNER_TEMP}/gh-aw/safeoutputs/config.json" << 'GH_AW_SAFE_OUTPUTS_CONFIG_8fb1b2555b4e250c_EOF'
           {"add_comment":{"max":1},"add_labels":{"allowed":["sdd:in-progress","sdd:done","needs-human"],"max":2},"create_pull_request":{"draft":false,"max":1,"max_patch_files":100,"max_patch_size":1024,"protect_top_level_dot_folders":true,"protected_files":["bun.lockb","bunfig.toml","deno.json","deno.jsonc","deno.lock","global.json","NuGet.Config","Directory.Packages.props","mix.exs","mix.lock","go.mod","go.sum","stack.yaml","stack.yaml.lock","pom.xml","build.gradle","build.gradle.kts","settings.gradle","settings.gradle.kts","gradle.properties","requirements.txt","Pipfile","Pipfile.lock","setup.py","setup.cfg","Gemfile","Gemfile.lock","uv.lock","CODEOWNERS","DESIGN.md","README.md","CONTRIBUTING.md","CHANGELOG.md","SECURITY.md","CODE_OF_CONDUCT.md","AGENTS.md","CLAUDE.md","GEMINI.md"],"protected_files_policy":"fallback-to-issue"},"create_report_incomplete_issue":{},"missing_data":{},"missing_tool":{},"noop":{"max":1,"report-as-issue":"true"},"push_to_pull_request_branch":{"if_no_changes":"warn","max":1,"max_patch_size":1024,"protect_top_level_dot_folders":true,"protected_files":["bun.lockb","bunfig.toml","deno.json","deno.jsonc","deno.lock","global.json","NuGet.Config","Directory.Packages.props","mix.exs","mix.lock","go.mod","go.sum","stack.yaml","stack.yaml.lock","pom.xml","build.gradle","build.gradle.kts","settings.gradle","settings.gradle.kts","gradle.properties","requirements.txt","Pipfile","Pipfile.lock","setup.py","setup.cfg","Gemfile","Gemfile.lock","uv.lock","CODEOWNERS","DESIGN.md","README.md","CONTRIBUTING.md","CHANGELOG.md","SECURITY.md","CODE_OF_CONDUCT.md","AGENTS.md","CLAUDE.md","GEMINI.md"]},"remove_labels":{"allowed":["sdd:ready","sdd:review","sdd:fastpath","sdd:in-progress"],"max":2},"report_incomplete":{},"update_issue":{"allow_body":true,"allow_status":true,"max":1,"target":"*"}}
-          GH_AW_SAFE_OUTPUTS_CONFIG_a7af0eebc34b792a_EOF
+          GH_AW_SAFE_OUTPUTS_CONFIG_8fb1b2555b4e250c_EOF
       - name: Generate Safe Outputs Tools
         env:
           GH_AW_TOOLS_META_JSON: |
@@ -2202,7 +2225,7 @@ jobs:
           
           mkdir -p /home/runner/.copilot
           GH_AW_NODE=$(which node 2>/dev/null || command -v node 2>/dev/null || echo node)
-          cat << GH_AW_MCP_CONFIG_9d15d6f845b3fda4_EOF | "$GH_AW_NODE" "${RUNNER_TEMP}/gh-aw/actions/start_mcp_gateway.cjs"
+          cat << GH_AW_MCP_CONFIG_cb971e60ac3db221_EOF | "$GH_AW_NODE" "${RUNNER_TEMP}/gh-aw/actions/start_mcp_gateway.cjs"
           {
             "mcpServers": {
               "github": {
@@ -2328,7 +2351,7 @@ jobs:
               }
             }
           }
-          GH_AW_MCP_CONFIG_9d15d6f845b3fda4_EOF
+          GH_AW_MCP_CONFIG_cb971e60ac3db221_EOF
       - name: Mount MCP servers as CLIs
         id: mount-mcp-clis
         continue-on-error: true

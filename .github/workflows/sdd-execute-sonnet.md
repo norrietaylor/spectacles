@@ -519,14 +519,33 @@ let an empty-diff run reach `create-pull-request`.
 run the target repository's own declared CI/validation commands and require them
 green — never open a PR you have not locally verified. Discover those commands
 from the repository's CI configuration (`.github/workflows/*`), then `CLAUDE.md`,
-then a `Makefile` / `justfile` / `package.json` scripts, in that order; for a
-Rust consumer this is at minimum `cargo fmt --all -- --check`, `cargo build`,
-`cargo clippy --all-targets -- -D warnings`, and `cargo test`. Run them from
-inside the sandbox (the `network.allowed` block above admits `index.crates.io`
-and `static.crates.io` so cargo can resolve and fetch dependencies). On a
-failure, fix the code and re-run until every command is green. A `cargo fmt`
-or lint diff that one command would fix is never a reason to ship — fix it,
-do not open the PR with it.
+then a `Makefile` / `justfile` / `package.json` scripts, in that order. The gate
+is stack-neutral: whatever toolchain the consumer's CI exercises, run its
+commands from inside the sandbox. On a failure, fix the code and re-run until
+every command is green. A formatter or lint diff that one command would fix is
+never a reason to ship — fix it, do not open the PR with it.
+
+For a **Rust** consumer this is at minimum `cargo fmt --all -- --check`,
+`cargo build`, `cargo clippy --all-targets -- -D warnings`, and `cargo test`;
+the `network.allowed` block above admits `index.crates.io` and
+`static.crates.io` so cargo can resolve and fetch dependencies in-sandbox.
+
+For a **Node** consumer, detect the package manager from the lockfile present
+(`pnpm-lock.yaml` → pnpm, `package-lock.json` / `npm-shrinkwrap.json` → npm,
+`yarn.lock` → yarn), run `corepack enable`, then install with the
+frozen-lockfile flag (`pnpm install --frozen-lockfile`, `npm ci`,
+`yarn install --frozen-lockfile` — `--immutable` on Yarn 2+). Use a non-frozen
+install only for a workspace root whose `package.json` this task itself
+changed, mirroring the per-root rule in the imported
+`shared/sdd-node-cleanup.md`: a manifest edit invalidates only its own root's
+lockfile, never another root's. Then run the consumer's declared scripts
+cheap-to-expensive — typecheck and lint first (for example `tsc --noEmit`,
+`eslint`), unit tests next, build last — so the cheapest failure surfaces
+first. The npm registry needs no extra egress entry: `registry.npmjs.org` is
+in gh-aw's default firewall allow-list (the `defaults` token in
+`network.allowed` above), and Node is already on the agent runner, so
+corepack/pnpm/npm/yarn all work in-sandbox. Inability to reach the npm
+registry is therefore never a valid reason to skip this gate.
 
 **Spike exemption.** A `kind:spike` task writes only `docs/spikes/`, which
 invokes no build surface, so the consumer build/test gate has nothing to
@@ -540,16 +559,20 @@ written something it must not, and the gate must not be skipped on the label's
 say-so.
 
 This in-sandbox verification requirement **supersedes** any older imported
-guidance that assumes Rust verification cannot run in the firewalled sandbox
-(for example `shared/sdd-rust-cleanup.md`, whose header predates the
-`index.crates.io`/`static.crates.io` egress added for this gate): with both
-crates.io hosts admitted you **can** run cargo here, so you must. The host-side
-post-cleanup that runs after this gate (`shared/sdd-rust-cleanup.md`,
-`shared/sdd-node-cleanup.md`) is limited to the same deterministic formatters
-and lock refresh the gate already enforces green (`cargo fmt --all`,
-`cargo clippy --fix` machine-applicable lints, `cargo update --workspace`), so a
-properly-gated tree and the final PR tree converge; never rely on that
-post-cleanup to fix a gate failure.
+guidance that assumes a stack's verification cannot run in the firewalled
+sandbox — `shared/sdd-rust-cleanup.md`, whose header predates the
+`index.crates.io`/`static.crates.io` egress added for this gate, and any
+revision of `shared/sdd-node-cleanup.md` claiming the sandbox cannot reach the
+npm registry or run the Node toolchain: with the crates.io hosts admitted and
+`registry.npmjs.org` in the firewall defaults you **can** run cargo and the
+Node toolchain here, so you must. The host-side post-cleanup that runs after
+this gate (`shared/sdd-rust-cleanup.md`, `shared/sdd-node-cleanup.md`) is
+limited to the same deterministic formatters and lock refresh the gate already
+enforces green (`cargo fmt --all` / `cargo clippy --fix` machine-applicable
+lints / `cargo update --workspace` on Rust; `prettier --write` /
+`eslint --fix` / the per-root lockfile refresh on Node), so a properly-gated
+tree and the final PR tree converge; never rely on that post-cleanup to fix a
+gate failure.
 
 If you **cannot run** the gate — a required toolchain is missing, or the
 firewall blocks a host the toolchain must reach (a "Firewall blocked … domain"
