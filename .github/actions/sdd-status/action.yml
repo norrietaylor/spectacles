@@ -1,0 +1,560 @@
+name: sdd-status
+description: >
+  Deterministic status surface for SDD tracking issues (issue #254).
+  Maintains exactly one self-updating status comment per tracking issue,
+  located by the `<!-- sdd-status -->` sentinel and edited in place (comment
+  edits do not notify — `needs-human` and agent hand-off comments stay the
+  only pings, ADR 0001). Each refresh derives the phase line, a "Your move"
+  line from a deterministic decision table, a per-task state table, progress
+  counts, and a last-updated footer — 100% from labels, the sub-issue tree,
+  open sdd/ PRs, and in-flight Actions runs. No LLM is involved; the only
+  write is the one status comment (plus the eyes-reaction ack on /status).
+
+inputs:
+  github-token:
+    description: >
+      Workflow GITHUB_TOKEN. Needs issues:write (the status comment and the
+      eyes reaction), pull-requests:read (open sdd/ PR rollups),
+      actions:read (in-flight execute runs), and checks:read (PR check
+      rollups). No App mint: the status comment is a report, never a
+      command, so it does not need to pass any wrapper's App-author
+      carve-out.
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Refresh the status comment
+      uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+      with:
+        github-token: ${{ inputs.github-token }}
+        script: |
+            // Shared, dependency-free helpers. GITHUB_ACTION_PATH is this
+            // action's dir; '..' reaches the actions/ dir, then shared/.
+            // parse blockers with the same regex as sdd-dispatch-compute and
+            // walk parents with the same GraphQL walk as sdd-monitor (#254).
+            const path = require('path');
+            const sharedDir = path.join(
+              process.env.GITHUB_ACTION_PATH, '..', 'shared');
+            const { parseBlockers } = require(
+              path.join(sharedDir, 'blocked-by.js'));
+            const { walkToTracker, walkToRoot } = require(
+              path.join(sharedDir, 'parent-walk.js'));
+
+            const { owner, repo } = context.repo;
+            const event = context.eventName;
+            const payload = context.payload;
+            const SENTINEL = '<!-- sdd-status -->';
+            const PLAN_SENTINEL = '<!-- sdd-triage:plan -->';
+            const LIFECYCLE = [
+              'sdd:spec', 'sdd:fastpath', 'sdd:fastpath-review', 'sdd:triage',
+              'sdd:ready', 'sdd:in-progress', 'sdd:review', 'sdd:done',
+            ];
+            const EXECUTE_WORKFLOWS = [
+              'sdd-execute-haiku', 'sdd-execute-sonnet', 'sdd-execute-opus',
+            ];
+
+            const labelNames = (issue) => (issue.labels || []).map(
+              (l) => (typeof l === 'string' ? l : l.name));
+
+            // ---------------------------------------------------------------
+            // 1. Resolve the target tracking issue(s) for this event.
+            // ---------------------------------------------------------------
+            // Every resolver funnels into the shared parent walk: the
+            // triggering issue may be the tracking issue itself (0 hops), a
+            // Unit (1 hop), or a task (2 hops). For sdd/ branch refs the
+            // first numeric segment is the issue number the branch was cut
+            // for (a task on the implementation path, the tracking issue
+            // itself on the spec/architecture path — ADR 0006 branch
+            // conventions), so the two-hop walkToTracker is tried first and
+            // walkToRoot covers the tracker-rooted branches.
+            const targets = new Set();
+
+            async function addFromIssueNumber(num) {
+              try {
+                const tracker = await walkToTracker(github, owner, repo, num);
+                if (tracker) {
+                  targets.add(tracker);
+                  return;
+                }
+                const root = await walkToRoot(github, owner, repo, num);
+                targets.add(root.number);
+              } catch (err) {
+                core.info('Parent walk from #' + num + ' failed ('
+                  + err.message + '); skipping this target.');
+              }
+            }
+
+            async function addFromBranch(ref) {
+              const m = (ref || '').match(/^sdd\/(\d+)-/);
+              if (!m) { return; }
+              await addFromIssueNumber(parseInt(m[1], 10));
+            }
+
+            if (event === 'issues') {
+              await addFromIssueNumber(payload.issue.number);
+            } else if (event === 'issue_comment') {
+              // Token-strict /status, gated to write-access authors. The
+              // wrapper's job-level if: already filtered non-/status bodies;
+              // re-tokenise here so the action is safe to call directly.
+              const body = (payload.comment.body || '').trim();
+              const firstWord = body.split(/\s+/)[0];
+              const isStatus = firstWord === '/status';
+              if (!isStatus) {
+                core.info('Comment is not /status; nothing to do.');
+                return;
+              }
+              if (payload.issue.pull_request) {
+                core.info('/status on a pull request; ignoring.');
+                return;
+              }
+              // The gate is the actor's real repository permission, not
+              // author_association: a MEMBER of the org need not have push
+              // access on this repo. Same idiom as sdd-route-dispatch.
+              const actor = payload.comment.user.login;
+              let permission = 'none';
+              try {
+                const resp = await github.rest.repos
+                  .getCollaboratorPermissionLevel({
+                    owner, repo, username: actor,
+                  });
+                permission = resp.data.role_name || resp.data.permission;
+              } catch (err) {
+                core.info('Could not resolve repo permission for ' + actor
+                  + ': ' + err.message);
+              }
+              const canWrite = permission === 'write'
+                || permission === 'maintain' || permission === 'admin';
+              if (!canWrite) {
+                core.info('/status from an author without write access ('
+                  + permission + '); ignoring.');
+                return;
+              }
+              // Ack with an eyes reaction — no new comment, the refreshed
+              // status comment is the response.
+              try {
+                await github.rest.reactions.createForIssueComment({
+                  owner, repo, comment_id: payload.comment.id,
+                  content: 'eyes',
+                });
+              } catch (err) {
+                core.info('Could not add the eyes reaction: ' + err.message);
+              }
+              await addFromIssueNumber(payload.issue.number);
+            } else if (event === 'pull_request'
+                || event === 'pull_request_review') {
+              await addFromBranch(payload.pull_request.head.ref);
+            } else if (event === 'check_suite') {
+              await addFromBranch(payload.check_suite.head_branch);
+            } else if (event === 'workflow_run') {
+              // V1 fuzzy run correlation (issue #254 open question 2): a
+              // completed sdd-* run is not reliably attributable to one
+              // tracker (aw_context only names the task), so refresh every
+              // open issue that looks like an active tracking issue: it
+              // carries an sdd:* lifecycle label or sdd:dispatched and has
+              // no parent. Bounded by the number of active features.
+              let candidates = [];
+              try {
+                candidates = await github.paginate(
+                  github.rest.issues.listForRepo,
+                  { owner, repo, state: 'open', per_page: 100 });
+              } catch (err) {
+                core.info('Could not list open issues: ' + err.message);
+              }
+              for (const it of candidates) {
+                if (it.pull_request) { continue; }
+                const names = labelNames(it);
+                const active = names.some((l) => LIFECYCLE.includes(l))
+                  || names.includes('sdd:dispatched');
+                if (!active) { continue; }
+                try {
+                  const root = await walkToRoot(
+                    github, owner, repo, it.number);
+                  // Only roots: a task carries sdd:ready/sdd:in-progress
+                  // too, but its walk resolves to the tracker, which the
+                  // tracker's own row already adds.
+                  if (root.hops === 0) { targets.add(it.number); }
+                } catch (err) {
+                  core.info('Parent walk from #' + it.number + ' failed ('
+                    + err.message + '); skipping.');
+                }
+              }
+            }
+
+            if (!targets.size) {
+              core.info('No tracking issue resolved for this event;'
+                + ' nothing to refresh.');
+              return;
+            }
+
+            // ---------------------------------------------------------------
+            // Shared fact gathering (event-independent, fetched once).
+            // ---------------------------------------------------------------
+            // Open sdd/ PRs, keyed by the first numeric branch segment.
+            let sddPrs = [];
+            try {
+              const openPrs = await github.paginate(
+                github.rest.pulls.list,
+                { owner, repo, state: 'open', per_page: 100 });
+              sddPrs = openPrs.filter(
+                (p) => ((p.head && p.head.ref) || '').startsWith('sdd/'));
+            } catch (err) {
+              core.info('Could not list open PRs: ' + err.message);
+            }
+            const prByIssue = new Map();
+            for (const pr of sddPrs) {
+              const m = (pr.head.ref || '').match(/^sdd\/(\d+)-/);
+              if (m) { prByIssue.set(parseInt(m[1], 10), pr); }
+            }
+
+            // Check + review rollup per open sdd/ PR, one GraphQL query
+            // each. reviewDecision needs pull-requests:read;
+            // statusCheckRollup needs checks:read. A failed lookup leaves
+            // both null and the table renders "unknown" — degraded, never
+            // wrong.
+            const prFacts = new Map();
+            async function factsForPr(pr) {
+              if (prFacts.has(pr.number)) { return prFacts.get(pr.number); }
+              let facts = { checks: null, review: null };
+              try {
+                const result = await github.graphql(
+                  'query($owner: String!, $repo: String!, $number: Int!) {' +
+                  '  repository(owner: $owner, name: $repo) {' +
+                  '    pullRequest(number: $number) {' +
+                  '      reviewDecision' +
+                  '      commits(last: 1) { nodes { commit {' +
+                  '        statusCheckRollup { state }' +
+                  '      } } }' +
+                  '    }' +
+                  '  }' +
+                  '}',
+                  { owner, repo, number: pr.number });
+                const p = result.repository.pullRequest;
+                const node = (p.commits.nodes || [])[0];
+                facts = {
+                  checks: (node && node.commit.statusCheckRollup
+                    && node.commit.statusCheckRollup.state) || null,
+                  review: p.reviewDecision || null,
+                };
+              } catch (err) {
+                core.info('Rollup lookup for PR #' + pr.number + ' failed: '
+                  + err.message);
+              }
+              prFacts.set(pr.number, facts);
+              return facts;
+            }
+
+            // In-flight sdd-execute-* runs (V1 fuzzy correlation: repo-wide,
+            // not per-task — exact run-per-task URLs need aw_context reads,
+            // deferred per issue #254).
+            const inflightRuns = [];
+            for (const status of ['in_progress', 'queued']) {
+              let runs = [];
+              try {
+                runs = await github.paginate(
+                  github.rest.actions.listWorkflowRunsForRepo,
+                  { owner, repo, status, per_page: 50 });
+              } catch (err) {
+                core.info('Could not list ' + status + ' runs: '
+                  + err.message);
+                continue;
+              }
+              for (const r of runs) {
+                if (EXECUTE_WORKFLOWS.includes(r.name)) {
+                  inflightRuns.push(r);
+                }
+              }
+            }
+
+            const checksWord = (state) => ({
+              SUCCESS: 'green', FAILURE: 'failing', ERROR: 'failing',
+              PENDING: 'running', EXPECTED: 'running',
+            })[state] || 'unknown';
+            const reviewWord = (decision) => ({
+              APPROVED: 'approved',
+              CHANGES_REQUESTED: 'changes requested',
+              REVIEW_REQUIRED: 'review required',
+            })[decision] || 'no review yet';
+            const cell = (s) => String(s || '').replace(/\|/g, '\\|');
+
+            // ---------------------------------------------------------------
+            // 2. Refresh the sentinel comment on each target tracker.
+            // ---------------------------------------------------------------
+            for (const trackerNum of targets) {
+              let tracker;
+              try {
+                ({ data: tracker } = await github.rest.issues.get({
+                  owner, repo, issue_number: trackerNum,
+                }));
+              } catch (err) {
+                core.info('#' + trackerNum + ': could not read the issue ('
+                  + err.message + '); skipping.');
+                continue;
+              }
+              const names = labelNames(tracker);
+              const lifecycle = names.find((l) => LIFECYCLE.includes(l));
+              const dispatched = names.includes('sdd:dispatched');
+              const needsHuman = names.includes('needs-human');
+              if (!lifecycle && !dispatched) {
+                core.info('#' + trackerNum + ': no sdd:* lifecycle label;'
+                  + ' not a tracking issue, skipping.');
+                continue;
+              }
+
+              // Comments: the sentinel to edit, the plan comment to link,
+              // and the newest needs-human escalation to point at.
+              let comments = [];
+              try {
+                comments = await github.paginate(
+                  github.rest.issues.listComments,
+                  { owner, repo, issue_number: trackerNum, per_page: 100 });
+              } catch (err) {
+                core.info('#' + trackerNum + ': could not list comments ('
+                  + err.message + '); skipping.');
+                continue;
+              }
+              const sentinel = comments.find(
+                (c) => (c.body || '').includes(SENTINEL));
+              const planComment = comments.find(
+                (c) => (c.body || '').includes(PLAN_SENTINEL));
+              let escalation = null;
+              for (let i = comments.length - 1; i >= 0; i--) {
+                const b = comments[i].body || '';
+                if (b.includes('needs-human') && !b.includes(SENTINEL)) {
+                  escalation = comments[i];
+                  break;
+                }
+              }
+
+              // Sub-issue tree: tracker -> Units -> tasks (ADR 0005).
+              const taskRows = [];
+              const taskStateByNum = new Map();
+              let units = [];
+              try {
+                units = await github.paginate(
+                  'GET /repos/{owner}/{repo}/issues/{issue_number}/sub_issues',
+                  { owner, repo, issue_number: trackerNum, per_page: 100 });
+              } catch (err) {
+                core.info('#' + trackerNum + ': could not list Units ('
+                  + err.message + ').');
+              }
+              for (const unit of units) {
+                let tasks = [];
+                try {
+                  tasks = await github.paginate(
+                    'GET /repos/{owner}/{repo}/issues/{issue_number}/sub_issues',
+                    { owner, repo, issue_number: unit.number, per_page: 100 });
+                } catch (err) {
+                  core.info('#' + trackerNum + ': could not list tasks under'
+                    + ' Unit #' + unit.number + ' (' + err.message + ').');
+                }
+                for (const task of tasks) {
+                  taskRows.push({ unit, task });
+                  taskStateByNum.set(task.number, task.state);
+                }
+              }
+
+              // Per-task state cell. Deterministic, first match wins:
+              // closed -> merged/closed; open PR -> rollup; blocked -> the
+              // open blockers; in-progress with an in-flight run -> agent
+              // running (fuzzy); ready -> queued; else waiting.
+              const rows = [];
+              let taskPrGreenUnapproved = null;
+              let taskPrFailing = null;
+              let taskPrPending = null;
+              for (const { unit, task } of taskRows) {
+                let state;
+                const tNames = labelNames(task);
+                const pr = prByIssue.get(task.number);
+                if (task.state !== 'open') {
+                  state = 'closed ✅';
+                } else if (pr) {
+                  const f = await factsForPr(pr);
+                  state = '[PR #' + pr.number + '](' + pr.html_url
+                    + ') — checks: ' + checksWord(f.checks)
+                    + ', review: ' + reviewWord(f.review);
+                  if (f.checks === 'SUCCESS' && f.review !== 'APPROVED') {
+                    taskPrGreenUnapproved = taskPrGreenUnapproved || pr;
+                  } else if (f.checks === 'FAILURE' || f.checks === 'ERROR') {
+                    taskPrFailing = taskPrFailing || pr;
+                  } else {
+                    taskPrPending = taskPrPending || pr;
+                  }
+                } else {
+                  // Same-repo blockers still open. Sibling states are known
+                  // from the tree walk; an out-of-tree blocker is read once
+                  // and treated as open when unreadable (fail-visible).
+                  const openBlockers = [];
+                  for (const b of parseBlockers(task.body || '')) {
+                    if (b.owner || b.repo) { continue; }
+                    if (taskStateByNum.has(b.number)) {
+                      if (taskStateByNum.get(b.number) === 'open') {
+                        openBlockers.push(b.number);
+                      }
+                      continue;
+                    }
+                    try {
+                      const got = await github.rest.issues.get({
+                        owner, repo, issue_number: b.number,
+                      });
+                      taskStateByNum.set(b.number, got.data.state);
+                      if (got.data.state === 'open') {
+                        openBlockers.push(b.number);
+                      }
+                    } catch (err) {
+                      core.info('#' + trackerNum + ': could not read blocker'
+                        + ' #' + b.number + ' (' + err.message
+                        + '); treating as open.');
+                      openBlockers.push(b.number);
+                    }
+                  }
+                  if (openBlockers.length) {
+                    state = 'blocked by '
+                      + openBlockers.map((n) => '#' + n).join(', ');
+                  } else if (tNames.includes('sdd:in-progress')
+                      && inflightRuns.length) {
+                    state = 'agent running ('
+                      + inflightRuns.map((r) => '[' + r.name + '](' +
+                        r.html_url + ')').join(', ') + ')';
+                  } else if (tNames.includes('sdd:ready')
+                      || tNames.includes('sdd:in-progress')) {
+                    state = 'queued';
+                  } else {
+                    state = 'waiting';
+                  }
+                }
+                rows.push('| ' + cell(unit.title) + ' | [#' + task.number
+                  + '](' + task.html_url + ') ' + cell(task.title)
+                  + ' | ' + state + ' |');
+              }
+
+              // The tracking issue's own sdd/ PR (spec or architecture
+              // phase: the branch's first numeric segment is the tracker
+              // number per ADR 0006 — the closing keyword is sanitized away
+              // by sdd-pr-sanitize, so closingIssuesReferences cannot find
+              // these; the branch convention is the discovery mechanism).
+              const trackerPr = prByIssue.get(trackerNum) || null;
+              const trackerPrF = trackerPr
+                ? await factsForPr(trackerPr) : null;
+
+              // "Your move": deterministic decision table, first match
+              // wins. Keyed on lifecycle + derived facts only — every input
+              // above is API-derived, so the same world state always
+              // renders the same line.
+              let yourMove;
+              const prRef = (pr) => '[PR #' + pr.number + '](' + pr.html_url
+                + ')';
+              if (needsHuman) {
+                yourMove = 'review the escalation — '
+                  + (escalation
+                    ? '[latest `needs-human` comment](' + escalation.html_url
+                      + ')'
+                    : 'see the `needs-human` label on this issue')
+                  + ', resolve it, then remove the `needs-human` label.';
+              } else if (lifecycle === 'sdd:done') {
+                yourMove = 'nothing — every task is complete; close this'
+                  + ' issue when satisfied.';
+              } else if (trackerPr && trackerPrF.checks === 'SUCCESS'
+                  && trackerPrF.review !== 'APPROVED') {
+                yourMove = 'review and merge ' + prRef(trackerPr)
+                  + ' (checks green).';
+              } else if (trackerPr && (trackerPrF.checks === 'FAILURE'
+                  || trackerPrF.checks === 'ERROR')) {
+                yourMove = 'investigate failing checks on '
+                  + prRef(trackerPr) + '.';
+              } else if (trackerPr) {
+                yourMove = 'nothing — checks are running on '
+                  + prRef(trackerPr) + '.';
+              } else if (taskPrGreenUnapproved) {
+                yourMove = 'review ' + prRef(taskPrGreenUnapproved)
+                  + ' (checks green, review required).';
+              } else if (taskPrFailing) {
+                yourMove = 'investigate failing checks on '
+                  + prRef(taskPrFailing) + '.';
+              } else if (lifecycle === 'sdd:ready' && !dispatched) {
+                yourMove = 'comment `/dispatch` to arm cascade execution of'
+                  + ' the task tree.';
+              } else if (lifecycle === 'sdd:fastpath') {
+                yourMove = 'comment `/approve` to dispatch the fast-path'
+                  + ' implementation (ADR 0012).';
+              } else if (lifecycle === 'sdd:fastpath-review') {
+                yourMove = 'merge the fast-path stub spec PR, then comment'
+                  + ' `/approve`.';
+              } else if (lifecycle === 'sdd:triage' && planComment) {
+                yourMove = 'comment `/approve` to materialize the task tree'
+                  + ' from the [plan comment](' + planComment.html_url
+                  + ').';
+              } else if (taskPrPending || inflightRuns.length) {
+                yourMove = 'nothing — agents are working.';
+              } else if (lifecycle === 'sdd:spec') {
+                yourMove = 'nothing — the spec phase is running; comment'
+                  + ' `/spec` to re-trigger it if it stalled.';
+              } else if (lifecycle === 'sdd:triage') {
+                yourMove = 'nothing — triage is running; comment `/triage`'
+                  + ' to re-trigger it if it stalled.';
+              } else if (dispatched || lifecycle === 'sdd:in-progress') {
+                yourMove = 'comment `/dispatch` to resume the cascade if it'
+                  + ' has stalled (no PR, run, or ready task detected).';
+              } else {
+                yourMove = 'nothing actionable derived — comment `/status`'
+                  + ' to force a refresh.';
+              }
+
+              // Assemble the comment body.
+              const total = taskRows.length;
+              const closed = taskRows.filter(
+                ({ task }) => task.state !== 'open').length;
+              const phase = '**Phase:** `'
+                + (lifecycle || 'sdd:dispatched') + '`'
+                + (dispatched ? ' (cascade armed)' : '')
+                + (planComment
+                  ? ' · [plan comment](' + planComment.html_url + ')' : '');
+              const lines = [
+                SENTINEL,
+                '## SDD status',
+                '',
+                phase,
+                '',
+                '**Your move:** ' + yourMove,
+                '',
+              ];
+              if (rows.length) {
+                lines.push('| Unit | Task | State |');
+                lines.push('|---|---|---|');
+                lines.push(...rows);
+                lines.push('');
+              }
+              const runLinks = inflightRuns.map(
+                (r) => '[' + r.name + ' #' + r.run_number + '](' + r.html_url
+                  + ')').join(', ');
+              lines.push('**Progress:** ' + closed + '/' + total
+                + ' tasks closed'
+                + (inflightRuns.length
+                  ? ' · in-flight runs: ' + runLinks
+                  : ' · no in-flight execute runs'));
+              lines.push('');
+              lines.push('<sub>Last updated '
+                + new Date().toISOString()
+                + ' on `' + event
+                + (payload.action ? '.' + payload.action : '') + '`'
+                + ' · this comment is edited in place and does not notify'
+                + ' · comment `/status` to force a refresh.</sub>');
+              const body = lines.join('\n');
+
+              try {
+                if (sentinel) {
+                  await github.rest.issues.updateComment({
+                    owner, repo, comment_id: sentinel.id, body,
+                  });
+                  core.info('#' + trackerNum + ': status comment updated.');
+                } else {
+                  await github.rest.issues.createComment({
+                    owner, repo, issue_number: trackerNum, body,
+                  });
+                  core.info('#' + trackerNum + ': status comment created.');
+                }
+              } catch (err) {
+                core.warning('#' + trackerNum + ': could not write the'
+                  + ' status comment: ' + err.message);
+              }
+            }

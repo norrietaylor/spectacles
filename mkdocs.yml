@@ -46,6 +46,7 @@ nav:
       - Spec frontmatter and doc states: sdd/spec-frontmatter-and-doc-states.md
       - MCP tools: sdd/mcp-tools.md
       - The sdd-monitor agent: sdd/sdd-monitor.md
+      - The sdd-status surface: sdd/sdd-status.md
   - Specs:
       - "01: Issue-native SDD": specs/01-spec-issue-native-sdd/01-spec-issue-native-sdd.md
 not_in_nav: |

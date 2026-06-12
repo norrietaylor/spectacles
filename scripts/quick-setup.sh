@@ -207,7 +207,10 @@ fi
 # sdd-spike-actuator and sdd-spike-reentry drive the spike wave (issue #229):
 # the actuator posts /execute on a freshly-opened kind:spike sub-issue, and the
 # reentry wrapper re-enters triage phase B once every open spike is drained.
-# Both are deterministic (no engine), like sdd-monitor.
+# Both are deterministic (no engine), like sdd-monitor. sdd-status maintains
+# one self-updating status comment per tracking issue and answers the
+# `/status` forced refresh (issue #254); it is deterministic too, default-on,
+# and opted out with SDD_STATUS=0.
 wrappers=(
   "sdd-spec"
   "sdd-triage"
@@ -224,6 +227,7 @@ wrappers=(
   "sdd-monitor"
   "sdd-spike-actuator"
   "sdd-spike-reentry"
+  "sdd-status"
 )
 
 # Sync the labels. labels.yml is a flat list of '- name:' records, so it is
