@@ -17,6 +17,14 @@ name: sdd-monitor
 # needs-human) are out of scope for this PR. They are tracked as follow-ups
 # on issue #148.
 #
+# The same composite action also runs CodeRabbit stall detection (issue
+# #257): an open non-draft sdd/ PR whose head commit has aged past
+# SDD_CODERABBIT_STALL_MIN minutes with no review or comment from
+# coderabbitai[bot] draws a bounded App-authored "@coderabbitai review"
+# nudge (SDD_CODERABBIT_NUDGE_MAX per head sha), then needs-human. Enabled
+# when a .coderabbit.yaml/.yml exists at the repo root or SDD_CODERABBIT=1;
+# SDD_CODERABBIT=0 force-disables.
+#
 # Idempotency model:
 #
 # 1. Disabled by default. The first check reads the SDD_MONITOR repo
@@ -76,6 +84,9 @@ on:
     - cron: '*/10 * * * *'
 
 permissions:
+  # contents: read also backs the CodeRabbit config presence probe
+  # (.coderabbit.yaml/.yml via getContent), which rides runs-token so the
+  # App token never needs the Contents permission.
   contents: read
   # actions: read on the workflow GITHUB_TOKEN backs the in-flight gate's
   # listWorkflowRunsForRepo call. The token is passed to the sdd-monitor
@@ -137,9 +148,14 @@ jobs:
           # Least-privilege scope. Without permission-* inputs the minted
           # token inherits the App installation's full grant; the App token
           # only needs:
-          #   pull-requests:read  list open sdd/ implementation PRs
-          #   issues:write        label + post /dispatch on tracking issues
-          # It reads no repo contents, so contents is omitted.
+          #   pull-requests:read  list open sdd/ implementation PRs, plus
+          #                       their reviews/commits for the CodeRabbit
+          #                       stall check
+          #   issues:write        label + post /dispatch on tracking issues,
+          #                       plus the CodeRabbit nudge/escalation
+          #                       comments and needs-human on a stalled PR
+          # It reads no repo contents, so contents is omitted (the CodeRabbit
+          # config probe rides runs-token instead).
           #
           # NOT actions:read. The in-flight run-status gate
           # (listWorkflowRunsForRepo) runs on the workflow GITHUB_TOKEN
@@ -157,6 +173,13 @@ jobs:
           # App token: PR/issue reads + the /dispatch comment (App-authored so
           # the dispatch wrapper's carve-out admits it).
           github-token: ${{ steps.app.outputs.token }}
-          # Workflow GITHUB_TOKEN: actions:read for the in-flight gate only.
+          # Workflow GITHUB_TOKEN: actions:read for the in-flight gate and
+          # contents:read for the CodeRabbit config presence probe.
           runs-token: ${{ github.token }}
           debounce-min: ${{ vars.SDD_MONITOR_DEBOUNCE_MIN }}
+          # CodeRabbit stall detection (issue #257). All three optional;
+          # unset vars pass through empty and the action falls back to
+          # auto-detect / 30 / 2.
+          coderabbit: ${{ vars.SDD_CODERABBIT }}
+          coderabbit-stall-min: ${{ vars.SDD_CODERABBIT_STALL_MIN }}
+          coderabbit-nudge-max: ${{ vars.SDD_CODERABBIT_NUDGE_MAX }}
