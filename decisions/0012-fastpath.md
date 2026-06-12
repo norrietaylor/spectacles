@@ -1,6 +1,8 @@
 # ADR 0012: Fast-path for single-session features and bugs
 
-- Status: Accepted
+- Status: Accepted (amended by ADR 0023, which widens the classifier,
+  scales the stub to a light spec, and makes `/approve` commutative
+  with the spec-PR merge via the `sdd:approved` marker)
 - Date: 2026-05-20
 
 ## Context

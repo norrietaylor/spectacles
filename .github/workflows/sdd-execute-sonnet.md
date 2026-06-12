@@ -409,23 +409,27 @@ every changed line traces directly to the task.
 
 This step runs only on the fast-path entry (situation 1a,
 `aw_context.entry == 'fastpath'`). The classifier in `sdd-spec` checked
-six heuristics before posting the proposal: file scope ≤ 1–2 files, no
-new dependency, no schema change, no new public API surface, no
-cross-cutting concern, no test-suite scaffolding required (ADR 0012
-§1).
+the single-PR criteria before posting the proposal: estimated net diff
+within the consumer's `SDD_AGILE_MAX` ceiling (default 800), no new
+external dependency, no schema or data-format migration, no
+cross-cutting boundary change, no decision meriting an ADR (ADR 0012
+§1 as widened by ADR 0023; file count and new public API surface are
+soft guidance only, because the consumer ships in this same PR).
 
 After the initial Serena read in step 4 and a first pass at the work,
-re-check those heuristics against the post-context reality of the
-change: how many files did the implementation actually need to touch?
-Does the stub spec's R-IDs cover the work? Did any cross-cutting
+re-check those criteria against the post-context reality of the
+change, and against the approved execution plan: did the files-in-scope
+or the estimated diff explode past what the plan promised?
+Do the spec's R-IDs (stub or light) cover the work? Did any
+cross-cutting
 boundary (auth, telemetry, logging, error handling) get touched? Did
-the change need a new dependency, a schema migration, or a new public
-API? If **any** of the six heuristics now fails materially, the
+the change need a new dependency, a schema migration, or an ADR-worthy
+decision? If **any** of those criteria now fails materially, the
 classification was wrong:
 
 - Apply `needs-human` to the **tracking issue** (`add-labels`).
 - Post exactly one comment (`add-comment`) on the tracking issue
-  naming the specific failed heuristic(s) — for example, "file scope
+  naming the specific failed criterion or criteria — for example, "file scope
   grew from 2 to 11; spans the auth boundary; requires a new
   dependency".
 - Leave the implementation PR in place if one is already open (do not
@@ -442,7 +446,7 @@ lifecycle label the tracking issue currently carries —
 `sdd:in-progress` once this agent has moved the issue there, or
 `sdd:fastpath`/`sdd:fastpath-review` if the escalation arrives
 before that move — and adds `sdd:spec`, then runs the full pipeline
-with the stub spec as the starting point).
+with the existing spec (stub or light) as the starting point).
 
 The threshold is "materially bigger than fast-path assumed," not
 "strictly perfect heuristic match." A one-line spillover is not an

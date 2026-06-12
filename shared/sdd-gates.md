@@ -55,6 +55,14 @@ Applied at the spec boundary: a pull request that adds or changes a
    citation stays a Warning exactly as above — a translated spec mirrors the
    plan, it does not invent implementation (issue #102). The empty-PR rule on
    proof artifacts (gate 4, a Blocker) is not relaxed under `plan:provided`.
+   **Design-notes carve-out (ADR 0023).** A light spec on the single-PR
+   path may carry a "Design notes" section in lieu of an architecture
+   record; design reasoning inside that section is its sanctioned content,
+   not leakage, and is not a finding. The carve-out is scoped to that
+   section only — leakage elsewhere in the spec stays a Warning — and a
+   Design-notes section that records a decision meriting an ADR is a
+   misclassification signal (the full path's hard veto), worth an explicit
+   Warning naming it.
 3. **Assumptions explicit.** Every assumption the spec rests on is stated
    plainly. An unstated assumption that a reader must infer is a Warning.
 4. **Proof artifacts present and behavioral.** Every demoable unit carries one

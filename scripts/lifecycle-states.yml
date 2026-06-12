@@ -55,6 +55,14 @@ markers:
   # Phase A when the architecture PR opens (or by sdd-spec on the
   # fast-path stub-spec exit).
   - plan:provided
+  # sdd:approved marks a single-PR-path tracking issue whose /approve was
+  # recorded while the spec PR was still open (ADR 0023). The deterministic
+  # /approve handler in sdd-spec's wrapper sets it; the spec PR's merge
+  # event consumes it (dispatching the implementation and clearing it), a
+  # /revise after approval clears it (re-approval required), and a spec PR
+  # closed without merging clears it. Orthogonal to the lifecycle state;
+  # coexists with sdd:fastpath-review like plan:provided does.
+  - sdd:approved
   # sdd:spike-resolved marks a kind:spike sub-issue whose experiment has
   # been resolved (issue #229). It is orthogonal to the tracking-issue
   # lifecycle state machine entirely: it lives on the spike sub-issue, not
@@ -81,7 +89,13 @@ transitions:
   sdd:triage: [sdd:ready]
   sdd:ready: [sdd:in-progress]
   sdd:fastpath: [sdd:fastpath-review, sdd:in-progress, sdd:spec]
-  sdd:fastpath-review: [sdd:fastpath, sdd:spec]
+  # sdd:fastpath-review -> sdd:in-progress is the approve-before-merge
+  # shortcut (ADR 0023): with sdd:approved recorded, the spec PR's merge
+  # event dispatches the implementation deterministically and skips the
+  # return hop to sdd:fastpath. The write lives in the sdd-spec wrapper's
+  # approved-merge-dispatch job (sdd-fastpath-approve action), not a
+  # safe-output.
+  sdd:fastpath-review: [sdd:fastpath, sdd:spec, sdd:in-progress]
   # Fast path skips sdd:review and goes straight to sdd:done; full path
   # routes through sdd:review on a clean validate pass.
   sdd:in-progress: [sdd:review, sdd:done]
@@ -113,7 +127,14 @@ writers:
   sdd:ready: sdd-triage
   sdd:fastpath: sdd-spec
   sdd:fastpath-review: sdd-spec
-  sdd:in-progress: [sdd-execute, sdd-dispatch]
+  # `sdd-spec` co-writes sdd:in-progress deterministically: the
+  # sdd-fastpath-approve action in its wrapper moves a single-PR-path
+  # tracking issue to sdd:in-progress when the dispatch fires (on
+  # /approve after the spec merge, or on the merge of an approved spec
+  # PR — ADR 0012/0023). Like the sdd-dispatch claim-time write, it is
+  # not a safe-output and never appears in the frontmatter-derived set;
+  # it is declared here to keep this source-of-truth honest.
+  sdd:in-progress: [sdd-execute, sdd-dispatch, sdd-spec]
   sdd:review: sdd-validate
   sdd:done: sdd-execute
 

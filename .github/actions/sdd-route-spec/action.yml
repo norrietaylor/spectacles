@@ -1,8 +1,11 @@
 name: sdd-route-spec
 description: >
   Route decision for sdd-spec. Filters tracking-issue vs sub-issue events,
-  gates /spec /approve /revise on real repository permission, detects a
-  fast-path /approve, and builds aw_context. Extracted verbatim (ADR 0015).
+  gates /spec /fastpath (alias /agile) /approve /revise on real repository
+  permission, detects a fast-path /approve, detects a spec-PR close while
+  the sdd:approved marker is recorded (merged -> deterministic dispatch;
+  unmerged -> clear the stale marker; ADR 0023), and builds aw_context.
+  Extracted verbatim (ADR 0015).
 
 inputs:
   github-token:
@@ -23,6 +26,19 @@ outputs:
   fastpath_tracking:
     description: 'Tracking issue number for a fast-path /approve.'
     value: ${{ steps.decide.outputs.fastpath_tracking }}
+  approved_dispatch:
+    description: >-
+      'true' when a spec PR merged while its tracking issue carries the
+      sdd:approved marker (ADR 0023); the wrapper dispatches deterministically.
+    value: ${{ steps.decide.outputs.approved_dispatch }}
+  approved_clear:
+    description: >-
+      'true' when a spec PR closed without merging while its tracking issue
+      carries the sdd:approved marker; the wrapper clears the stale marker.
+    value: ${{ steps.decide.outputs.approved_clear }}
+  approved_tracking:
+    description: 'Tracking issue number for approved_dispatch / approved_clear.'
+    value: ${{ steps.decide.outputs.approved_tracking }}
 
 runs:
   using: composite
@@ -133,7 +149,8 @@ runs:
               }
             }
 
-            // A /spec, /fastpath, /approve, or /revise comment from an
+            // A /spec, /fastpath (or its alias /agile), /approve, or
+            // /revise comment from an
             // author with repo write access. The gate is the actor's real
             // repository permission, not author_association:
             // author_association reports the relationship to the thread
@@ -152,10 +169,14 @@ runs:
               const body = (payload.comment.body || '').trim();
               const firstWord = body.split(/\s+/)[0];
               const isPr = !!payload.issue.pull_request;
-              const isFastpath = firstWord === '/fastpath' && !isPr;
+              // /agile is a pure alias of /fastpath (ADR 0023): it collapses
+              // here at routing and the agent sees command: 'fastpath'.
+              const isFastpathWord = firstWord === '/fastpath'
+                || firstWord === '/agile';
+              const isFastpath = isFastpathWord && !isPr;
               const isApprove = firstWord === '/approve' && !isPr;
-              if (firstWord === '/fastpath' && isPr) {
-                core.info('/fastpath on a pull request; ignoring.');
+              if (isFastpathWord && isPr) {
+                core.info(firstWord + ' on a pull request; ignoring.');
               } else if (isApprove) {
                 // Detect fastpath approval. Only act on /approve when the
                 // tracking issue carries sdd:fastpath; otherwise leave it
@@ -188,11 +209,12 @@ runs:
                     const labels = (data.labels || []).map(
                       (l) => l.name || l);
                     // Accept /approve on either sdd:fastpath (the
-                    // documented post-stub-merge state, per ADR 0012) or
+                    // documented post-merge state, per ADR 0012) or
                     // sdd:fastpath-review (a human typed /approve before
-                    // the stub PR merged). The fastpath-approve job
-                    // below detects fastpath-review and posts a
-                    // guidance comment instead of dispatching, so this
+                    // the spec PR merged). The fastpath-approve job
+                    // detects fastpath-review and records the approval
+                    // as the sdd:approved marker — arming auto-merge so
+                    // the merge dispatches (ADR 0023) — so this
                     // carve-out only owns routing — not dispatch policy.
                     // Kept symmetric with wrappers/sdd-triage.yml's
                     // skipFastpath check.
@@ -259,20 +281,76 @@ runs:
               }
             }
 
-            // A merged spec pull request. Scoped to spec PRs only: the head
+            // A closed spec pull request. Scoped to spec PRs only: the head
             // branch must follow the spec/<slug> convention. A merged
             // non-spec PR is not this agent's concern and is left to no-op.
+            //
+            // ADR 0023: when the tracking issue carries the sdd:approved
+            // marker (a /approve was recorded while the spec PR was open),
+            // a *merged* spec PR routes to the deterministic
+            // approved-merge-dispatch job instead of the agent — the
+            // dispatch, the marker clear, and the lifecycle advance are
+            // mechanical; the agent's merged-PR branch only runs when no
+            // approval was recorded. A spec PR *closed without merging*
+            // while the marker is present routes to the approved-clear job
+            // so a stale approval cannot dispatch a later, different spec.
             if (event === 'pull_request' && payload.action === 'closed') {
               const merged = payload.pull_request.merged === true;
               const headRef = payload.pull_request.head
                 && payload.pull_request.head.ref || '';
               const isSpecBranch = headRef.startsWith('spec/');
-              if (merged && isSpecBranch) {
-                run = true;
-                ctx = {
-                  item_type: 'pull_request',
-                  item_number: payload.pull_request.number,
-                };
+              if (isSpecBranch) {
+                // Resolve the tracking issue carrying sdd:approved from
+                // the PR body's #N references. The spec PR body references
+                // the tracking issue as a bare #N (sdd-spec step 7); the
+                // spec sub-issue reference sdd-pr-sanitize adds never
+                // carries the marker, so the label check disambiguates.
+                let approvedTracking = 0;
+                const refs = [...new Set(
+                  ((payload.pull_request.body || '').match(/#(\d+)/g) || [])
+                    .map((r) => parseInt(r.slice(1), 10)))];
+                for (const num of refs.slice(0, 10)) {
+                  try {
+                    const { data } = await github.rest.issues.get({
+                      owner: context.repo.owner,
+                      repo: context.repo.repo,
+                      issue_number: num,
+                    });
+                    if (data.pull_request) {
+                      continue;
+                    }
+                    const labels = (data.labels || []).map(
+                      (l) => l.name || l);
+                    if (labels.includes('sdd:approved')) {
+                      approvedTracking = num;
+                      break;
+                    }
+                  } catch (err) {
+                    // A transient fetch error on one reference must not
+                    // mask the others; an unresolvable approval falls
+                    // back to the agent path below, whose merged-PR
+                    // branch posts the /approve guidance — recoverable.
+                    core.info('Could not fetch issue #' + num + ': '
+                      + err.message);
+                  }
+                }
+                if (merged && approvedTracking) {
+                  core.setOutput('approved_dispatch', 'true');
+                  core.setOutput('approved_tracking',
+                    String(approvedTracking));
+                  // Suppress the agent: the approved-merge-dispatch job
+                  // owns this trigger.
+                } else if (merged) {
+                  run = true;
+                  ctx = {
+                    item_type: 'pull_request',
+                    item_number: payload.pull_request.number,
+                  };
+                } else if (approvedTracking) {
+                  core.setOutput('approved_clear', 'true');
+                  core.setOutput('approved_tracking',
+                    String(approvedTracking));
+                }
               } else if (merged) {
                 core.info('Merged PR is not a spec branch; ignoring.');
               }

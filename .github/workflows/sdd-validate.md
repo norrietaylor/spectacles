@@ -205,12 +205,15 @@ with the following adjustments:
 - The spec boundary check accepts a stub spec (the structural minimum
   from ADR 0012 §3: a one-paragraph problem statement, at least one
   R-ID, 1–3 proof artifacts, one Unit, and the single-line "Fast-path:
-  no cross-cutting design" note). The "no architecture record" is not
-  a finding for a stub spec.
+  no cross-cutting design" note) and a light spec (the single-PR depth
+  from ADR 0023: multiple demoable units, full `R{unit}.{seq}` IDs,
+  1–3 proof artifacts per unit, and an optional Design-notes section
+  in lieu of an architecture record). The "no architecture record" is
+  not a finding for either depth.
 - The architecture boundary does not fire on a fast-path issue: there
   is no architecture PR. A run that nonetheless resolves to the
   architecture boundary on a fast-path issue (e.g. an unrelated
-  `decisions/` edit pushed alongside the stub) is treated as a normal
+  `decisions/` edit pushed alongside the spec) is treated as a normal
   architecture-boundary check; the absence of a per-feature
   architecture record is not raised.
 - The triage boundary does not fire on a fast-path issue. A

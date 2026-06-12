@@ -159,9 +159,11 @@ a bare `#<tracking>`. Resolve the spec context by walking from the
 tracking issue: read the tracking issue's lifecycle label (if it
 carries `sdd:fastpath`, `sdd:fastpath-review`, or shows fast-path
 history), read the execution plan comment (the
-`[sdd-spec:fastpath-plan]` marker), and read the stub
-spec file linked from the stub spec PR. The R-IDs the
-spec-compliance concern checks against are the stub spec's R-IDs.
+`[sdd-spec:fastpath-plan]` marker), and read the
+spec file linked from the spec PR — a stub or, on the agile single-PR
+depth, a light spec (ADR 0023). The R-IDs the
+spec-compliance concern checks against are that spec's R-IDs, across
+every unit on a light spec.
 The absence of an architecture record and a task sub-issue tree on a
 fast-path issue is **not** a spec-compliance finding.
 

@@ -14,6 +14,14 @@ inputs:
     description: 'Token for the REST and GraphQL calls in the route logic.'
     required: false
     default: ${{ github.token }}
+  auto-dispatch:
+    description: >-
+      The consumer's SDD_AUTO_DISPATCH repository variable (ADR 0024). When
+      '1' or 'true', a tracking issue gaining sdd:ready (sdd-triage phase C
+      completion) routes as a first /dispatch and arms the cascade; any
+      other value leaves the labeled trigger inert.
+    required: false
+    default: ''
 
 outputs:
   should_run:
@@ -34,6 +42,7 @@ runs:
       uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
       env:
         APP_ID: ${{ inputs.app-id }}
+        AUTO_DISPATCH: ${{ inputs.auto-dispatch }}
       with:
         github-token: ${{ inputs.github-token }}
         script: |
@@ -174,6 +183,86 @@ runs:
                       '/dispatch from an author without write access ('
                       + permission + '); ignoring.');
                   }
+                }
+              }
+            }
+
+            // Auto-dispatch on phase C completion (ADR 0024). With the
+            // consumer's SDD_AUTO_DISPATCH variable set, a tracking issue
+            // gaining sdd:ready — the label sdd-triage applies when the
+            // Unit/task tree has materialized — routes as a first
+            // /dispatch (kind='command'): the lifecycle job performs the
+            // same moves a manual /dispatch performs and the compute job
+            // fans the ready set out. /dispatch stays the manual command
+            // and the pause/resume control: removing sdd:dispatched
+            // pauses the cascade, a /dispatch resumes it.
+            //
+            // Two deterministic guards keep this safe:
+            //   - tracking issues only: sdd:ready is also applied to each
+            //     ready *task* sub-issue, so the labeled issue must have
+            //     no parent (GraphQL Issue.parent, the authoritative
+            //     source per issue #133 — a lookup error declines, fail
+            //     closed).
+            //   - a materialized tree: at least one sub-issue must exist
+            //     under the tracking issue. If the label lands before the
+            //     tree (a safe-output ordering race), arming now would
+            //     let the lifecycle job mistake the empty tree for a
+            //     drained one; decline instead and let the operator
+            //     /dispatch manually.
+            if (event === 'issues' && payload.action === 'labeled'
+                && payload.label && payload.label.name === 'sdd:ready') {
+              const autoDispatch = ['1', 'true'].includes(
+                (process.env.AUTO_DISPATCH || '').trim().toLowerCase());
+              if (!autoDispatch) {
+                core.info('sdd:ready labeled but SDD_AUTO_DISPATCH is not'
+                  + ' set; ignoring.');
+              } else {
+                let isTracker = false;
+                try {
+                  const result = await github.graphql(
+                    'query($id: ID!) {'
+                    + ' node(id: $id) { ... on Issue { parent { id } } }'
+                    + ' }',
+                    { id: payload.issue.node_id });
+                  isTracker = !(result && result.node && result.node.parent);
+                } catch (err) {
+                  // Fail closed: an unresolvable parent must not arm the
+                  // cascade on what may be a task sub-issue.
+                  core.info('GraphQL parent lookup failed for #'
+                    + payload.issue.number + ': ' + err.message);
+                }
+                let hasChildren = false;
+                if (isTracker) {
+                  try {
+                    const childrenResp = await github.request(
+                      'GET /repos/{owner}/{repo}/issues/{issue_number}/sub_issues',
+                      {
+                        owner: context.repo.owner,
+                        repo: context.repo.repo,
+                        issue_number: payload.issue.number,
+                        per_page: 1,
+                        page: 1,
+                      });
+                    hasChildren = (childrenResp.data || []).length > 0;
+                  } catch (err) {
+                    core.info('Could not list sub-issues for #'
+                      + payload.issue.number + ': ' + err.message);
+                  }
+                }
+                if (isTracker && hasChildren) {
+                  run = true;
+                  tracking = payload.issue.number;
+                  kind = 'command';
+                  core.info('SDD_AUTO_DISPATCH: arming the cascade on #'
+                    + tracking + ' (sdd:ready with a materialized tree).');
+                } else if (isTracker) {
+                  core.info('sdd:ready on #' + payload.issue.number
+                    + ' but no sub-issue tree yet; auto-dispatch declines'
+                    + ' (use /dispatch manually).');
+                } else {
+                  core.info('sdd:ready on sub-issue #'
+                    + payload.issue.number + '; auto-dispatch ignores'
+                    + ' task-level labels.');
                 }
               }
             }
