@@ -533,17 +533,24 @@ never a reason to ship — fix it, do not open the PR with it.
 
 **Consumer verify script (issue #256).** When the checkout contains
 `.github/sdd/verify.sh`, that script **takes precedence over the discovery
-order above**: run it (`bash .github/sdd/verify.sh` from the repository root)
-as the gate instead of discovering commands yourself. The agent executes it
+order above**: run it under an explicit time bound
+(`timeout 10m bash .github/sdd/verify.sh` from the repository root) as the
+gate instead of discovering commands yourself. The agent executes it
 **inside the sandbox** — it is never a host step, so it carries exactly this
 agent's egress and credential surface and nothing more. Its contract: it is
 hermetic (no services, no docker — neither exists in-sandbox) and must operate
-within the allowlisted egress; exit 0 means verified; a non-zero exit is a
+within the allowlisted egress; exit 0 means verified; a non-zero exit —
+including exit 124, `timeout`'s verdict on a hung or overlong script — is a
 gate failure handled exactly like any other gate failure — fix the code and
-re-run until it exits 0, and if that is impossible, apply `needs-human` with
+re-run until it exits 0, and if that is impossible (a failure the agent
+cannot fix, or a script that keeps timing out), apply `needs-human` with
 the failing output per the hand-off below. The script lives under `.github/`,
-a protected path (step 5): this agent never edits it, so it can never weaken
-its own verification gate — humans author and review it.
+a protected path (step 5): this agent never edits it, and a `.github/` edit
+can never persist into the PR. That protection covers what ships, not the
+runtime — the in-sandbox checkout is writable, so faithful execution of the
+gate is attested by this run rather than enforced against it, and the
+consumer's own CI plus the all-checks auto-revise loop backstop whatever a
+mistaken run lets through. Humans author and review the script.
 
 For a **Rust** consumer this is at minimum `cargo fmt --all -- --check`,
 `cargo build`, `cargo clippy --all-targets -- -D warnings`, and `cargo test`;
@@ -576,15 +583,24 @@ gate.
 browser tools are enabled (the `/tmp/gh-aw/playwright/enabled` marker from the
 imported fragment reads `on`) **and** a proof artifact calls for a rendered
 check, the agent may start the target repository's dev server **in-sandbox**
-and verify it through the Playwright MCP — navigate to `localhost`, snapshot
-or screenshot the page, and capture that as the artifact's evidence. The MCP
-Chromium container shares the sandbox network namespace, so reaching a local
-dev server widens no firewall egress. Stop the server when the check is done.
-When the marker reads `off`, or no proof artifact calls for a browser check,
-do not start a dev server. The consumer's own E2E suite stays out of scope:
-its browser binaries come from non-allowlisted CDNs and its service
-dependencies cannot be provisioned in-sandbox — the feedback loop for E2E
-failures is the consumer's own CI, not an in-sandbox simulation of it.
+and verify it through the Playwright MCP. The browser container runs
+host-side with host networking while this agent runs inside the firewall
+container, so the browser's `localhost` is the runner host, **not** this
+sandbox — gh-aw documents that under MCP-mode Playwright `localhost`
+resolves to the Docker host and bridge-address detection is needed to reach
+a local server. So: bind the dev server to `0.0.0.0`, read this sandbox's
+bridge address (`hostname -I`), navigate the browser to
+`http://<bridge-address>:<port>`, and snapshot or screenshot the page as the
+artifact's evidence — local bridge traffic, no internet egress. If the
+browser cannot reach the server, fall back to in-sandbox `curl` checks of
+the rendered routes as the evidence and record that the browser path was
+unreachable; the smoke gathers evidence and is never itself a gate. Stop the
+server when the check is done. When the marker reads `off`, or no proof
+artifact calls for a browser check, do not start a dev server. The
+consumer's own E2E suite stays out of scope: its browser binaries come from
+non-allowlisted CDNs and its service dependencies cannot be provisioned
+in-sandbox — the feedback loop for E2E failures is the consumer's own CI,
+not an in-sandbox simulation of it.
 
 **Spike exemption.** A `kind:spike` task writes only `docs/spikes/`, which
 invokes no build surface, so the consumer build/test gate has nothing to

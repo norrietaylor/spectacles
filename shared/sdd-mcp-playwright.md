@@ -37,12 +37,14 @@
 #   (resolved digest at the v0.0.75 tag, recorded in the lock:
 #    sha256:d238ec7bc98cc4e22df0696d6031dad5b8a4b46781f4f0abaa3bfadeedb43b9a)
 #
-# Network egress: the container runs inside the agent firewall sandbox
-# (`--network host` attaches it to the sandbox network namespace, not the open
-# internet). Its egress is governed by the same AWF allowDomains as the agent;
-# this fragment widens nothing. A consumer that needs the browser to reach
-# specific sites adds those domains through the workflow's own `network:`
-# configuration — egress stays explicit and pinned, never opened to `*`.
+# Network egress: gh-aw's host-side MCP gateway launches this container with
+# `--network host`, so it shares the RUNNER's network namespace, not the agent
+# firewall sandbox's, and its traffic is not routed through the AWF
+# allowDomains proxy. What bounds a browser run is the least-privilege tool
+# allowlist below and that navigation targets are chosen by the agent, never
+# by page content. A consumer that needs the browser to reach specific sites
+# adds those domains through the workflow's own `network:` configuration —
+# egress stays explicit and pinned, never opened to `*`.
 #
 # Tool allowlist: least-privilege. Navigation, DOM snapshot, and the common
 # interaction verbs are allowed. The arbitrary-code and filesystem tools
@@ -199,26 +201,34 @@ text into context, which the data-not-instructions rule already neutralizes.
 
 ### Network egress
 
-The Playwright container runs inside the agent firewall sandbox. Its `--network
-host` flag attaches it to the sandbox's network namespace, not the open
-internet; its egress is governed by the same firewall allowlist (AWF
-`allowDomains`) as the agent. This fragment widens nothing. A consumer whose
-browser checks must reach specific external sites adds those domains through the
-workflow's `network:` configuration — egress stays explicit and pinned, never
-opened to `*`.
+The Playwright container is launched by gh-aw's host-side MCP gateway with
+`--network host`: it shares the **runner host's** network namespace, not the
+agent firewall sandbox's, so its traffic is not routed through the AWF
+`allowDomains` proxy. What bounds a browser run is the least-privilege tool
+allowlist above — navigation and observation only, no arbitrary-code or
+file-upload tools — and that navigation targets are chosen by the agent,
+never by page content. A consumer whose browser checks must reach specific
+external sites adds those domains through the workflow's `network:`
+configuration — the intent stays explicit and reviewed, never opened to `*`.
 
-### Dev-server smoke (in-sandbox `localhost`)
+### Dev-server smoke (in-sandbox dev server)
 
-Because the browser container shares the sandbox's network namespace, it can
-reach a server the agent starts **inside the sandbox** at `localhost` — no
-firewall change is involved. An `sdd-execute` agent may use this for an
-opt-in dev-server smoke (issue #256): when the marker reads `on` **and** a
-proof artifact calls for a rendered check, the agent starts the target
-repository's dev server in-sandbox, navigates to it, snapshots or screenshots
-the page as the artifact's evidence, and stops the server when done. This
-does not extend to the consumer's own E2E suite — its browser binaries come
-from non-allowlisted CDNs and its service dependencies cannot be provisioned
-in-sandbox; E2E failures feed back through the consumer's own CI.
+The browser container runs host-side with host networking while the agent
+runs inside the firewall container, so the browser's `localhost` is the
+runner host, not the sandbox — gh-aw documents that under MCP-mode
+Playwright `localhost` resolves to the Docker host and bridge-address
+detection is needed to reach a local server. An `sdd-execute` agent may
+still use the browser for an opt-in dev-server smoke (issue #256): when the
+marker reads `on` **and** a proof artifact calls for a rendered check, the
+agent starts the target repository's dev server in-sandbox bound to
+`0.0.0.0`, navigates the browser to the sandbox's bridge address
+(`hostname -I`) and port, snapshots or screenshots the page as the
+artifact's evidence, and stops the server when done — local bridge traffic,
+no internet egress. If the browser cannot reach the server, the agent falls
+back to in-sandbox `curl` checks as the evidence. This does not extend to
+the consumer's own E2E suite — its browser binaries come from non-allowlisted
+CDNs and its service dependencies cannot be provisioned in-sandbox; E2E
+failures feed back through the consumer's own CI.
 
 ### Image pinning
 
