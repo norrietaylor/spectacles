@@ -207,6 +207,19 @@ browser checks must reach specific external sites adds those domains through the
 workflow's `network:` configuration — egress stays explicit and pinned, never
 opened to `*`.
 
+### Dev-server smoke (in-sandbox `localhost`)
+
+Because the browser container shares the sandbox's network namespace, it can
+reach a server the agent starts **inside the sandbox** at `localhost` — no
+firewall change is involved. An `sdd-execute` agent may use this for an
+opt-in dev-server smoke (issue #256): when the marker reads `on` **and** a
+proof artifact calls for a rendered check, the agent starts the target
+repository's dev server in-sandbox, navigates to it, snapshots or screenshots
+the page as the artifact's evidence, and stops the server when done. This
+does not extend to the consumer's own E2E suite — its browser binaries come
+from non-allowlisted CDNs and its service dependencies cannot be provisioned
+in-sandbox; E2E failures feed back through the consumer's own CI.
+
 ### Image pinning
 
 The image is never `latest` and never a floating tag. The fragment's

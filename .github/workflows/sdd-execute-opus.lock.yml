@@ -1,4 +1,4 @@
-# gh-aw-metadata: {"schema_version":"v4","frontmatter_hash":"f6b43e4a5bf7ce83d37da84d769158760e41e92f64e273077d9c2d7d216bf152","body_hash":"2b84f957b9e040ba527f51e494e96b149cb1efc5de65a9e961a8d80ae699e5f1","compiler_version":"v0.77.5","agent_id":"copilot","agent_model":"claude-opus-4.6"}
+# gh-aw-metadata: {"schema_version":"v4","frontmatter_hash":"4d557f44e9a21577403293fa84f4465ec6a7c734acfabaf7cc61e597abff58f6","body_hash":"f60d57ad819606d8e8fa24c4f72d713e5825957cbfbc768d7af7049084ff9b20","compiler_version":"v0.77.5","agent_id":"copilot","agent_model":"claude-opus-4.6"}
 # gh-aw-manifest: {"version":1,"secrets":["APP_PRIVATE_KEY","COPILOT_GITHUB_TOKEN","GH_AW_CI_TRIGGER_TOKEN","GH_AW_GITHUB_MCP_SERVER_TOKEN","GH_AW_GITHUB_TOKEN","GH_AW_OTEL_ENDPOINT","GITHUB_TOKEN"],"actions":[{"repo":"actions/checkout","sha":"de0fac2e4500dabe0009e67214ff5f5447ce83dd","version":"v6.0.2"},{"repo":"actions/create-github-app-token","sha":"bcd2ba49218906704ab6c1aa796996da409d3eb1","version":"v3.2.0"},{"repo":"actions/download-artifact","sha":"3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c","version":"v8.0.1"},{"repo":"actions/github-script","sha":"3a2844b7e9c422d3c10d287c895573f7108da1b3","version":"v9.0.0"},{"repo":"actions/setup-node","sha":"48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e","version":"v6.4.0"},{"repo":"actions/upload-artifact","sha":"043fb46d1a93c77aae656e7c1c64a875d1fc6a0a","version":"v7.0.1"},{"repo":"dtolnay/rust-toolchain","sha":"29eef336d9b2848a0b548edc03f92a220660cdb8","version":"29eef336d9b2848a0b548edc03f92a220660cdb8"},{"repo":"github/gh-aw-actions/setup","sha":"3ea13c02d765410340d533515cb31a7eef2baaf0","version":"v0.77.5"}],"containers":[{"image":"ghcr.io/github/gh-aw-firewall/agent:0.25.58"},{"image":"ghcr.io/github/gh-aw-firewall/api-proxy:0.25.58"},{"image":"ghcr.io/github/gh-aw-firewall/squid:0.25.58"},{"image":"ghcr.io/github/gh-aw-mcpg:v0.3.22"},{"image":"ghcr.io/github/github-mcp-server:v1.1.0"},{"image":"ghcr.io/github/serena-mcp-server:latest","digest":"sha256:bf343399e3725c45528f531a230f3a04521d4cdef29f9a5af6282ff0d3c393c5","pinned_image":"ghcr.io/github/serena-mcp-server:latest@sha256:bf343399e3725c45528f531a230f3a04521d4cdef29f9a5af6282ff0d3c393c5"},{"image":"mcr.microsoft.com/playwright/mcp:v0.0.75"},{"image":"node:lts-alpine","digest":"sha256:2bdb65ed1dab192432bc31c95f94155ca5ad7fc1392fb7eb7526ab682fa5bf14","pinned_image":"node:lts-alpine@sha256:2bdb65ed1dab192432bc31c95f94155ca5ad7fc1392fb7eb7526ab682fa5bf14"}]}
 #    ___                   _   _      
 #   / _ \                 | | (_)     
@@ -250,24 +250,24 @@ jobs:
         run: |
           bash "${RUNNER_TEMP}/gh-aw/actions/create_prompt_first.sh"
           {
-          cat << 'GH_AW_PROMPT_a3d1a2dd7cc5640c_EOF'
+          cat << 'GH_AW_PROMPT_2ac4d15e65e8fc45_EOF'
           <system>
-          GH_AW_PROMPT_a3d1a2dd7cc5640c_EOF
+          GH_AW_PROMPT_2ac4d15e65e8fc45_EOF
           cat "${RUNNER_TEMP}/gh-aw/prompts/xpia.md"
           cat "${RUNNER_TEMP}/gh-aw/prompts/temp_folder_prompt.md"
           cat "${RUNNER_TEMP}/gh-aw/prompts/markdown.md"
           cat "${RUNNER_TEMP}/gh-aw/prompts/safe_outputs_prompt.md"
-          cat << 'GH_AW_PROMPT_a3d1a2dd7cc5640c_EOF'
+          cat << 'GH_AW_PROMPT_2ac4d15e65e8fc45_EOF'
           <safe-output-tools>
           Tools: add_comment, update_issue, create_pull_request, add_labels(max:2), remove_labels(max:2), push_to_pull_request_branch, missing_tool, missing_data, noop
-          GH_AW_PROMPT_a3d1a2dd7cc5640c_EOF
+          GH_AW_PROMPT_2ac4d15e65e8fc45_EOF
           cat "${RUNNER_TEMP}/gh-aw/prompts/safe_outputs_create_pull_request.md"
           cat "${RUNNER_TEMP}/gh-aw/prompts/safe_outputs_push_to_pr_branch.md"
-          cat << 'GH_AW_PROMPT_a3d1a2dd7cc5640c_EOF'
+          cat << 'GH_AW_PROMPT_2ac4d15e65e8fc45_EOF'
           </safe-output-tools>
-          GH_AW_PROMPT_a3d1a2dd7cc5640c_EOF
+          GH_AW_PROMPT_2ac4d15e65e8fc45_EOF
           cat "${RUNNER_TEMP}/gh-aw/prompts/mcp_cli_tools_prompt.md"
-          cat << 'GH_AW_PROMPT_a3d1a2dd7cc5640c_EOF'
+          cat << 'GH_AW_PROMPT_2ac4d15e65e8fc45_EOF'
           <github-context>
           The following GitHub context information is available for this workflow:
           {{#if github.actor}}
@@ -296,9 +296,9 @@ jobs:
           {{/if}}
           </github-context>
           
-          GH_AW_PROMPT_a3d1a2dd7cc5640c_EOF
+          GH_AW_PROMPT_2ac4d15e65e8fc45_EOF
           cat "${RUNNER_TEMP}/gh-aw/prompts/github_mcp_tools_with_safeoutputs_prompt.md"
-          cat << 'GH_AW_PROMPT_a3d1a2dd7cc5640c_EOF'
+          cat << 'GH_AW_PROMPT_2ac4d15e65e8fc45_EOF'
           </system>
           # Core principles
           
@@ -1345,6 +1345,20 @@ jobs:
           every command is green. A formatter or lint diff that one command would fix is
           never a reason to ship — fix it, do not open the PR with it.
           
+          **Consumer verify script (issue #256).** When the checkout contains
+          `.github/sdd/verify.sh`, that script **takes precedence over the discovery
+          order above**: run it (`bash .github/sdd/verify.sh` from the repository root)
+          as the gate instead of discovering commands yourself. The agent executes it
+          **inside the sandbox** — it is never a host step, so it carries exactly this
+          agent's egress and credential surface and nothing more. Its contract: it is
+          hermetic (no services, no docker — neither exists in-sandbox) and must operate
+          within the allowlisted egress; exit 0 means verified; a non-zero exit is a
+          gate failure handled exactly like any other gate failure — fix the code and
+          re-run until it exits 0, and if that is impossible, apply `needs-human` with
+          the failing output per the hand-off below. The script lives under `.github/`,
+          a protected path (step 5): this agent never edits it, so it can never weaken
+          its own verification gate — humans author and review it.
+          
           For a **Rust** consumer this is at minimum `cargo fmt --all -- --check`,
           `cargo build`, `cargo clippy --all-targets -- -D warnings`, and `cargo test`;
           the `network.allowed` block above admits `index.crates.io` and
@@ -1371,6 +1385,20 @@ jobs:
           corepack/pnpm/npm/yarn all work in-sandbox. Inability to reach a
           package-manager registry is therefore never a valid reason to skip this
           gate.
+          
+          **Dev-server browser smoke (opt-in, issue #256).** When the Playwright
+          browser tools are enabled (the `/tmp/gh-aw/playwright/enabled` marker from the
+          imported fragment reads `on`) **and** a proof artifact calls for a rendered
+          check, the agent may start the target repository's dev server **in-sandbox**
+          and verify it through the Playwright MCP — navigate to `localhost`, snapshot
+          or screenshot the page, and capture that as the artifact's evidence. The MCP
+          Chromium container shares the sandbox network namespace, so reaching a local
+          dev server widens no firewall egress. Stop the server when the check is done.
+          When the marker reads `off`, or no proof artifact calls for a browser check,
+          do not start a dev server. The consumer's own E2E suite stays out of scope:
+          its browser binaries come from non-allowlisted CDNs and its service
+          dependencies cannot be provisioned in-sandbox — the feedback loop for E2E
+          failures is the consumer's own CI, not an in-sandbox simulation of it.
           
           **Spike exemption.** A `kind:spike` task writes only `docs/spikes/`, which
           invokes no build surface, so the consumer build/test gate has nothing to
@@ -1662,7 +1690,7 @@ jobs:
             moves to `sdd:done` and gains `needs-human`, and the tracking issue is not
             closed by the agent.
           
-          GH_AW_PROMPT_a3d1a2dd7cc5640c_EOF
+          GH_AW_PROMPT_2ac4d15e65e8fc45_EOF
           } > "$GH_AW_PROMPT"
       - name: Interpolate variables and render templates
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
@@ -1889,9 +1917,9 @@ jobs:
           mkdir -p "${RUNNER_TEMP}/gh-aw/safeoutputs"
           mkdir -p /tmp/gh-aw/safeoutputs
           mkdir -p /tmp/gh-aw/mcp-logs/safeoutputs
-          cat > "${RUNNER_TEMP}/gh-aw/safeoutputs/config.json" << 'GH_AW_SAFE_OUTPUTS_CONFIG_1a8b6fb076c92c71_EOF'
+          cat > "${RUNNER_TEMP}/gh-aw/safeoutputs/config.json" << 'GH_AW_SAFE_OUTPUTS_CONFIG_70edd8577e80a246_EOF'
           {"add_comment":{"max":1},"add_labels":{"allowed":["sdd:in-progress","sdd:done","needs-human"],"max":2},"create_pull_request":{"draft":false,"max":1,"max_patch_files":100,"max_patch_size":1024,"protect_top_level_dot_folders":true,"protected_files":["bun.lockb","bunfig.toml","deno.json","deno.jsonc","deno.lock","global.json","NuGet.Config","Directory.Packages.props","mix.exs","mix.lock","go.mod","go.sum","stack.yaml","stack.yaml.lock","pom.xml","build.gradle","build.gradle.kts","settings.gradle","settings.gradle.kts","gradle.properties","requirements.txt","Pipfile","Pipfile.lock","setup.py","setup.cfg","Gemfile","Gemfile.lock","uv.lock","CODEOWNERS","DESIGN.md","README.md","CONTRIBUTING.md","CHANGELOG.md","SECURITY.md","CODE_OF_CONDUCT.md","AGENTS.md","CLAUDE.md","GEMINI.md"],"protected_files_policy":"fallback-to-issue"},"create_report_incomplete_issue":{},"missing_data":{},"missing_tool":{},"noop":{"max":1,"report-as-issue":"true"},"push_to_pull_request_branch":{"if_no_changes":"warn","max":1,"max_patch_size":1024,"protect_top_level_dot_folders":true,"protected_files":["bun.lockb","bunfig.toml","deno.json","deno.jsonc","deno.lock","global.json","NuGet.Config","Directory.Packages.props","mix.exs","mix.lock","go.mod","go.sum","stack.yaml","stack.yaml.lock","pom.xml","build.gradle","build.gradle.kts","settings.gradle","settings.gradle.kts","gradle.properties","requirements.txt","Pipfile","Pipfile.lock","setup.py","setup.cfg","Gemfile","Gemfile.lock","uv.lock","CODEOWNERS","DESIGN.md","README.md","CONTRIBUTING.md","CHANGELOG.md","SECURITY.md","CODE_OF_CONDUCT.md","AGENTS.md","CLAUDE.md","GEMINI.md"]},"remove_labels":{"allowed":["sdd:ready","sdd:review","sdd:fastpath","sdd:in-progress"],"max":2},"report_incomplete":{},"update_issue":{"allow_body":true,"allow_status":true,"max":1,"target":"*"}}
-          GH_AW_SAFE_OUTPUTS_CONFIG_1a8b6fb076c92c71_EOF
+          GH_AW_SAFE_OUTPUTS_CONFIG_70edd8577e80a246_EOF
       - name: Generate Safe Outputs Tools
         env:
           GH_AW_TOOLS_META_JSON: |
@@ -2243,7 +2271,7 @@ jobs:
           
           mkdir -p /home/runner/.copilot
           GH_AW_NODE=$(which node 2>/dev/null || command -v node 2>/dev/null || echo node)
-          cat << GH_AW_MCP_CONFIG_3ac4bef12f94387d_EOF | "$GH_AW_NODE" "${RUNNER_TEMP}/gh-aw/actions/start_mcp_gateway.cjs"
+          cat << GH_AW_MCP_CONFIG_d461c99dc3d6a320_EOF | "$GH_AW_NODE" "${RUNNER_TEMP}/gh-aw/actions/start_mcp_gateway.cjs"
           {
             "mcpServers": {
               "github": {
@@ -2369,7 +2397,7 @@ jobs:
               }
             }
           }
-          GH_AW_MCP_CONFIG_3ac4bef12f94387d_EOF
+          GH_AW_MCP_CONFIG_d461c99dc3d6a320_EOF
       - name: Mount MCP servers as CLIs
         id: mount-mcp-clis
         continue-on-error: true

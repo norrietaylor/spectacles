@@ -531,6 +531,20 @@ commands from inside the sandbox. On a failure, fix the code and re-run until
 every command is green. A formatter or lint diff that one command would fix is
 never a reason to ship — fix it, do not open the PR with it.
 
+**Consumer verify script (issue #256).** When the checkout contains
+`.github/sdd/verify.sh`, that script **takes precedence over the discovery
+order above**: run it (`bash .github/sdd/verify.sh` from the repository root)
+as the gate instead of discovering commands yourself. The agent executes it
+**inside the sandbox** — it is never a host step, so it carries exactly this
+agent's egress and credential surface and nothing more. Its contract: it is
+hermetic (no services, no docker — neither exists in-sandbox) and must operate
+within the allowlisted egress; exit 0 means verified; a non-zero exit is a
+gate failure handled exactly like any other gate failure — fix the code and
+re-run until it exits 0, and if that is impossible, apply `needs-human` with
+the failing output per the hand-off below. The script lives under `.github/`,
+a protected path (step 5): this agent never edits it, so it can never weaken
+its own verification gate — humans author and review it.
+
 For a **Rust** consumer this is at minimum `cargo fmt --all -- --check`,
 `cargo build`, `cargo clippy --all-targets -- -D warnings`, and `cargo test`;
 the `network.allowed` block above admits `index.crates.io` and
@@ -557,6 +571,20 @@ the npm registry. Node is already on the agent runner, so
 corepack/pnpm/npm/yarn all work in-sandbox. Inability to reach a
 package-manager registry is therefore never a valid reason to skip this
 gate.
+
+**Dev-server browser smoke (opt-in, issue #256).** When the Playwright
+browser tools are enabled (the `/tmp/gh-aw/playwright/enabled` marker from the
+imported fragment reads `on`) **and** a proof artifact calls for a rendered
+check, the agent may start the target repository's dev server **in-sandbox**
+and verify it through the Playwright MCP — navigate to `localhost`, snapshot
+or screenshot the page, and capture that as the artifact's evidence. The MCP
+Chromium container shares the sandbox network namespace, so reaching a local
+dev server widens no firewall egress. Stop the server when the check is done.
+When the marker reads `off`, or no proof artifact calls for a browser check,
+do not start a dev server. The consumer's own E2E suite stays out of scope:
+its browser binaries come from non-allowlisted CDNs and its service
+dependencies cannot be provisioned in-sandbox — the feedback loop for E2E
+failures is the consumer's own CI, not an in-sandbox simulation of it.
 
 **Spike exemption.** A `kind:spike` task writes only `docs/spikes/`, which
 invokes no build surface, so the consumer build/test gate has nothing to

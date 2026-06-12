@@ -267,6 +267,45 @@ already neutralizes. Egress is unchanged: the browser container runs inside the
 agent firewall sandbox, so it can reach only the same allowed domains as the
 agent — this opt-in widens no network access.
 
+### Optional verify script (`.github/sdd/verify.sh`)
+
+The `sdd-execute` agents gate every pull request on the target repository's
+own checks (the pre-PR CI gate). By default they **discover** the commands to
+run — from `.github/workflows/*`, then `CLAUDE.md`, then a `Makefile` /
+`justfile` / `package.json` scripts. A consumer that wants an explicit
+entrypoint instead writes `.github/sdd/verify.sh`: when that file is present,
+the agent runs it as the gate and skips discovery entirely.
+
+The script is executed by the agent **inside the firewalled sandbox** — never
+as a host step — so it runs with exactly the agent's network egress and
+credential surface. It lives under `.github/`, a path the agents never edit,
+so an agent cannot weaken its own verification gate; you author it, and your
+normal review applies.
+
+The contract:
+
+- **Hermetic.** No services and no docker — neither exists in-sandbox.
+  Everything the script needs must come from the checkout, the toolchain on
+  the runner, or an allowlisted registry.
+- **Exit code is the verdict.** Exit 0 means verified. A non-zero exit is a
+  gate failure: the agent fixes the code and re-runs until the script passes,
+  and if it cannot, it hands off via `needs-human` with the failing output.
+- **Allowlisted egress only.** The sandbox firewall admits the GitHub APIs,
+  the npm and Yarn registries, and crates.io; it does not admit every
+  language's registry or CDN. Consumers cannot extend the allowlist
+  themselves — it is fixed at compile time in the hosted lock. If your
+  verification needs a domain the firewall blocks, the gate hard-fails to
+  `needs-human` (correct: unverifiable code never ships silently); request
+  the domain by opening an issue on `norrietaylor/spectacles` so it can be
+  added to the suite's allowlist.
+- **Keep it equal to CI's cheap path.** The script runs on every implementer
+  task, and a failure it cannot fix sends every task to `needs-human` — a
+  buggy or flaky verify.sh stalls the whole pipeline. Mirror the cheap,
+  deterministic core of your CI (typecheck, lint, unit tests, build), order
+  the steps cheap-to-expensive so the cheapest failure surfaces first, and
+  leave heavyweight or service-dependent suites (E2E, integration against
+  live services) to your own CI, where the auto-revise loop reacts to them.
+
 ## Workflows installed
 
 `--suite sdd` writes fifteen workflow files to the consumer's
