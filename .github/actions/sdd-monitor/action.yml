@@ -54,6 +54,15 @@ inputs:
       script default.
     required: false
     default: ''
+  app-id:
+    description: >
+      Numeric id of the GitHub App whose installation token is passed as
+      github-token. When set, the CodeRabbit nudge/escalation marker budget
+      counts only comments performed via this App, so a marker string
+      pasted by any other commenter cannot burn the nudge budget or
+      suppress escalation. Empty falls back to author-blind counting.
+    required: false
+    default: ''
 
 runs:
   using: composite
@@ -637,11 +646,18 @@ runs:
       env:
         SDD_CODERABBIT_STALL_MIN: ${{ inputs.coderabbit-stall-min }}
         SDD_CODERABBIT_NUDGE_MAX: ${{ inputs.coderabbit-nudge-max }}
+        SDD_MONITOR_APP_ID: ${{ inputs.app-id }}
       with:
         github-token: ${{ inputs.github-token }}
         script: |
             const { owner, repo } = context.repo;
-            const CODERABBIT = 'coderabbitai[bot]';
+            // CodeRabbit appears as `coderabbitai` with or without the
+            // `[bot]` suffix depending on surface; accept both, matching
+            // the reviewer carve-out in sdd-route-execute.
+            const isCodeRabbit = (login) => {
+              const lc = (login || '').toLowerCase();
+              return lc === 'coderabbitai' || lc === 'coderabbitai[bot]';
+            };
 
             // Same NaN-guard idiom as the debounce window above: a typo in
             // the repo var must fall back to the default, not silently
@@ -658,6 +674,16 @@ runs:
               Number.isFinite(parsedMax) && parsedMax > 0
                 ? parsedMax
                 : 2;
+            // App id of the github-token's owner, for the marker-budget
+            // author gate below. Optional: when unset the budget falls
+            // back to author-blind counting (never to a zero count —
+            // that would un-bound the nudge loop).
+            const parsedAppId = parseInt(
+              process.env.SDD_MONITOR_APP_ID || '', 10);
+            const appId =
+              Number.isFinite(parsedAppId) && parsedAppId > 0
+                ? parsedAppId
+                : null;
 
             let openPrs = [];
             try {
@@ -729,8 +755,8 @@ runs:
                 continue;
               }
 
-              // Stall predicate: no review AND no comment by
-              // coderabbitai[bot] since the head commit. Reviews and
+              // Stall predicate: no review AND no comment by CodeRabbit
+              // (either login form) since the head commit. Reviews and
               // review (diff) comments are pull-requests:read; issue
               // comments ride issues:write's implied read. The issue
               // comments are fetched once and reused for the marker
@@ -755,7 +781,7 @@ runs:
                 continue;
               }
               const since = (items, ts) => items.some((it) =>
-                ((it.user && it.user.login) === CODERABBIT)
+                isCodeRabbit(it.user && it.user.login)
                 && Number.isFinite(Date.parse(ts(it)))
                 && Date.parse(ts(it)) >= headMs);
               const active =
@@ -781,9 +807,19 @@ runs:
               const escalateMarker =
                 '<!-- sdd-monitor:coderabbit-escalated sha=' + headSha
                 + ' -->';
-              const nudges = issueComments.filter(
+              // Budget state is derived only from comments performed via
+              // the configured App (the monitor's own author identity).
+              // The marker format is predictable, so an author-blind
+              // count would let any commenter spoof markers to burn the
+              // nudge budget or suppress escalation outright.
+              const appComments = appId
+                ? issueComments.filter((c) =>
+                  c.performed_via_github_app
+                  && c.performed_via_github_app.id === appId)
+                : issueComments;
+              const nudges = appComments.filter(
                 (c) => (c.body || '').includes(nudgeMarker)).length;
-              const escalated = issueComments.some(
+              const escalated = appComments.some(
                 (c) => (c.body || '').includes(escalateMarker));
               if (escalated) {
                 core.info(
@@ -830,15 +866,26 @@ runs:
                 + nudges + ' nudge' + (nudges === 1 ? '' : 's')
                 + '; review manually or merge per policy. Applying '
                 + 'needs-human.';
+              // Label first, and only persist the escalation marker once
+              // needs-human is actually applied: the marker makes later
+              // passes skip this PR, so posting it after a failed label
+              // would strand the stall with no visible hand-off and no
+              // retry path. On a label failure, skip the comment — the
+              // next pass retries the whole escalation.
+              let labeled = false;
               try {
                 await github.rest.issues.addLabels({
                   owner, repo, issue_number: prNum,
                   labels: ['needs-human'],
                 });
+                labeled = true;
               } catch (err) {
                 core.warning(
                   'PR #' + prNum + ': failed to apply needs-human: '
                   + err.message);
+              }
+              if (!labeled) {
+                continue;
               }
               try {
                 await github.rest.issues.createComment({

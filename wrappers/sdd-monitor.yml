@@ -183,3 +183,7 @@ jobs:
           coderabbit: ${{ vars.SDD_CODERABBIT }}
           coderabbit-stall-min: ${{ vars.SDD_CODERABBIT_STALL_MIN }}
           coderabbit-nudge-max: ${{ vars.SDD_CODERABBIT_NUDGE_MAX }}
+          # Same App id the token mint above uses: the nudge/escalation
+          # marker budget counts only comments performed via this App, so
+          # a pasted marker from another commenter cannot game it.
+          app-id: ${{ vars.APP_ID }}
