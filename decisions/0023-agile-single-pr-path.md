@@ -158,9 +158,15 @@ skip the tree entirely (issue
   Design-notes leakage carve-out enters the spec gates; `sdd-review`
   resolves R-IDs from either depth; `sdd-execute`'s step 4a re-checks
   the widened criteria.
-- Old wrappers + new locks degrade gracefully: without the new wrapper
-  jobs, `/approve`-in-review falls back to a guidance comment and the
-  merge advances `sdd:fastpath-review → sdd:fastpath` as before.
+- Old wrappers + new locks degrade gracefully: old wrappers pin the
+  composite actions `@main` but call `sdd-fastpath-approve` without a
+  `mode` input, and the action's default mode is `legacy` — the
+  pre-ADR-0023 behavior. `/approve`-in-review then posts the merge-first
+  guidance comment and records nothing (so `sdd-route-spec` never
+  suppresses the agent on the merge, which advances
+  `sdd:fastpath-review → sdd:fastpath` as before, and the post-merge
+  `/approve` dispatches). Only the new wrapper, which carries the
+  `approved-merge-dispatch` job, passes `mode: approve` explicitly.
 
 ## Cross-links
 

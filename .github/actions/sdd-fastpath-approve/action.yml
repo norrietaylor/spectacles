@@ -10,7 +10,10 @@ description: >
   so the merge event dispatches — making merge and approve order-commutative.
   In 'merged' mode (the spec PR merged while sdd:approved was present) it runs
   the same dispatch and clears the marker. In 'clear' mode (the spec PR closed
-  without merging) it removes the stale sdd:approved marker. Extracted
+  without merging) it removes the stale sdd:approved marker. In 'legacy' mode
+  (the default, taken by old consumer wrappers that pass no mode) the
+  open-spec-PR branch posts the pre-ADR-0023 merge-first guidance comment and
+  records nothing; the merged-state dispatch is unchanged. Extracted
   verbatim (ADR 0015). The caller mints the App token and passes it as
   github-token.
 
@@ -23,11 +26,19 @@ inputs:
     required: true
   mode:
     description: >-
-      One of 'approve' (an /approve comment arrived), 'merged' (the spec PR
-      merged while sdd:approved was present; dispatch now), or 'clear' (the
-      spec PR closed without merging; drop the stale sdd:approved marker).
+      One of 'approve' (an /approve comment arrived; record-and-arm when the
+      spec PR is still open), 'merged' (the spec PR merged while sdd:approved
+      was present; dispatch now), 'clear' (the spec PR closed without merging;
+      drop the stale sdd:approved marker), or 'legacy' (pre-ADR-0023
+      behavior: /approve while the spec PR is open posts the merge-first
+      guidance comment and records nothing). The default is 'legacy', NOT
+      'approve': old consumer wrappers pin this action @main and pass no
+      mode, but they have no approved-merge-dispatch job — recording
+      sdd:approved for them would deadlock the tracking issue (the new
+      sdd-route-spec suppresses the agent on the merged PR and nothing
+      dispatches). The new wrapper passes mode: approve explicitly.
     required: false
-    default: 'approve'
+    default: 'legacy'
   auto-merge:
     description: >-
       The consumer's SDD_AUTO_MERGE repository variable. When '1' or 'true',
@@ -102,6 +113,41 @@ runs:
               // worst case is a duplicate run on the right state.
               core.info('Could not pre-check labels on #' + tracking
                 + ': ' + err.message);
+            }
+
+            // 'legacy' (the default) while the spec PR is still open
+            // (sdd:fastpath-review): an old consumer wrapper — pinned
+            // @main but without the approved-merge-dispatch job — called
+            // this action with no mode input. Recording sdd:approved
+            // here would deadlock: the new sdd-route-spec suppresses the
+            // agent when the marker is present on the merged spec PR,
+            // and the old wrapper has no job to dispatch instead. So
+            // degrade gracefully to the pre-ADR-0023 behavior: post the
+            // merge-first guidance comment and record nothing. The
+            // merged-state dispatch below is unchanged for legacy mode.
+            if (mode === 'legacy'
+                && issueLabels.includes('sdd:fastpath-review')
+                && !issueLabels.includes('sdd:fastpath')) {
+              core.info('/approve on #' + tracking + ' while'
+                + ' sdd:fastpath-review is present (legacy mode); the'
+                + ' spec PR has not merged. Posting guidance and exiting'
+                + ' without dispatch.');
+              try {
+                await github.rest.issues.createComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: tracking,
+                  body: 'Fast-path `/approve` is gated on the spec'
+                    + ' PR merging. Merge the open spec pull request'
+                    + ' first; the tracking issue returns to'
+                    + ' `sdd:fastpath` and then `/approve` dispatches'
+                    + ' the implementation.',
+                });
+              } catch (e) {
+                core.info('Could not post guidance comment: '
+                  + e.message);
+              }
+              return;
             }
 
             // 'approve' while the spec PR is still open
@@ -307,17 +353,29 @@ runs:
               plan_comment_id: planComment.id,
               tier: tier,
             });
-            // Resolve the dispatch ref. `context.ref` is set on
-            // issue_comment and pull_request (closed) events (the branch
-            // the workflow file was
-            // loaded from — the default branch by GitHub's rule). When
-            // it is somehow absent, fall back to the repository's
+            // Resolve the dispatch ref. On the pull_request (closed)
+            // event that drives 'merged' mode, `context.ref` is
+            // `refs/pull/<n>/merge` — a non-branch ref that
+            // createWorkflowDispatch rejects with a 422 — so use the
+            // merged spec PR's base branch (the branch the spec just
+            // landed on) instead. On issue_comment events `context.ref`
+            // is the default branch (the branch the workflow file was
+            // loaded from, by GitHub's rule) and is used as-is. When
+            // neither yields a branch ref, fall back to the repository's
             // default branch from the REST API, not a hardcoded "main":
-            // the `workflow_dispatch` event payload does not include
-            // `repository.default_branch`, and hardcoding `main`
-            // dispatches to a non-existent ref on repos whose default
-            // branch differs.
-            let dispatchRef = context.ref;
+            // hardcoding `main` dispatches to a non-existent ref on
+            // repos whose default branch differs.
+            let dispatchRef = '';
+            if (context.eventName === 'pull_request'
+                && context.payload.pull_request
+                && context.payload.pull_request.base
+                && context.payload.pull_request.base.ref) {
+              dispatchRef = 'refs/heads/'
+                + context.payload.pull_request.base.ref;
+            } else if (context.ref
+                && !context.ref.startsWith('refs/pull/')) {
+              dispatchRef = context.ref;
+            }
             if (!dispatchRef) {
               try {
                 const { data: repoData } = await github.rest.repos.get({
