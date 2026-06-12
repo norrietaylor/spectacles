@@ -92,42 +92,60 @@ runs:
             // thread resolution state is only exposed by GraphQL. This is
             // read-only. Shared by the CHANGES_REQUESTED implicit-revise
             // path (issue #128) and the manual /revise path (issue #247).
+            // Pages through reviewThreads (following pageInfo.endCursor
+            // until hasNextPage is false) so PRs with more than 100
+            // threads do not silently drop unresolved feedback; mirrors
+            // the contract in sdd-resolve-review-threads/action.yml.
             const collectUnresolvedThreadParts = async (prNumber) => {
               const parts = [];
               try {
-                const result = await github.graphql(`
-                  query($owner:String!,$repo:String!,$pr:Int!) {
-                    repository(owner:$owner,name:$repo) {
-                      pullRequest(number:$pr) {
-                        reviewThreads(first:100) {
-                          nodes {
-                            isResolved
-                            comments(first:1) { nodes { body path } }
+                let cursor = null;
+                let hasNextPage = true;
+                while (hasNextPage) {
+                  const result = await github.graphql(`
+                    query($owner:String!,$repo:String!,$pr:Int!,$after:String) {
+                      repository(owner:$owner,name:$repo) {
+                        pullRequest(number:$pr) {
+                          reviewThreads(first:100, after:$after) {
+                            pageInfo { hasNextPage endCursor }
+                            nodes {
+                              isResolved
+                              comments(first:1) { nodes { body path } }
+                            }
                           }
                         }
                       }
+                    }`, {
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    pr: prNumber,
+                    after: cursor,
+                  });
+                  const reviewThreads = (result.repository
+                    && result.repository.pullRequest
+                    && result.repository.pullRequest.reviewThreads)
+                    || null;
+                  const threads = (reviewThreads && reviewThreads.nodes)
+                    || [];
+                  for (const t of threads) {
+                    if (t.isResolved) {
+                      continue;
                     }
-                  }`, {
-                  owner: context.repo.owner,
-                  repo: context.repo.repo,
-                  pr: prNumber,
-                });
-                const threads = (result.repository
-                  && result.repository.pullRequest
-                  && result.repository.pullRequest.reviewThreads
-                  && result.repository.pullRequest.reviewThreads.nodes)
-                  || [];
-                for (const t of threads) {
-                  if (t.isResolved) {
-                    continue;
+                    const first = t.comments
+                      && t.comments.nodes
+                      && t.comments.nodes[0];
+                    if (first && (first.body || '').trim()) {
+                      const where = first.path ? (first.path + ': ') : '';
+                      parts.push('- ' + where + first.body.trim());
+                    }
                   }
-                  const first = t.comments
-                    && t.comments.nodes
-                    && t.comments.nodes[0];
-                  if (first && (first.body || '').trim()) {
-                    const where = first.path ? (first.path + ': ') : '';
-                    parts.push('- ' + where + first.body.trim());
-                  }
+                  hasNextPage = !!(reviewThreads
+                    && reviewThreads.pageInfo
+                    && reviewThreads.pageInfo.hasNextPage);
+                  cursor = (reviewThreads
+                    && reviewThreads.pageInfo
+                    && reviewThreads.pageInfo.endCursor)
+                    || null;
                 }
               } catch (err) {
                 core.info('Could not read review threads on PR #'
