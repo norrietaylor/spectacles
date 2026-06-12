@@ -1,5 +1,5 @@
 ---
-id: adr-0024
+id: adr-0025
 title: Opt-in auto-dispatch on phase C completion
 kind: adr
 status: accepted
@@ -7,9 +7,9 @@ supersedes:
 superseded-by:
 ---
 
-# ADR 0024: Opt-in auto-dispatch on phase C completion
+# ADR 0025: Opt-in auto-dispatch on phase C completion
 
-- Status: Accepted (companion to ADR 0023)
+- Status: Accepted (companion to ADR 0024)
 - Date: 2026-06-12
 
 ## Context
@@ -17,7 +17,7 @@ superseded-by:
 On the full path, `/approve` materializes the task tree (ADR 0010) and
 the tracking issue reaches `sdd:ready` — and then the pipeline stops
 until a human types `/dispatch` (ADR 0011). The same consumer pilot
-feedback behind ADR 0023 counted that second command among the four
+feedback behind ADR 0024 counted that second command among the four
 human gates that made a small feature take ~2 days: after `/approve`,
 `/dispatch` adds no new decision — the human already committed the
 structure — it only adds latency.
@@ -83,7 +83,7 @@ removing `sdd:dispatched` pauses the cascade, a `/dispatch` resumes it
 
 ## Cross-links
 
-- **ADR 0023** — the agile single-PR path; this is its full-path
+- **ADR 0024** — the agile single-PR path; this is its full-path
   companion from the same feedback (issue
   [#255](https://github.com/norrietaylor/spectacles/issues/255)).
 - **ADR 0011** — the dispatch cascade this arms automatically.

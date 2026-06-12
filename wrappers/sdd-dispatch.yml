@@ -34,7 +34,7 @@ on:
   # sdd:dispatched. The route job walks the parent chain to find the
   # tracking issue and filters out closures on issues outside an armed
   # cascade. The `labeled` type is the opt-in auto-dispatch trigger
-  # (ADR 0024): when the consumer sets SDD_AUTO_DISPATCH, a tracking
+  # (ADR 0025): when the consumer sets SDD_AUTO_DISPATCH, a tracking
   # issue gaining sdd:ready (sdd-triage phase C completion) arms the
   # cascade as if a /dispatch had been typed.
   issues:
@@ -61,7 +61,7 @@ jobs:
     # matching, so enumerate the boundary characters explicitly.
     #
     # An `issues: labeled` event only spawns a runner for the sdd:ready
-    # label with SDD_AUTO_DISPATCH set (ADR 0024); every other label
+    # label with SDD_AUTO_DISPATCH set (ADR 0025); every other label
     # add is skipped here without a runner (the issue #119 discipline).
     # The SDD_AUTO_DISPATCH comparison matches the composite action's
     # trim+lowercase parse for case: GitHub Actions expression `==`
@@ -104,7 +104,7 @@ jobs:
         with:
           app-id: ${{ vars.APP_ID }}
           github-token: ${{ github.token }}
-          # Opt-in auto-dispatch on phase C completion (ADR 0024). Maps
+          # Opt-in auto-dispatch on phase C completion (ADR 0025). Maps
           # the consumer's optional SDD_AUTO_DISPATCH variable in; unset
           # passes empty and the sdd:ready labeled trigger stays inert.
           auto-dispatch: ${{ vars.SDD_AUTO_DISPATCH }}

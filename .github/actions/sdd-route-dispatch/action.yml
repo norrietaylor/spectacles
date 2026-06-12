@@ -16,7 +16,7 @@ inputs:
     default: ${{ github.token }}
   auto-dispatch:
     description: >-
-      The consumer's SDD_AUTO_DISPATCH repository variable (ADR 0024). When
+      The consumer's SDD_AUTO_DISPATCH repository variable (ADR 0025). When
       '1' or 'true', a tracking issue gaining sdd:ready (sdd-triage phase C
       completion) routes as a first /dispatch and arms the cascade; any
       other value leaves the labeled trigger inert.
@@ -187,7 +187,7 @@ runs:
               }
             }
 
-            // Auto-dispatch on phase C completion (ADR 0024). With the
+            // Auto-dispatch on phase C completion (ADR 0025). With the
             // consumer's SDD_AUTO_DISPATCH variable set, a tracking issue
             // gaining sdd:ready — the label sdd-triage applies when the
             // Unit/task tree has materialized — routes as a first

@@ -206,7 +206,7 @@ with the following adjustments:
   from ADR 0012 §3: a one-paragraph problem statement, at least one
   R-ID, 1–3 proof artifacts, one Unit, and the single-line "Fast-path:
   no cross-cutting design" note) and a light spec (the single-PR depth
-  from ADR 0023: multiple demoable units, full `R{unit}.{seq}` IDs,
+  from ADR 0024: multiple demoable units, full `R{unit}.{seq}` IDs,
   1–3 proof artifacts per unit, and an optional Design-notes section
   in lieu of an architecture record). The "no architecture record" is
   not a finding for either depth.

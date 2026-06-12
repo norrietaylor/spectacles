@@ -1,4 +1,4 @@
-# gh-aw-metadata: {"schema_version":"v4","frontmatter_hash":"c67e5f8c1a94f123bdac8b2be1cfe9fd57991122ccd91b7b0a0d3837c5d217c5","body_hash":"657c085072529ca8fc95f6d7dc9f3796dcfdf9a92a56684e315d99a47d89bc83","compiler_version":"v0.77.5","agent_id":"copilot","agent_model":"claude-opus-4.6"}
+# gh-aw-metadata: {"schema_version":"v4","frontmatter_hash":"320d16863345ae161034b72fb322398d34fee0f6fc50a06a8c77c044ff6ad27a","body_hash":"14b677c4a49abff4c43228a32e6390d114303eb2108233b888606c10366e5855","compiler_version":"v0.77.5","agent_id":"copilot","agent_model":"claude-opus-4.6"}
 # gh-aw-manifest: {"version":1,"secrets":["APP_PRIVATE_KEY","COPILOT_GITHUB_TOKEN","GH_AW_CI_TRIGGER_TOKEN","GH_AW_GITHUB_MCP_SERVER_TOKEN","GH_AW_GITHUB_TOKEN","GH_AW_OTEL_ENDPOINT","GITHUB_TOKEN"],"actions":[{"repo":"actions/checkout","sha":"de0fac2e4500dabe0009e67214ff5f5447ce83dd","version":"v6.0.2"},{"repo":"actions/create-github-app-token","sha":"bcd2ba49218906704ab6c1aa796996da409d3eb1","version":"v3.2.0"},{"repo":"actions/download-artifact","sha":"3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c","version":"v8.0.1"},{"repo":"actions/github-script","sha":"3a2844b7e9c422d3c10d287c895573f7108da1b3","version":"v9.0.0"},{"repo":"actions/setup-node","sha":"48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e","version":"v6.4.0"},{"repo":"actions/upload-artifact","sha":"043fb46d1a93c77aae656e7c1c64a875d1fc6a0a","version":"v7.0.1"},{"repo":"dtolnay/rust-toolchain","sha":"29eef336d9b2848a0b548edc03f92a220660cdb8","version":"29eef336d9b2848a0b548edc03f92a220660cdb8"},{"repo":"github/gh-aw-actions/setup","sha":"3ea13c02d765410340d533515cb31a7eef2baaf0","version":"v0.77.5"}],"containers":[{"image":"ghcr.io/github/gh-aw-firewall/agent:0.25.58"},{"image":"ghcr.io/github/gh-aw-firewall/api-proxy:0.25.58"},{"image":"ghcr.io/github/gh-aw-firewall/squid:0.25.58"},{"image":"ghcr.io/github/gh-aw-mcpg:v0.3.22"},{"image":"ghcr.io/github/github-mcp-server:v1.1.0"},{"image":"ghcr.io/github/serena-mcp-server:latest","digest":"sha256:bf343399e3725c45528f531a230f3a04521d4cdef29f9a5af6282ff0d3c393c5","pinned_image":"ghcr.io/github/serena-mcp-server:latest@sha256:bf343399e3725c45528f531a230f3a04521d4cdef29f9a5af6282ff0d3c393c5"},{"image":"mcr.microsoft.com/playwright/mcp:v0.0.75"},{"image":"node:lts-alpine","digest":"sha256:2bdb65ed1dab192432bc31c95f94155ca5ad7fc1392fb7eb7526ab682fa5bf14","pinned_image":"node:lts-alpine@sha256:2bdb65ed1dab192432bc31c95f94155ca5ad7fc1392fb7eb7526ab682fa5bf14"}]}
 #    ___                   _   _      
 #   / _ \                 | | (_)     
@@ -250,24 +250,24 @@ jobs:
         run: |
           bash "${RUNNER_TEMP}/gh-aw/actions/create_prompt_first.sh"
           {
-          cat << 'GH_AW_PROMPT_372ee3ef10dc5908_EOF'
+          cat << 'GH_AW_PROMPT_32528852507d6384_EOF'
           <system>
-          GH_AW_PROMPT_372ee3ef10dc5908_EOF
+          GH_AW_PROMPT_32528852507d6384_EOF
           cat "${RUNNER_TEMP}/gh-aw/prompts/xpia.md"
           cat "${RUNNER_TEMP}/gh-aw/prompts/temp_folder_prompt.md"
           cat "${RUNNER_TEMP}/gh-aw/prompts/markdown.md"
           cat "${RUNNER_TEMP}/gh-aw/prompts/safe_outputs_prompt.md"
-          cat << 'GH_AW_PROMPT_372ee3ef10dc5908_EOF'
+          cat << 'GH_AW_PROMPT_32528852507d6384_EOF'
           <safe-output-tools>
           Tools: add_comment, update_issue, create_pull_request, add_labels(max:2), remove_labels(max:2), push_to_pull_request_branch, missing_tool, missing_data, noop
-          GH_AW_PROMPT_372ee3ef10dc5908_EOF
+          GH_AW_PROMPT_32528852507d6384_EOF
           cat "${RUNNER_TEMP}/gh-aw/prompts/safe_outputs_create_pull_request.md"
           cat "${RUNNER_TEMP}/gh-aw/prompts/safe_outputs_push_to_pr_branch.md"
-          cat << 'GH_AW_PROMPT_372ee3ef10dc5908_EOF'
+          cat << 'GH_AW_PROMPT_32528852507d6384_EOF'
           </safe-output-tools>
-          GH_AW_PROMPT_372ee3ef10dc5908_EOF
+          GH_AW_PROMPT_32528852507d6384_EOF
           cat "${RUNNER_TEMP}/gh-aw/prompts/mcp_cli_tools_prompt.md"
-          cat << 'GH_AW_PROMPT_372ee3ef10dc5908_EOF'
+          cat << 'GH_AW_PROMPT_32528852507d6384_EOF'
           <github-context>
           The following GitHub context information is available for this workflow:
           {{#if github.actor}}
@@ -296,9 +296,9 @@ jobs:
           {{/if}}
           </github-context>
           
-          GH_AW_PROMPT_372ee3ef10dc5908_EOF
+          GH_AW_PROMPT_32528852507d6384_EOF
           cat "${RUNNER_TEMP}/gh-aw/prompts/github_mcp_tools_with_safeoutputs_prompt.md"
-          cat << 'GH_AW_PROMPT_372ee3ef10dc5908_EOF'
+          cat << 'GH_AW_PROMPT_32528852507d6384_EOF'
           </system>
           # Core principles
           
@@ -493,6 +493,7 @@ jobs:
           | `/dispatch` | tracking issue, in `sdd:ready` or `sdd:in-progress` (full path) | arm cascade execution of every task in the feature's task tree; on a fast-path tracking issue carrying `sdd:fastpath` or `sdd:fastpath-review`, `/dispatch` is a noop with a one-comment explanation pointing at `/approve`; on a fast-path `sdd:in-progress` tracking issue, `/dispatch` is a noop with a one-comment explanation that execution is already running and `/approve` should not be used again (ADR 0012) |
           | `/revise <note>` | spec PR, architecture PR, tracking issue, or implementation PR | re-run the owning agent with the note as an added instruction |
           | `/execute` | a task sub-issue | trigger `sdd-execute` for that task immediately, outside the cascade |
+          | `/status` | tracking issue, or any sub-issue under one | force-refresh the deterministic `sdd-status` comment — the one self-updating status surface per tracking issue, located by its `` sentinel and edited in place; the ack is an eyes reaction on the command comment, never a new comment (issue #254) |
           
           Merging the spec PR advances to the architecture phase; merging the
           architecture PR advances to a plan-comment phase. `/approve` is the one
@@ -836,13 +837,34 @@ jobs:
           
           ### Network egress
           
-          The Playwright container runs inside the agent firewall sandbox. Its `--network
-          host` flag attaches it to the sandbox's network namespace, not the open
-          internet; its egress is governed by the same firewall allowlist (AWF
-          `allowDomains`) as the agent. This fragment widens nothing. A consumer whose
-          browser checks must reach specific external sites adds those domains through the
-          workflow's `network:` configuration — egress stays explicit and pinned, never
-          opened to `*`.
+          The Playwright container is launched by gh-aw's host-side MCP gateway with
+          `--network host`: it shares the **runner host's** network namespace, not the
+          agent firewall sandbox's, so its traffic is not routed through the AWF
+          `allowDomains` proxy. What bounds a browser run is the least-privilege tool
+          allowlist above — navigation and observation only, no arbitrary-code or
+          file-upload tools — and that navigation targets are chosen by the agent,
+          never by page content. A consumer whose browser checks must reach specific
+          external sites adds those domains through the workflow's `network:`
+          configuration — the intent stays explicit and reviewed, never opened to `*`.
+          
+          ### Dev-server smoke (in-sandbox dev server)
+          
+          The browser container runs host-side with host networking while the agent
+          runs inside the firewall container, so the browser's `localhost` is the
+          runner host, not the sandbox — gh-aw documents that under MCP-mode
+          Playwright `localhost` resolves to the Docker host and bridge-address
+          detection is needed to reach a local server. An `sdd-execute` agent may
+          still use the browser for an opt-in dev-server smoke (issue #256): when the
+          marker reads `on` **and** a proof artifact calls for a rendered check, the
+          agent starts the target repository's dev server in-sandbox bound to
+          `0.0.0.0`, navigates the browser to the sandbox's bridge address
+          (`hostname -I`) and port, snapshots or screenshots the page as the
+          artifact's evidence, and stops the server when done — local bridge traffic,
+          no internet egress. If the browser cannot reach the server, the agent falls
+          back to in-sandbox `curl` checks as the evidence. This does not extend to
+          the consumer's own E2E suite — its browser binaries come from non-allowlisted
+          CDNs and its service dependencies cannot be provisioned in-sandbox; E2E
+          failures feed back through the consumer's own CI.
           
           ### Image pinning
           
@@ -1057,9 +1079,13 @@ jobs:
              pull request this agent opened.** Address the note by pushing further
              commits to the same branch, exactly as for a review comment (step 7). The
              `aw_context` input carries `trigger: 'revise'`, the pull request number,
-             and the comment id. Confirm ownership — the head branch follows
-             `sdd/<task-id>-<slug>` — before acting; if it is not such a branch, emit
-             `noop`.
+             the comment id, and — when the pull request has unresolved review-comment
+             threads or recent discussion comments — a `directive` field the wrapper
+             assembled from them (issue #247). The `/revise` note is the primary
+             instruction; the `directive` is supplementary context, so the author need
+             not restate feedback already present in the thread. Confirm ownership —
+             the head branch follows `sdd/<task-id>-<slug>` — before acting; if it is
+             not such a branch, emit `noop`.
           6. **A `CHANGES_REQUESTED` review was submitted on an implementation pull
              request this agent opened.** The wrapper treats a formal review with
              state `changes_requested` from CodeRabbit or a write-access human, on a
@@ -1227,7 +1253,7 @@ jobs:
           within the consumer's `SDD_AGILE_MAX` ceiling (default 800), no new
           external dependency, no schema or data-format migration, no
           cross-cutting boundary change, no decision meriting an ADR (ADR 0012
-          §1 as widened by ADR 0023; file count and new public API surface are
+          §1 as widened by ADR 0024; file count and new public API surface are
           soft guidance only, because the consumer ships in this same PR).
           
           After the initial Serena read in step 4 and a first pass at the work,
@@ -1349,6 +1375,27 @@ jobs:
           every command is green. A formatter or lint diff that one command would fix is
           never a reason to ship — fix it, do not open the PR with it.
           
+          **Consumer verify script (issue #256).** When the checkout contains
+          `.github/sdd/verify.sh`, that script **takes precedence over the discovery
+          order above**: run it under an explicit time bound
+          (`timeout 10m bash .github/sdd/verify.sh` from the repository root) as the
+          gate instead of discovering commands yourself. The agent executes it
+          **inside the sandbox** — it is never a host step, so it carries exactly this
+          agent's egress and credential surface and nothing more. Its contract: it is
+          hermetic (no services, no docker — neither exists in-sandbox) and must operate
+          within the allowlisted egress; exit 0 means verified; a non-zero exit —
+          including exit 124, `timeout`'s verdict on a hung or overlong script — is a
+          gate failure handled exactly like any other gate failure — fix the code and
+          re-run until it exits 0, and if that is impossible (a failure the agent
+          cannot fix, or a script that keeps timing out), apply `needs-human` with
+          the failing output per the hand-off below. The script lives under `.github/`,
+          a protected path (step 5): this agent never edits it, and a `.github/` edit
+          can never persist into the PR. That protection covers what ships, not the
+          runtime — the in-sandbox checkout is writable, so faithful execution of the
+          gate is attested by this run rather than enforced against it, and the
+          consumer's own CI plus the all-checks auto-revise loop backstop whatever a
+          mistaken run lets through. Humans author and review the script.
+          
           For a **Rust** consumer this is at minimum `cargo fmt --all -- --check`,
           `cargo build`, `cargo clippy --all-targets -- -D warnings`, and `cargo test`;
           the `network.allowed` block above admits `index.crates.io` and
@@ -1375,6 +1422,29 @@ jobs:
           corepack/pnpm/npm/yarn all work in-sandbox. Inability to reach a
           package-manager registry is therefore never a valid reason to skip this
           gate.
+          
+          **Dev-server browser smoke (opt-in, issue #256).** When the Playwright
+          browser tools are enabled (the `/tmp/gh-aw/playwright/enabled` marker from the
+          imported fragment reads `on`) **and** a proof artifact calls for a rendered
+          check, the agent may start the target repository's dev server **in-sandbox**
+          and verify it through the Playwright MCP. The browser container runs
+          host-side with host networking while this agent runs inside the firewall
+          container, so the browser's `localhost` is the runner host, **not** this
+          sandbox — gh-aw documents that under MCP-mode Playwright `localhost`
+          resolves to the Docker host and bridge-address detection is needed to reach
+          a local server. So: bind the dev server to `0.0.0.0`, read this sandbox's
+          bridge address (`hostname -I`), navigate the browser to
+          `http://<bridge-address>:<port>`, and snapshot or screenshot the page as the
+          artifact's evidence — local bridge traffic, no internet egress. If the
+          browser cannot reach the server, fall back to in-sandbox `curl` checks of
+          the rendered routes as the evidence and record that the browser path was
+          unreachable; the smoke gathers evidence and is never itself a gate. Stop the
+          server when the check is done. When the marker reads `off`, or no proof
+          artifact calls for a browser check, do not start a dev server. The
+          consumer's own E2E suite stays out of scope: its browser binaries come from
+          non-allowlisted CDNs and its service dependencies cannot be provisioned
+          in-sandbox — the feedback loop for E2E failures is the consumer's own CI,
+          not an in-sandbox simulation of it.
           
           **Spike exemption.** A `kind:spike` task writes only `docs/spikes/`, which
           invokes no build surface, so the consumer build/test gate has nothing to
@@ -1495,9 +1565,14 @@ jobs:
           repo may lint commit subjects.
           
           For a `/revise` trigger (situation 5) there is no anchored diff: treat the
-          text after `/revise` in the triggering comment as the instruction, edit the
-          in-scope files to satisfy it, and push the follow-up commits to the same
-          branch with `push-to-pull-request-branch` exactly as for a review comment.
+          text after `/revise` in the triggering comment as the primary instruction.
+          When `aw_context.directive` is also present, the wrapper assembled it from
+          the pull request's unresolved review-comment threads and recent discussion
+          comments (issue #247): read it as supplementary context and address that
+          thread feedback alongside the note, so the author need not restate feedback
+          already present in the thread. Edit the in-scope files to satisfy the note
+          and that context, then push the follow-up commits to the same branch with
+          `push-to-pull-request-branch` exactly as for a review comment.
           Here too, never emit `create-pull-request`. For an implicit-revise trigger
           from a `CHANGES_REQUESTED` review (situation 6), the instruction is the
           `aw_context.directive` field the wrapper assembled (the review body plus the
@@ -1666,7 +1741,7 @@ jobs:
             moves to `sdd:done` and gains `needs-human`, and the tracking issue is not
             closed by the agent.
           
-          GH_AW_PROMPT_372ee3ef10dc5908_EOF
+          GH_AW_PROMPT_32528852507d6384_EOF
           } > "$GH_AW_PROMPT"
       - name: Interpolate variables and render templates
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
@@ -1893,9 +1968,9 @@ jobs:
           mkdir -p "${RUNNER_TEMP}/gh-aw/safeoutputs"
           mkdir -p /tmp/gh-aw/safeoutputs
           mkdir -p /tmp/gh-aw/mcp-logs/safeoutputs
-          cat > "${RUNNER_TEMP}/gh-aw/safeoutputs/config.json" << 'GH_AW_SAFE_OUTPUTS_CONFIG_46a7c17fcc62e0b3_EOF'
+          cat > "${RUNNER_TEMP}/gh-aw/safeoutputs/config.json" << 'GH_AW_SAFE_OUTPUTS_CONFIG_0e2a548adaaf0a5e_EOF'
           {"add_comment":{"max":1},"add_labels":{"allowed":["sdd:in-progress","sdd:done","needs-human"],"max":2},"create_pull_request":{"draft":false,"max":1,"max_patch_files":100,"max_patch_size":1024,"protect_top_level_dot_folders":true,"protected_files":["bun.lockb","bunfig.toml","deno.json","deno.jsonc","deno.lock","global.json","NuGet.Config","Directory.Packages.props","mix.exs","mix.lock","go.mod","go.sum","stack.yaml","stack.yaml.lock","pom.xml","build.gradle","build.gradle.kts","settings.gradle","settings.gradle.kts","gradle.properties","requirements.txt","Pipfile","Pipfile.lock","setup.py","setup.cfg","Gemfile","Gemfile.lock","uv.lock","CODEOWNERS","DESIGN.md","README.md","CONTRIBUTING.md","CHANGELOG.md","SECURITY.md","CODE_OF_CONDUCT.md","AGENTS.md","CLAUDE.md","GEMINI.md"],"protected_files_policy":"fallback-to-issue"},"create_report_incomplete_issue":{},"missing_data":{},"missing_tool":{},"noop":{"max":1,"report-as-issue":"true"},"push_to_pull_request_branch":{"if_no_changes":"warn","max":1,"max_patch_size":1024,"protect_top_level_dot_folders":true,"protected_files":["bun.lockb","bunfig.toml","deno.json","deno.jsonc","deno.lock","global.json","NuGet.Config","Directory.Packages.props","mix.exs","mix.lock","go.mod","go.sum","stack.yaml","stack.yaml.lock","pom.xml","build.gradle","build.gradle.kts","settings.gradle","settings.gradle.kts","gradle.properties","requirements.txt","Pipfile","Pipfile.lock","setup.py","setup.cfg","Gemfile","Gemfile.lock","uv.lock","CODEOWNERS","DESIGN.md","README.md","CONTRIBUTING.md","CHANGELOG.md","SECURITY.md","CODE_OF_CONDUCT.md","AGENTS.md","CLAUDE.md","GEMINI.md"]},"remove_labels":{"allowed":["sdd:ready","sdd:review","sdd:fastpath","sdd:in-progress"],"max":2},"report_incomplete":{},"update_issue":{"allow_body":true,"allow_status":true,"max":1,"target":"*"}}
-          GH_AW_SAFE_OUTPUTS_CONFIG_46a7c17fcc62e0b3_EOF
+          GH_AW_SAFE_OUTPUTS_CONFIG_0e2a548adaaf0a5e_EOF
       - name: Generate Safe Outputs Tools
         env:
           GH_AW_TOOLS_META_JSON: |
@@ -2247,7 +2322,7 @@ jobs:
           
           mkdir -p /home/runner/.copilot
           GH_AW_NODE=$(which node 2>/dev/null || command -v node 2>/dev/null || echo node)
-          cat << GH_AW_MCP_CONFIG_f11108da5f5b0193_EOF | "$GH_AW_NODE" "${RUNNER_TEMP}/gh-aw/actions/start_mcp_gateway.cjs"
+          cat << GH_AW_MCP_CONFIG_8eda79672c43731b_EOF | "$GH_AW_NODE" "${RUNNER_TEMP}/gh-aw/actions/start_mcp_gateway.cjs"
           {
             "mcpServers": {
               "github": {
@@ -2373,7 +2448,7 @@ jobs:
               }
             }
           }
-          GH_AW_MCP_CONFIG_f11108da5f5b0193_EOF
+          GH_AW_MCP_CONFIG_8eda79672c43731b_EOF
       - name: Mount MCP servers as CLIs
         id: mount-mcp-clis
         continue-on-error: true

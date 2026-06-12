@@ -4,7 +4,7 @@ description: >
   gates /spec /fastpath (alias /agile) /approve /revise on real repository
   permission, detects a fast-path /approve, detects a spec-PR close while
   the sdd:approved marker is recorded (merged -> deterministic dispatch;
-  unmerged -> clear the stale marker; ADR 0023), and builds aw_context.
+  unmerged -> clear the stale marker; ADR 0024), and builds aw_context.
   Extracted verbatim (ADR 0015).
 
 inputs:
@@ -29,7 +29,7 @@ outputs:
   approved_dispatch:
     description: >-
       'true' when a spec PR merged while its tracking issue carries the
-      sdd:approved marker (ADR 0023); the wrapper dispatches deterministically.
+      sdd:approved marker (ADR 0024); the wrapper dispatches deterministically.
     value: ${{ steps.decide.outputs.approved_dispatch }}
   approved_clear:
     description: >-
@@ -169,7 +169,7 @@ runs:
               const body = (payload.comment.body || '').trim();
               const firstWord = body.split(/\s+/)[0];
               const isPr = !!payload.issue.pull_request;
-              // /agile is a pure alias of /fastpath (ADR 0023): it collapses
+              // /agile is a pure alias of /fastpath (ADR 0024): it collapses
               // here at routing and the agent sees command: 'fastpath'.
               const isFastpathWord = firstWord === '/fastpath'
                 || firstWord === '/agile';
@@ -214,7 +214,7 @@ runs:
                     // the spec PR merged). The fastpath-approve job
                     // detects fastpath-review and records the approval
                     // as the sdd:approved marker — arming auto-merge so
-                    // the merge dispatches (ADR 0023) — so this
+                    // the merge dispatches (ADR 0024) — so this
                     // carve-out only owns routing — not dispatch policy.
                     // Kept symmetric with wrappers/sdd-triage.yml's
                     // skipFastpath check.
@@ -285,7 +285,7 @@ runs:
             // branch must follow the spec/<slug> convention. A merged
             // non-spec PR is not this agent's concern and is left to no-op.
             //
-            // ADR 0023: when the tracking issue carries the sdd:approved
+            // ADR 0024: when the tracking issue carries the sdd:approved
             // marker (a /approve was recorded while the spec PR was open),
             // a *merged* spec PR routes to the deterministic
             // approved-merge-dispatch job instead of the agent — the

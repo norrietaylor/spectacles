@@ -1,5 +1,5 @@
 ---
-id: adr-0023
+id: adr-0024
 title: Agile single-PR path generalizes the fast path
 kind: adr
 status: accepted
@@ -7,7 +7,7 @@ supersedes:
 superseded-by:
 ---
 
-# ADR 0023: Agile single-PR path generalizes the fast path
+# ADR 0024: Agile single-PR path generalizes the fast path
 
 - Status: Accepted (amends ADR 0012)
 - Date: 2026-06-12
@@ -93,7 +93,7 @@ skip the tree entirely (issue
    silently split into multiple PRs — escalate instead.
 
 6. **Full path unchanged**, except the opt-in `SDD_AUTO_DISPATCH`
-   companion (ADR 0024).
+   companion (ADR 0025).
 
 ## Reasoning
 
@@ -162,7 +162,7 @@ skip the tree entirely (issue
 - Old wrappers + new locks degrade gracefully: old wrappers pin the
   composite actions `@main` but call `sdd-fastpath-approve` without a
   `mode` input, and the action's default mode is `legacy` — the
-  pre-ADR-0023 behavior. `/approve`-in-review then posts the merge-first
+  pre-ADR-0024 behavior. `/approve`-in-review then posts the merge-first
   guidance comment and records nothing (so `sdd-route-spec` never
   suppresses the agent on the merge, which advances
   `sdd:fastpath-review → sdd:fastpath` as before, and the post-merge
@@ -176,7 +176,7 @@ skip the tree entirely (issue
 - **ADR 0022** — task sizing (`SDD_TRIAGE_MIN_TASK`): the intra-tree
   half of the same over-decomposition feedback, and the `min_task`
   input-plumbing pattern `agile_max` copies.
-- **ADR 0024** — the `SDD_AUTO_DISPATCH` companion for the full path.
+- **ADR 0025** — the `SDD_AUTO_DISPATCH` companion for the full path.
 - **ADR 0010 / ADR 0011** — `/approve` gate semantics and the cascade
   the single-PR path bypasses.
 - **ADR 0021** — doc-status; one reason the light spec stays a file.

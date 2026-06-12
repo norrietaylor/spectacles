@@ -140,15 +140,18 @@ toggles with the defaults shown.
 | `SERENA_LANGUAGE_SERVERS` | Serena text-level fallback | installer (auto-detect) | The Serena language server set for this repository's stack. The installer auto-detects and sets this when the stack is recognised; set it by hand otherwise, or leave it unset to run Serena in text-level fallback. |
 | `APP_ID` | — (required) | operator | The ID of the GitHub App that is the agents' write identity. Each agent run mints its own short-lived installation token from it; see "The GitHub App identity" below. |
 | `SDD_DISPATCH_MAX_PARALLEL` | `5` | operator | The matrix parallelism cap for `sdd-dispatch`'s fan-out to `sdd-execute` runs. Any positive integer. A ready set larger than the cap queues at the matrix level and starts more cells as earlier ones finish. Set this lower on a repo with strict billing limits, or higher on a repo whose CI capacity allows it. |
-| `SDD_AUTO_MERGE` | unset (off) | operator | Toggles the `auto-merge` job in each `sdd-execute` tier. Set to `1` or `true` to enable GitHub squash + delete-branch auto-merge on the PR the cascade just opened, so a green PR merges with no human in the loop (issue #127). When off, the agent opens the PR and leaves merge to a human. Leave off on a repo without branch protection. On the single-PR agile path, an `/approve` typed while the spec PR is still open also arms squash auto-merge on that spec PR (ADR 0023); with this off, the approval is still recorded (`sdd:approved`) and a manual merge dispatches the implementation. When on, the `sdd-review` wrapper also resolves the App bot's own advisory review threads so they do not deadlock auto-merge on a base branch with `required_conversation_resolution` enabled (ADR 0016); human and third-party (e.g. CodeRabbit) threads are left to gate the merge. |
+| `SDD_AUTO_MERGE` | unset (off) | operator | Toggles the `auto-merge` job in each `sdd-execute` tier. Set to `1` or `true` to enable GitHub squash + delete-branch auto-merge on the PR the cascade just opened, so a green PR merges with no human in the loop (issue #127). When off, the agent opens the PR and leaves merge to a human. Leave off on a repo without branch protection. On the single-PR agile path, an `/approve` typed while the spec PR is still open also arms squash auto-merge on that spec PR (ADR 0024); with this off, the approval is still recorded (`sdd:approved`) and a manual merge dispatches the implementation. When on, the `sdd-review` wrapper also resolves the App bot's own advisory review threads so they do not deadlock auto-merge on a base branch with `required_conversation_resolution` enabled (ADR 0016); human and third-party (e.g. CodeRabbit) threads are left to gate the merge. |
 | `SDD_MAX_REVIEW_ITERATIONS` | `3` | operator | Cap on auto-revise cycles per implementation PR for `CHANGES_REQUESTED` reviews (issue #128). Read by every `sdd-execute` tier. On hitting the cap the agent stops auto-revising and applies `needs-human`. |
 | `SDD_REVISE_ON_CHECKS` | `all` | operator (optional) | Which failing CI checks on an `sdd/` PR trigger the implicit `/revise` when a check suite completes red (issue #259). `all` (the default) treats every failure-conclusion check run as actionable; `required` restricts the trigger to checks that gate merge, resolved from repository rulesets merged best-effort with classic branch protection. Read by every `sdd-execute` tier. |
 | `SDD_REVISE_CHECKS_EXCLUDE` | unset (empty) | operator (optional) | Comma-separated check-run-name globs (`*` matches any run of characters; matching is case-sensitive) that never trigger the implicit `/revise`, in either `SDD_REVISE_ON_CHECKS` mode (issue #259). Use it to keep advisory failures — e.g. an E2E or build matrix — from burning the auto-revise retry budget. Read by every `sdd-execute` tier. |
 | `SDD_TRIAGE_MIN_TASK` | `300` | operator (optional) | Estimated-diff floor (net changed lines) below which `sdd-triage` folds a task into a cohesive sibling — one whose `files in scope:` overlap, or that form a strict produce/consume chain — instead of emitting it standalone. Cuts the per-task PR/CI/validate/review/merge overhead an over-split plan pays for small work. The estimate is the agent's pre-implementation judgment; cohesion is the gate and this floor only breaks ties, so unrelated small tasks are never merged. Set to `0` to disable bundling and keep one task per requirement; lower it to bundle less aggressively (issue #252). |
-| `SDD_AGILE_MAX` | `800` | operator (optional) | Estimated-diff ceiling (net changed lines) under which `sdd-spec` proposes the single-PR agile path (ADR 0023, generalizing the ADR 0012 fast path): one spec PR (stub or light), one `/approve`, one implementation PR — no architecture PR, no task tree. The ceiling is only the size criterion; the other four (no new external dependency, no schema/data-format migration, no cross-cutting boundary change, no ADR-worthy decision) must all hold regardless. The estimate is the agent's pre-implementation judgment, the same basis as `SDD_TRIAGE_MIN_TASK` (300) — the two are one sizing story: under the floor, tasks bundle; under this ceiling, the whole feature ships as one PR. Lower it to push more work onto the full path (issue #255). |
-| `SDD_AUTO_DISPATCH` | unset (off) | operator (optional) | Set to `1` or `true` to arm the full-path cascade automatically when `sdd-triage` phase C completes — the tracking issue gaining `sdd:ready` with a materialized task tree routes as a first `/dispatch` (ADR 0024). `/dispatch` remains the manual command and the pause/resume control: removing `sdd:dispatched` pauses the cascade, a `/dispatch` resumes it. When the `sdd:ready` label lands before the tree exists (a safe-output ordering race), auto-dispatch declines fail-safe and a manual `/dispatch` is the fallback. |
+| `SDD_AGILE_MAX` | `800` | operator (optional) | Estimated-diff ceiling (net changed lines) under which `sdd-spec` proposes the single-PR agile path (ADR 0024, generalizing the ADR 0012 fast path): one spec PR (stub or light), one `/approve`, one implementation PR — no architecture PR, no task tree. The ceiling is only the size criterion; the other four (no new external dependency, no schema/data-format migration, no cross-cutting boundary change, no ADR-worthy decision) must all hold regardless. The estimate is the agent's pre-implementation judgment, the same basis as `SDD_TRIAGE_MIN_TASK` (300) — the two are one sizing story: under the floor, tasks bundle; under this ceiling, the whole feature ships as one PR. Lower it to push more work onto the full path (issue #255). |
+| `SDD_AUTO_DISPATCH` | unset (off) | operator (optional) | Set to `1` or `true` to arm the full-path cascade automatically when `sdd-triage` phase C completes — the tracking issue gaining `sdd:ready` with a materialized task tree routes as a first `/dispatch` (ADR 0025). `/dispatch` remains the manual command and the pause/resume control: removing `sdd:dispatched` pauses the cascade, a `/dispatch` resumes it. When the `sdd:ready` label lands before the tree exists (a safe-output ordering race), auto-dispatch declines fail-safe and a manual `/dispatch` is the fallback. |
 | `SDD_MONITOR` | unset (off) | operator | Master switch for the `sdd-monitor` backstop workflow. Set to `1` to enable monitor `/dispatch` nudges of an armed-but-idle `sdd:dispatched` tracker; any other value keeps it off. See `sdd-monitor.md`. |
 | `SDD_MONITOR_DEBOUNCE_MIN` | `5` | operator | Minutes between consecutive `/dispatch` comments `sdd-monitor` posts on the same tracker (counting both monitor- and operator-issued). Consulted only when `SDD_MONITOR=1`. |
+| `SDD_CODERABBIT` | unset (auto-detect) | operator (optional) | Force-toggle for `sdd-monitor`'s CodeRabbit stall detection (issue #257). Unset, the pass enables itself when a `.coderabbit.yaml` / `.coderabbit.yml` exists at the repository root; set `1` to force-enable on a repo whose CodeRabbit install carries no config file, `0` to force-disable. Consulted only when `SDD_MONITOR=1`. See `sdd-monitor.md`. |
+| `SDD_CODERABBIT_STALL_MIN` | `30` | operator (optional) | Minutes an open non-draft `sdd/` PR's head commit must age with no review or comment from `coderabbitai[bot]` before `sdd-monitor` counts the PR as stalled and nudges. |
+| `SDD_CODERABBIT_NUDGE_MAX` | `2` | operator (optional) | `@coderabbitai review` nudge comments `sdd-monitor` posts per head sha before it stops nudging and escalates the PR to `needs-human`. A new push (new head sha) resets the budget. |
 | `SDD_MCP_EXTRA` | unset (off) | operator (optional) | Opt-in toggle for bundled-but-disabled extra MCP servers, whole-token list (e.g. `playwright`, or `playwright,<other>`). Set it to `playwright` to let the `sdd-execute` agents drive a headless browser for browser-driven checks (issue #180). Off by default: a consumer that does not set it calls no browser tool and the browser container never starts. See "Optional browser automation (Playwright)" below for the trust boundary. |
 | `GH_AW_MODEL_AGENT_COPILOT` | `claude-sonnet-4.6` | operator (optional) | Overrides the Copilot model the agent step runs. Consumed by every agent lock except the `sdd-execute` tiers, which pin their model via the `model:*` task label. |
 | `GH_AW_MODEL_DETECTION_COPILOT` | `claude-sonnet-4.6` | operator (optional) | Overrides the Copilot model the gh-aw detection step runs. Consumed by the `sdd-spec`, `sdd-triage`, `sdd-dispatch`, `sdd-validate`, and `sdd-review` locks. |
@@ -265,9 +268,54 @@ content (a prompt injection in page text, a hidden element, or a network
 response). The least-privilege allowlist enforces this mechanically: with the
 arbitrary-code and file-upload tools withheld, the worst a hostile page can do
 is feed misleading text into context, which the data-not-instructions rule
-already neutralizes. Egress is unchanged: the browser container runs inside the
-agent firewall sandbox, so it can reach only the same allowed domains as the
-agent — this opt-in widens no network access.
+already neutralizes. The browser container is launched host-side with host
+networking — outside the agent firewall sandbox — so what bounds it is the
+tool allowlist and that navigation targets are chosen by the agent, never by
+page content; this opt-in widens nothing the agent itself can reach.
+
+### Optional verify script (`.github/sdd/verify.sh`)
+
+The `sdd-execute` agents gate every pull request on the target repository's
+own checks (the pre-PR CI gate). By default they **discover** the commands to
+run — from `.github/workflows/*`, then `CLAUDE.md`, then a `Makefile` /
+`justfile` / `package.json` scripts. A consumer that wants an explicit
+entrypoint instead writes `.github/sdd/verify.sh`: when that file is present,
+the agent runs it as the gate and skips discovery entirely.
+
+The script is executed by the agent **inside the firewalled sandbox** — never
+as a host step — so it runs with exactly the agent's network egress and
+credential surface. It lives under `.github/`, a path the agents never edit
+and whose edits are blocked from persisting into an agent's PR — so the
+script that ships is always the one you authored and reviewed. (That is a
+review-integrity guarantee, not a runtime one: the in-sandbox checkout is
+writable, so the gate's execution is attested by the agent's run and
+backstopped by your own CI and the all-checks auto-revise loop.)
+
+The contract:
+
+- **Hermetic.** No services and no docker — neither exists in-sandbox.
+  Everything the script needs must come from the checkout, the toolchain on
+  the runner, or an allowlisted registry.
+- **Exit code is the verdict.** Exit 0 means verified. A non-zero exit is a
+  gate failure: the agent fixes the code and re-runs until the script passes,
+  and if it cannot, it hands off via `needs-human` with the failing output.
+  The agent runs the script under an explicit time bound (`timeout 10m`), so
+  a hung script is a gate failure too (exit 124), not a silently stalled run.
+- **Allowlisted egress only.** The sandbox firewall admits the GitHub APIs,
+  the npm and Yarn registries, and crates.io; it does not admit every
+  language's registry or CDN. Consumers cannot extend the allowlist
+  themselves — it is fixed at compile time in the hosted lock. If your
+  verification needs a domain the firewall blocks, the gate hard-fails to
+  `needs-human` (correct: unverifiable code never ships silently); request
+  the domain by opening an issue on `norrietaylor/spectacles` so it can be
+  added to the suite's allowlist.
+- **Keep it equal to CI's cheap path.** The script runs on every implementer
+  task, and a failure it cannot fix sends every task to `needs-human` — a
+  buggy or flaky verify.sh stalls the whole pipeline. Mirror the cheap,
+  deterministic core of your CI (typecheck, lint, unit tests, build), order
+  the steps cheap-to-expensive so the cheapest failure surfaces first, and
+  leave heavyweight or service-dependent suites (E2E, integration against
+  live services) to your own CI, where the auto-revise loop reacts to them.
 
 ## Workflows installed
 
@@ -290,7 +338,7 @@ pinned ref (ADR 0004).
 | `sdd-pr-sanitize` | `pull_request` | Neutralizes a stray issue-closing keyword in a spec/architecture PR body and adds `Closes #<sub-issue>` (ADR 0005, ADR 0006). |
 | `sdd-triage-dedupe-tasks` | `issues` | Closes a duplicate phase-C task sub-issue (ADR 0008). |
 | `sdd-triage-promote-ready` | `issues` | Applies `sdd:ready` to a task when its last `blocked by` blocker closes (ADR 0009, ADR 0013). |
-| `sdd-monitor` | `workflow_run`, `pull_request`, `schedule` (`*/10`) | Backstop that nudges an armed-but-idle `sdd:dispatched` tracker with `/dispatch`. Disabled unless `SDD_MONITOR=1` (see `sdd-monitor.md`). |
+| `sdd-monitor` | `workflow_run`, `pull_request`, `schedule` (`*/10`) | Backstop that nudges an armed-but-idle `sdd:dispatched` tracker with `/dispatch`, and nudges then escalates a CodeRabbit review stall on an open `sdd/` PR (issue #257). Disabled unless `SDD_MONITOR=1` (see `sdd-monitor.md`). |
 | `sdd-spike-actuator` | `issues` (`opened`, `labeled`) | Deterministic actuator for the spike wave: posts `/execute` on a `kind:spike` sub-issue under a triage tracking issue so `sdd-execute` runs the spike (issue #229). |
 | `sdd-spike-reentry` | `issues` (`closed`, `unlabeled`) | Deterministic re-entry: when a `kind:spike` child closes (or its `needs-human` is cleared) and zero open spikes remain, re-enters `sdd-triage` phase B (issue #229). |
 

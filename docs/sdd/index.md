@@ -13,7 +13,7 @@ no new tool to install and no separate task board.
 
 | Agent | Turns | Into |
 |---|---|---|
-| `sdd-spec` | a tracking issue | full path: a structured spec, delivered as a PR. Single-PR (agile/fast) path: a stub or light spec PR plus a single execution-plan comment on the tracking issue (ADR 0012, ADR 0023) |
+| `sdd-spec` | a tracking issue | full path: a structured spec, delivered as a PR. Single-PR (agile/fast) path: a stub or light spec PR plus a single execution-plan comment on the tracking issue (ADR 0012, ADR 0024) |
 | `sdd-triage` | a merged spec | an architecture record, then a task graph of sub-issues |
 | `sdd-dispatch` | `/dispatch` on a tracking issue, or a task sub-issue closing | fan-out of ready tasks to `sdd-execute` variants, bounded by `max-parallel` (noop on fast-path issues) |
 | `sdd-execute` | a ready task sub-issue, or a fast-path tracking issue on `/approve` | an implementation PR with proof artifacts |
@@ -39,7 +39,7 @@ cron.
 
 `sdd-spec` has two modes: full-path (the default) and the single-PR
 (agile/fast) path. On
-intake it classifies the work against the single-PR criteria (ADR 0023,
+intake it classifies the work against the single-PR criteria (ADR 0024,
 widening ADR 0012): estimated net diff at or under `SDD_AGILE_MAX`
 (default 800), no new external dependency, no schema/data-format
 migration, no cross-cutting boundary change, no ADR-worthy decision.
@@ -173,7 +173,7 @@ flowchart TD
 | 4. Review the architecture PR | you | Read the architecture record, comment, and merge it. Merging triggers phase B. | `sdd:triage` |
 | 5. Approve the plan | you | `sdd-triage` posts the proposed plan as a comment on the tracking issue. Comment `/approve` to materialize it, or `/revise <note>` to amend. | `sdd:triage` |
 | 6. Tree is created | `sdd-triage` | Phase C creates Unit sub-issues and sub-task issues together, each with its scope, proof artifacts, and a `model:*` tier label. | `sdd:ready` |
-| 6a. Dispatch the plan | you | Comment `/dispatch` on the tracking issue — or set `SDD_AUTO_DISPATCH=1` and phase C completion arms the cascade automatically (ADR 0024; `/dispatch` stays the manual command and, via `sdd:dispatched`, the pause/resume control). `sdd-dispatch` arms the cascade: it computes the ready set from the dependency graph, fans out `sdd-execute` runs in a bounded matrix (`SDD_DISPATCH_MAX_PARALLEL`, default 5), and re-fires on every task close until the tree is drained. | `sdd:in-progress` |
+| 6a. Dispatch the plan | you | Comment `/dispatch` on the tracking issue — or set `SDD_AUTO_DISPATCH=1` and phase C completion arms the cascade automatically (ADR 0025; `/dispatch` stays the manual command and, via `sdd:dispatched`, the pause/resume control). `sdd-dispatch` arms the cascade: it computes the ready set from the dependency graph, fans out `sdd-execute` runs in a bounded matrix (`SDD_DISPATCH_MAX_PARALLEL`, default 5), and re-fires on every task close until the tree is drained. | `sdd:in-progress` |
 | 7. Tasks are implemented | `sdd-execute` | Each dispatched task: `sdd-execute` picks it up via `workflow_dispatch` from the cascade and opens an implementation PR. A human may also comment `/execute` on a task to run it immediately, outside the cascade. | `sdd:in-progress` |
 | 8. Validation runs | `sdd-validate` | At each phase boundary, `sdd-validate` posts advisory findings as a comment. A clean implementation pass moves the issue to `sdd:review`. | `sdd:review` |
 | 9. Code review runs | `sdd-review` | `sdd-review` posts review comments on the implementation PR. You read them and decide. | `sdd:review` |
@@ -186,7 +186,7 @@ to garbage-collect. ADR 0010 records the gate semantics.
 
 ### Single-PR (agile) path steps
 
-The single-PR flow (ADR 0012, generalized by ADR 0023) compresses
+The single-PR flow (ADR 0012, generalized by ADR 0024) compresses
 spec, architecture, and plan
 into one agent run for work that fits in one implementation PR. The
 steps below run in
@@ -199,7 +199,7 @@ forks off to `sdd:fastpath` after `/agile` or `/fastpath`.
 | 2. Classify | `sdd-spec` | The agent reads the issue, checks the single-PR criteria (estimated diff ≤ `SDD_AGILE_MAX`, no new external dependency, no schema/data-format migration, no cross-cutting boundary change, no ADR-worthy decision), and posts one proposal comment asking for `/agile` (or `/fastpath`) or `/spec` (full flow). Silence means the full flow runs. | `sdd:spec` |
 | 3. Confirm the single-PR path | you | Comment `/agile` (or `/fastpath`) on the tracking issue. The wrapper moves the lifecycle to `sdd:fastpath` and re-invokes `sdd-spec`. | `sdd:fastpath` |
 | 4. Author the spec | `sdd-spec` | One run produces a spec PR — a stub (problem statement, R-IDs, proof artifacts, one Unit) for trivial work, a light spec (multiple units, full R-IDs, 1–3 proof artifacts per unit, optional Design notes) otherwise — and an execution plan comment on the tracking issue naming one task that spans the feature. | `sdd:fastpath-review` |
-| 5. Merge the spec PR | you | Review and merge. The spec sub-issue closes via the existing `Closes` keyword. Or comment `/approve` first: the approval is recorded as the `sdd:approved` marker, squash auto-merge is armed (with `SDD_AUTO_MERGE`), and the merge dispatches — merge and approve commute (ADR 0023). | `sdd:fastpath` |
+| 5. Merge the spec PR | you | Review and merge. The spec sub-issue closes via the existing `Closes` keyword. Or comment `/approve` first: the approval is recorded as the `sdd:approved` marker, squash auto-merge is armed (with `SDD_AUTO_MERGE`), and the merge dispatches — merge and approve commute (ADR 0024). | `sdd:fastpath` |
 | 6. Approve and dispatch | you | Comment `/approve` on the tracking issue (skip if you approved in step 5 — the merge already dispatched). The `sdd-spec` wrapper finds the plan comment, parses the `model:*` tier, and dispatches one `sdd-execute-{tier}` against the plan. No Unit or task sub-issues are created. | `sdd:in-progress` |
 | 7. Implementation runs | `sdd-execute` | The variant opens one implementation PR with proof artifacts. `sdd-validate` and `sdd-review` run as on the full path; the absence of an architecture record and a sub-task tree is not a finding. | `sdd:in-progress` |
 | 8. Merge and close | you | Merge the implementation PR. `sdd-execute` moves the tracking issue to `sdd:done` and applies `needs-human` for your final close. | `sdd:done` |

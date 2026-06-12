@@ -154,7 +154,7 @@ one applies from the workflow context before doing anything else.
    pull request's branch — never open a second pull request. This applies to
    full-path spec PRs and single-PR-path (fast-path) spec PRs alike. On a
    single-PR-path spec PR whose tracking issue carries the `sdd:approved`
-   marker (a `/approve` was recorded while the spec PR was open, ADR 0023),
+   marker (a `/approve` was recorded while the spec PR was open, ADR 0024),
    the revision invalidates the recorded approval — see the `/revise`
    branch of step 7.
 5. **A write-access author commented `/revise <note>` on a fast-path
@@ -198,7 +198,7 @@ one applies from the workflow context before doing anything else.
    marker (a `/approve` was recorded while the spec PR was open), the
    wrapper handles the merge deterministically — it dispatches the single
    `sdd-execute-{tier}` run, clears `sdd:approved`, and advances the
-   lifecycle to `sdd:in-progress` without invoking this agent (ADR 0023);
+   lifecycle to `sdd:in-progress` without invoking this agent (ADR 0024);
    this situation therefore only ever reaches this agent on a merge with
    no prior approval. If a
    merged pull request that is not a spec pull request is nonetheless seen
@@ -237,7 +237,7 @@ posts one clarifying-questions comment, applies `needs-human`, and exits
 `noop`. It never guesses and never authors a partial spec.
 
 For a tracking issue that fits the single-PR classifier (ADR 0012 as
-widened by ADR 0023, step 3a), this agent
+widened by ADR 0024, step 3a), this agent
 posts one proposal comment on the tracking issue and stops (no spec PR
 yet). On `/fastpath` or `/agile` confirmation (the wrapper has moved the
 lifecycle to
@@ -248,7 +248,7 @@ R-IDs, 1–3 proof artifacts per unit, an optional Design-notes section)
 otherwise — and an **execution plan comment** on the tracking
 issue carrying the `[sdd-spec:fastpath-plan]` sentinel, naming one task
 that spans the whole feature. The
-lifecycle moves to `sdd:fastpath-review` (ADR 0012, ADR 0023).
+lifecycle moves to `sdd:fastpath-review` (ADR 0012, ADR 0024).
 
 On a `/revise` on a fast-path tracking issue between the plan-comment and
 `/approve`, it posts a new plan comment carrying the same sentinel and
@@ -348,7 +348,7 @@ hand off per the interaction contract.
 ### 3a. Classify for the single-PR (agile) path
 
 Before authoring anything, classify the work against the single-PR
-criteria from ADR 0023, which widens the ADR 0012 fast-path classifier.
+criteria from ADR 0024, which widens the ADR 0012 fast-path classifier.
 The classifier runs only on situations 1 and 2
 above when the tracking issue's current lifecycle label is `sdd:spec`
 and the tracking issue does not yet carry `sdd:fastpath` or
@@ -391,7 +391,7 @@ SDD_AGILE_MAX = ${{ inputs.agile_max }}
 
 A blank value means the variable is unset — use 800.
 
-Two ADR 0012 heuristics are **deliberately relaxed** here (ADR 0023):
+Two ADR 0012 heuristics are **deliberately relaxed** here (ADR 0024):
 the 1–2-file scope cap and the "no new public API surface" rule. Both
 are safe to relax because the single-PR path ships the consumer of any
 new surface in the same pull request, which makes the dead-code failure
@@ -744,7 +744,7 @@ replaces steps 5, 6, and 7 above for the single-PR (fast-path) flow.
 
 The spec it authors comes in two depths, chosen by the step-3a
 spec-depth signal: a **stub spec** when the work also fits all six
-ADR 0012 heuristics, a **light spec** otherwise (ADR 0023). When this
+ADR 0012 heuristics, a **light spec** otherwise (ADR 0024). When this
 branch was entered without a step-3a run in the same session (a label
 gain or an up-front `/fastpath`), evaluate the six old heuristics now
 to pick the depth. Either way the result stays a file in a PR — a
@@ -792,7 +792,7 @@ sub-steps below note where plan-lift mode differs.
      0012)."
 
    **Light depth** (the work fits the single-PR criteria but not all
-   six old heuristics — ADR 0023). The light spec scales the stub up
+   six old heuristics — ADR 0024). The light spec scales the stub up
    without becoming a full spec:
    - A problem statement and motivation, as in the stub.
    - **Multiple demoable units**, split as the work naturally falls;
@@ -812,7 +812,7 @@ sub-steps below note where plan-lift mode differs.
    - A single-line note where the architecture cross-link would
      normally sit: "Single-PR path: no separate architecture record;
      see Design notes; the implementation plan is in the tracking
-     issue comment (ADR 0023)."
+     issue comment (ADR 0024)."
 
    **Both depths:**
    - **No architecture record is produced.** Do not author an
@@ -842,7 +842,7 @@ sub-steps below note where plan-lift mode differs.
    tracking issue to dispatch the implementation — or, equivalently,
    the human comments `/approve` while this PR is still open, which
    records the approval (`sdd:approved`) and lets the merge dispatch
-   the implementation; merge and approve commute (ADR 0023).
+   the implementation; merge and approve commute (ADR 0024).
 
 4. **Post the execution plan as a comment on the tracking issue.**
    Emit one `add-comment` on the tracking issue whose first line is
@@ -894,7 +894,7 @@ plan-comment and the dispatch, do **not** re-author the spec and do
   plan comment as `OUTDATED`, so the latest plan is the only active
   one a reader sees.
 - When the tracking issue carries the `sdd:approved` marker (a
-  `/approve` was recorded while the spec PR was open, ADR 0023),
+  `/approve` was recorded while the spec PR was open, ADR 0024),
   remove the `sdd:approved` label (`remove-labels`): the plan the
   human approved is no longer the plan that would dispatch, so
   re-approval is required after the revision. The marker is
@@ -930,7 +930,7 @@ merge.
     merge. A merge on a tracking issue carrying `sdd:approved` is
     handled deterministically by the wrapper (dispatch, marker
     cleared, lifecycle advanced) and never reaches this agent
-    (ADR 0023).
+    (ADR 0024).
   - Remove the `sdd:fastpath-review` label (`remove-labels`) and apply
     the `sdd:fastpath` label (`add-labels`).
   - Post one comment on the tracking issue: note that the spec is
@@ -1065,7 +1065,7 @@ untouched sections:
 - Merging a single-PR-path spec pull request whose tracking issue
   carries `sdd:approved` never reaches this agent: the wrapper
   dispatches `sdd-execute-{tier}` deterministically, clears the marker,
-  and advances the lifecycle to `sdd:in-progress` (ADR 0023).
+  and advances the lifecycle to `sdd:in-progress` (ADR 0024).
 - A `/spec` comment on a tracking issue currently at `sdd:fastpath` or
   `sdd:fastpath-review` resets the lifecycle to `sdd:spec` and runs the
   full-path flow with the existing stub spec as the starting point.

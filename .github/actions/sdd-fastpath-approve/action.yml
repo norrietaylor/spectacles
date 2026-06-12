@@ -1,7 +1,7 @@
 name: sdd-fastpath-approve
 description: >
   Deterministic single-PR-path approval handler for sdd-spec (ADR 0012,
-  amended by ADR 0023). In 'approve' mode it handles /approve on a fast-path
+  amended by ADR 0024). In 'approve' mode it handles /approve on a fast-path
   tracking issue: with the spec PR merged (sdd:fastpath) it finds the latest
   execution-plan comment, parses its model tier, dispatches the matching
   sdd-execute-{tier} variant with entry: fastpath, and advances the lifecycle;
@@ -12,7 +12,7 @@ description: >
   the same dispatch and clears the marker. In 'clear' mode (the spec PR closed
   without merging) it removes the stale sdd:approved marker. In 'legacy' mode
   (the default, taken by old consumer wrappers that pass no mode) the
-  open-spec-PR branch posts the pre-ADR-0023 merge-first guidance comment and
+  open-spec-PR branch posts the pre-ADR-0024 merge-first guidance comment and
   records nothing; the merged-state dispatch is unchanged. Extracted
   verbatim (ADR 0015). The caller mints the App token and passes it as
   github-token.
@@ -29,7 +29,7 @@ inputs:
       One of 'approve' (an /approve comment arrived; record-and-arm when the
       spec PR is still open), 'merged' (the spec PR merged while sdd:approved
       was present; dispatch now), 'clear' (the spec PR closed without merging;
-      drop the stale sdd:approved marker), or 'legacy' (pre-ADR-0023
+      drop the stale sdd:approved marker), or 'legacy' (pre-ADR-0024
       behavior: /approve while the spec PR is open posts the merge-first
       guidance comment and records nothing). The default is 'legacy', NOT
       'approve': old consumer wrappers pin this action @main and pass no
@@ -67,7 +67,7 @@ runs:
             // 'clear' mode: the spec PR closed without merging, so a
             // recorded approval no longer refers to a mergeable spec.
             // Drop the marker and tell the human re-approval is needed
-            // once a new spec PR is up (ADR 0023).
+            // once a new spec PR is up (ADR 0024).
             if (mode === 'clear') {
               try {
                 await github.rest.issues.removeLabel({
@@ -88,7 +88,7 @@ runs:
                   body: 'The spec pull request closed without merging, so'
                     + ' the recorded `/approve` (`sdd:approved`) has been'
                     + ' cleared. Re-approve once a new spec PR is open or'
-                    + ' merged (ADR 0023).',
+                    + ' merged (ADR 0024).',
                 });
               } catch (e) {
                 core.info('Could not post clear comment: ' + e.message);
@@ -128,7 +128,7 @@ runs:
             // here would deadlock: the new sdd-route-spec suppresses the
             // agent when the marker is present on the merged spec PR,
             // and the old wrapper has no job to dispatch instead. So
-            // degrade gracefully to the pre-ADR-0023 behavior: post the
+            // degrade gracefully to the pre-ADR-0024 behavior: post the
             // merge-first guidance comment and record nothing. The
             // merged-state dispatch below is unchanged for legacy mode.
             if (mode === 'legacy'
@@ -162,7 +162,7 @@ runs:
             // consumer runs SDD_AUTO_MERGE — arm squash auto-merge on the
             // open spec PR. The spec PR's merge event then dispatches via
             // 'merged' mode, so /approve-then-merge and merge-then-/approve
-            // are commutative (ADR 0023; this replaces the former
+            // are commutative (ADR 0024; this replaces the former
             // ordering-refusal branch).
             if (mode === 'approve'
                 && issueLabels.includes('sdd:fastpath-review')
@@ -238,10 +238,10 @@ runs:
                   ? ' Squash auto-merge is armed on the open spec PR;'
                     + ' once it merges, the implementation dispatches'
                     + ' automatically against the execution plan comment'
-                    + ' (ADR 0023).'
+                    + ' (ADR 0024).'
                   : ' Merge the open spec PR to dispatch the'
                     + ' implementation against the execution plan comment'
-                    + ' (ADR 0023).'
+                    + ' (ADR 0024).'
                     + (autoMergeWanted
                       ? ' (Auto-merge could not be armed on this'
                         + ' repository; merging by hand still dispatches.)'
@@ -249,7 +249,7 @@ runs:
               } else {
                 body += ' No open spec PR was found for this tracking'
                   + ' issue; once the spec PR merges, the implementation'
-                  + ' dispatches automatically (ADR 0023).';
+                  + ' dispatches automatically (ADR 0024).';
               }
               try {
                 await github.rest.issues.createComment({

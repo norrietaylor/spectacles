@@ -490,6 +490,7 @@ jobs:
           | `/dispatch` | tracking issue, in `sdd:ready` or `sdd:in-progress` (full path) | arm cascade execution of every task in the feature's task tree; on a fast-path tracking issue carrying `sdd:fastpath` or `sdd:fastpath-review`, `/dispatch` is a noop with a one-comment explanation pointing at `/approve`; on a fast-path `sdd:in-progress` tracking issue, `/dispatch` is a noop with a one-comment explanation that execution is already running and `/approve` should not be used again (ADR 0012) |
           | `/revise <note>` | spec PR, architecture PR, tracking issue, or implementation PR | re-run the owning agent with the note as an added instruction |
           | `/execute` | a task sub-issue | trigger `sdd-execute` for that task immediately, outside the cascade |
+          | `/status` | tracking issue, or any sub-issue under one | force-refresh the deterministic `sdd-status` comment — the one self-updating status surface per tracking issue, located by its `` sentinel and edited in place; the ack is an eyes reaction on the command comment, never a new comment (issue #254) |
           
           Merging the spec PR advances to the architecture phase; merging the
           architecture PR advances to a plan-comment phase. `/approve` is the one

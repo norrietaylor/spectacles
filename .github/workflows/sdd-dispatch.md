@@ -137,7 +137,7 @@ The two triggers the dispatcher handles:
    With the consumer's optional `SDD_AUTO_DISPATCH` variable set, the
    tracking issue gaining `sdd:ready` (phase C completion) routes as
    this same trigger automatically — tracking issues only, and only
-   when the task tree has materialized (ADR 0024). `/dispatch` remains
+   when the task tree has materialized (ADR 0025). `/dispatch` remains
    the manual command and, via removing and re-arming `sdd:dispatched`,
    the pause/resume control.
 2. **A task sub-issue closed under a `sdd:dispatched` tracking issue.**
