@@ -1,4 +1,4 @@
-# gh-aw-metadata: {"schema_version":"v4","frontmatter_hash":"49547ef9f7f381d54b6140606bc9ee6c4bb21b134dab3f1ec4e6286b9423ef5d","body_hash":"149fe9c18ee2f7d6379adec3a0cdaf8b984f6bb484255418e68e19d29c26983a","compiler_version":"v0.77.5","agent_id":"copilot","agent_model":"claude-sonnet-4.6"}
+# gh-aw-metadata: {"schema_version":"v4","frontmatter_hash":"f7a57c60ab62b6a70cdefc974b798decc4dc93a7b930029c7719e4c6fb2e6e64","body_hash":"391c7903f38cdc520118677f3f192b5268206ffe2a73c8bbeccecae207c2cf22","compiler_version":"v0.77.5","agent_id":"copilot","agent_model":"claude-sonnet-4.6"}
 # gh-aw-manifest: {"version":1,"secrets":["APP_PRIVATE_KEY","COPILOT_GITHUB_TOKEN","GH_AW_CI_TRIGGER_TOKEN","GH_AW_GITHUB_MCP_SERVER_TOKEN","GH_AW_GITHUB_TOKEN","GH_AW_OTEL_ENDPOINT","GITHUB_TOKEN"],"actions":[{"repo":"actions/checkout","sha":"de0fac2e4500dabe0009e67214ff5f5447ce83dd","version":"v6.0.2"},{"repo":"actions/create-github-app-token","sha":"bcd2ba49218906704ab6c1aa796996da409d3eb1","version":"v3.2.0"},{"repo":"actions/download-artifact","sha":"3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c","version":"v8.0.1"},{"repo":"actions/github-script","sha":"3a2844b7e9c422d3c10d287c895573f7108da1b3","version":"v9.0.0"},{"repo":"actions/setup-node","sha":"48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e","version":"v6.4.0"},{"repo":"actions/upload-artifact","sha":"043fb46d1a93c77aae656e7c1c64a875d1fc6a0a","version":"v7.0.1"},{"repo":"dtolnay/rust-toolchain","sha":"29eef336d9b2848a0b548edc03f92a220660cdb8","version":"29eef336d9b2848a0b548edc03f92a220660cdb8"},{"repo":"github/gh-aw-actions/setup","sha":"3ea13c02d765410340d533515cb31a7eef2baaf0","version":"v0.77.5"}],"containers":[{"image":"ghcr.io/github/gh-aw-firewall/agent:0.25.58"},{"image":"ghcr.io/github/gh-aw-firewall/api-proxy:0.25.58"},{"image":"ghcr.io/github/gh-aw-firewall/squid:0.25.58"},{"image":"ghcr.io/github/gh-aw-mcpg:v0.3.22"},{"image":"ghcr.io/github/github-mcp-server:v1.1.0"},{"image":"ghcr.io/github/serena-mcp-server:latest","digest":"sha256:bf343399e3725c45528f531a230f3a04521d4cdef29f9a5af6282ff0d3c393c5","pinned_image":"ghcr.io/github/serena-mcp-server:latest@sha256:bf343399e3725c45528f531a230f3a04521d4cdef29f9a5af6282ff0d3c393c5"},{"image":"mcr.microsoft.com/playwright/mcp:v0.0.75"},{"image":"node:lts-alpine","digest":"sha256:2bdb65ed1dab192432bc31c95f94155ca5ad7fc1392fb7eb7526ab682fa5bf14","pinned_image":"node:lts-alpine@sha256:2bdb65ed1dab192432bc31c95f94155ca5ad7fc1392fb7eb7526ab682fa5bf14"}]}
 #    ___                   _   _      
 #   / _ \                 | | (_)     
@@ -250,24 +250,24 @@ jobs:
         run: |
           bash "${RUNNER_TEMP}/gh-aw/actions/create_prompt_first.sh"
           {
-          cat << 'GH_AW_PROMPT_eb79e7c0a012e11e_EOF'
+          cat << 'GH_AW_PROMPT_ce8a87528cd1dab3_EOF'
           <system>
-          GH_AW_PROMPT_eb79e7c0a012e11e_EOF
+          GH_AW_PROMPT_ce8a87528cd1dab3_EOF
           cat "${RUNNER_TEMP}/gh-aw/prompts/xpia.md"
           cat "${RUNNER_TEMP}/gh-aw/prompts/temp_folder_prompt.md"
           cat "${RUNNER_TEMP}/gh-aw/prompts/markdown.md"
           cat "${RUNNER_TEMP}/gh-aw/prompts/safe_outputs_prompt.md"
-          cat << 'GH_AW_PROMPT_eb79e7c0a012e11e_EOF'
+          cat << 'GH_AW_PROMPT_ce8a87528cd1dab3_EOF'
           <safe-output-tools>
           Tools: add_comment, update_issue, create_pull_request, add_labels(max:2), remove_labels(max:2), push_to_pull_request_branch, missing_tool, missing_data, noop
-          GH_AW_PROMPT_eb79e7c0a012e11e_EOF
+          GH_AW_PROMPT_ce8a87528cd1dab3_EOF
           cat "${RUNNER_TEMP}/gh-aw/prompts/safe_outputs_create_pull_request.md"
           cat "${RUNNER_TEMP}/gh-aw/prompts/safe_outputs_push_to_pr_branch.md"
-          cat << 'GH_AW_PROMPT_eb79e7c0a012e11e_EOF'
+          cat << 'GH_AW_PROMPT_ce8a87528cd1dab3_EOF'
           </safe-output-tools>
-          GH_AW_PROMPT_eb79e7c0a012e11e_EOF
+          GH_AW_PROMPT_ce8a87528cd1dab3_EOF
           cat "${RUNNER_TEMP}/gh-aw/prompts/mcp_cli_tools_prompt.md"
-          cat << 'GH_AW_PROMPT_eb79e7c0a012e11e_EOF'
+          cat << 'GH_AW_PROMPT_ce8a87528cd1dab3_EOF'
           <github-context>
           The following GitHub context information is available for this workflow:
           {{#if github.actor}}
@@ -296,9 +296,9 @@ jobs:
           {{/if}}
           </github-context>
           
-          GH_AW_PROMPT_eb79e7c0a012e11e_EOF
+          GH_AW_PROMPT_ce8a87528cd1dab3_EOF
           cat "${RUNNER_TEMP}/gh-aw/prompts/github_mcp_tools_with_safeoutputs_prompt.md"
-          cat << 'GH_AW_PROMPT_eb79e7c0a012e11e_EOF'
+          cat << 'GH_AW_PROMPT_ce8a87528cd1dab3_EOF'
           </system>
           # Core principles
           
@@ -1249,23 +1249,27 @@ jobs:
           
           This step runs only on the fast-path entry (situation 1a,
           `aw_context.entry == 'fastpath'`). The classifier in `sdd-spec` checked
-          six heuristics before posting the proposal: file scope ≤ 1–2 files, no
-          new dependency, no schema change, no new public API surface, no
-          cross-cutting concern, no test-suite scaffolding required (ADR 0012
-          §1).
+          the single-PR criteria before posting the proposal: estimated net diff
+          within the consumer's `SDD_AGILE_MAX` ceiling (default 800), no new
+          external dependency, no schema or data-format migration, no
+          cross-cutting boundary change, no decision meriting an ADR (ADR 0012
+          §1 as widened by ADR 0024; file count and new public API surface are
+          soft guidance only, because the consumer ships in this same PR).
           
           After the initial Serena read in step 4 and a first pass at the work,
-          re-check those heuristics against the post-context reality of the
-          change: how many files did the implementation actually need to touch?
-          Does the stub spec's R-IDs cover the work? Did any cross-cutting
+          re-check those criteria against the post-context reality of the
+          change, and against the approved execution plan: did the files-in-scope
+          or the estimated diff explode past what the plan promised?
+          Do the spec's R-IDs (stub or light) cover the work? Did any
+          cross-cutting
           boundary (auth, telemetry, logging, error handling) get touched? Did
-          the change need a new dependency, a schema migration, or a new public
-          API? If **any** of the six heuristics now fails materially, the
+          the change need a new dependency, a schema migration, or an ADR-worthy
+          decision? If **any** of those criteria now fails materially, the
           classification was wrong:
           
           - Apply `needs-human` to the **tracking issue** (`add-labels`).
           - Post exactly one comment (`add-comment`) on the tracking issue
-            naming the specific failed heuristic(s) — for example, "file scope
+            naming the specific failed criterion or criteria — for example, "file scope
             grew from 2 to 11; spans the auth boundary; requires a new
             dependency".
           - Leave the implementation PR in place if one is already open (do not
@@ -1282,7 +1286,7 @@ jobs:
           `sdd:in-progress` once this agent has moved the issue there, or
           `sdd:fastpath`/`sdd:fastpath-review` if the escalation arrives
           before that move — and adds `sdd:spec`, then runs the full pipeline
-          with the stub spec as the starting point).
+          with the existing spec (stub or light) as the starting point).
           
           The threshold is "materially bigger than fast-path assumed," not
           "strictly perfect heuristic match." A one-line spillover is not an
@@ -1737,7 +1741,7 @@ jobs:
             moves to `sdd:done` and gains `needs-human`, and the tracking issue is not
             closed by the agent.
           
-          GH_AW_PROMPT_eb79e7c0a012e11e_EOF
+          GH_AW_PROMPT_ce8a87528cd1dab3_EOF
           } > "$GH_AW_PROMPT"
       - name: Interpolate variables and render templates
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
@@ -1964,9 +1968,9 @@ jobs:
           mkdir -p "${RUNNER_TEMP}/gh-aw/safeoutputs"
           mkdir -p /tmp/gh-aw/safeoutputs
           mkdir -p /tmp/gh-aw/mcp-logs/safeoutputs
-          cat > "${RUNNER_TEMP}/gh-aw/safeoutputs/config.json" << 'GH_AW_SAFE_OUTPUTS_CONFIG_5280f898c9f83cfd_EOF'
+          cat > "${RUNNER_TEMP}/gh-aw/safeoutputs/config.json" << 'GH_AW_SAFE_OUTPUTS_CONFIG_42d503217a865a24_EOF'
           {"add_comment":{"max":1},"add_labels":{"allowed":["sdd:in-progress","sdd:done","needs-human"],"max":2},"create_pull_request":{"draft":false,"max":1,"max_patch_files":100,"max_patch_size":1024,"protect_top_level_dot_folders":true,"protected_files":["bun.lockb","bunfig.toml","deno.json","deno.jsonc","deno.lock","global.json","NuGet.Config","Directory.Packages.props","mix.exs","mix.lock","go.mod","go.sum","stack.yaml","stack.yaml.lock","pom.xml","build.gradle","build.gradle.kts","settings.gradle","settings.gradle.kts","gradle.properties","requirements.txt","Pipfile","Pipfile.lock","setup.py","setup.cfg","Gemfile","Gemfile.lock","uv.lock","CODEOWNERS","DESIGN.md","README.md","CONTRIBUTING.md","CHANGELOG.md","SECURITY.md","CODE_OF_CONDUCT.md","AGENTS.md","CLAUDE.md","GEMINI.md"],"protected_files_policy":"fallback-to-issue"},"create_report_incomplete_issue":{},"missing_data":{},"missing_tool":{},"noop":{"max":1,"report-as-issue":"true"},"push_to_pull_request_branch":{"if_no_changes":"warn","max":1,"max_patch_size":1024,"protect_top_level_dot_folders":true,"protected_files":["bun.lockb","bunfig.toml","deno.json","deno.jsonc","deno.lock","global.json","NuGet.Config","Directory.Packages.props","mix.exs","mix.lock","go.mod","go.sum","stack.yaml","stack.yaml.lock","pom.xml","build.gradle","build.gradle.kts","settings.gradle","settings.gradle.kts","gradle.properties","requirements.txt","Pipfile","Pipfile.lock","setup.py","setup.cfg","Gemfile","Gemfile.lock","uv.lock","CODEOWNERS","DESIGN.md","README.md","CONTRIBUTING.md","CHANGELOG.md","SECURITY.md","CODE_OF_CONDUCT.md","AGENTS.md","CLAUDE.md","GEMINI.md"]},"remove_labels":{"allowed":["sdd:ready","sdd:review","sdd:fastpath","sdd:in-progress"],"max":2},"report_incomplete":{},"update_issue":{"allow_body":true,"allow_status":true,"max":1,"target":"*"}}
-          GH_AW_SAFE_OUTPUTS_CONFIG_5280f898c9f83cfd_EOF
+          GH_AW_SAFE_OUTPUTS_CONFIG_42d503217a865a24_EOF
       - name: Generate Safe Outputs Tools
         env:
           GH_AW_TOOLS_META_JSON: |
@@ -2318,7 +2322,7 @@ jobs:
           
           mkdir -p /home/runner/.copilot
           GH_AW_NODE=$(which node 2>/dev/null || command -v node 2>/dev/null || echo node)
-          cat << GH_AW_MCP_CONFIG_dec4f367f0d8bed8_EOF | "$GH_AW_NODE" "${RUNNER_TEMP}/gh-aw/actions/start_mcp_gateway.cjs"
+          cat << GH_AW_MCP_CONFIG_bc47911e06f6a9c1_EOF | "$GH_AW_NODE" "${RUNNER_TEMP}/gh-aw/actions/start_mcp_gateway.cjs"
           {
             "mcpServers": {
               "github": {
@@ -2444,7 +2448,7 @@ jobs:
               }
             }
           }
-          GH_AW_MCP_CONFIG_dec4f367f0d8bed8_EOF
+          GH_AW_MCP_CONFIG_bc47911e06f6a9c1_EOF
       - name: Mount MCP servers as CLIs
         id: mount-mcp-clis
         continue-on-error: true

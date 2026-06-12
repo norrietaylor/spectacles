@@ -134,6 +134,12 @@ The two triggers the dispatcher handles:
    out to `sdd-execute` variants, applies `sdd:dispatched` on the tracking
    issue, and on the first dispatch moves the tracking issue from
    `sdd:ready` to `sdd:in-progress`. This is the explicit human start.
+   With the consumer's optional `SDD_AUTO_DISPATCH` variable set, the
+   tracking issue gaining `sdd:ready` (phase C completion) routes as
+   this same trigger automatically — tracking issues only, and only
+   when the task tree has materialized (ADR 0025). `/dispatch` remains
+   the manual command and, via removing and re-arming `sdd:dispatched`,
+   the pause/resume control.
 2. **A task sub-issue closed under a `sdd:dispatched` tracking issue.**
    The route job walks the closed sub-issue's parent chain (task → Unit →
    tracking issue per ADR 0005) and only proceeds when the tracking issue

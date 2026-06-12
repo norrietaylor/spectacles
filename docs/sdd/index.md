@@ -13,7 +13,7 @@ no new tool to install and no separate task board.
 
 | Agent | Turns | Into |
 |---|---|---|
-| `sdd-spec` | a tracking issue | full path: a structured spec, delivered as a PR. Fast path: a stub spec PR plus a single execution-plan comment on the tracking issue (ADR 0012) |
+| `sdd-spec` | a tracking issue | full path: a structured spec, delivered as a PR. Single-PR (agile/fast) path: a stub or light spec PR plus a single execution-plan comment on the tracking issue (ADR 0012, ADR 0024) |
 | `sdd-triage` | a merged spec | an architecture record, then a task graph of sub-issues |
 | `sdd-dispatch` | `/dispatch` on a tracking issue, or a task sub-issue closing | fan-out of ready tasks to `sdd-execute` variants, bounded by `max-parallel` (noop on fast-path issues) |
 | `sdd-execute` | a ready task sub-issue, or a fast-path tracking issue on `/approve` | an implementation PR with proof artifacts |
@@ -37,15 +37,29 @@ in a bounded matrix; it then re-fires on every task close until the tree
 is drained. Execution is fully event-driven (ADR 0011): there is no daily
 cron.
 
-`sdd-spec` has two modes: full-path (the default) and fast-path. On
-intake it classifies the work against six heuristics and, when all pass,
-posts a proposal asking the human to comment `/fastpath` to confirm or
-`/spec` to keep the full flow (ADR 0012). On `/fastpath` it produces a
-compressed stub spec PR plus a single execution-plan comment on the
-tracking issue; the human merges the stub and comments `/approve` to
-dispatch the implementation directly. Two extra lifecycle labels —
-`sdd:fastpath` and `sdd:fastpath-review` — mark the fast-path states.
-`/dispatch` is a noop on a fast-path tracking issue (the fan-out is
+`sdd-spec` has two modes: full-path (the default) and the single-PR
+(agile/fast) path. On
+intake it classifies the work against the single-PR criteria (ADR 0024,
+widening ADR 0012): estimated net diff at or under `SDD_AGILE_MAX`
+(default 800), no new external dependency, no schema/data-format
+migration, no cross-cutting boundary change, no ADR-worthy decision.
+When all pass, it
+posts a proposal asking the human to comment `/agile` (or `/fastpath`)
+to confirm or
+`/spec` to keep the full flow. On confirmation it produces a
+spec PR — a compressed stub for trivial work, a light spec (multiple
+units, full R-IDs, optional Design notes) for anything larger — plus a
+single execution-plan comment on the
+tracking issue; one `/approve` then dispatches the implementation:
+typed after the spec PR merges it dispatches directly, typed while the
+spec PR is still open it records the `sdd:approved` marker — and, when
+the consumer sets `SDD_AUTO_MERGE`, also arms squash auto-merge —
+so the merge dispatches (merge and approve commute; with
+`SDD_AUTO_MERGE` unset the human merges the spec PR by hand and the
+merge still dispatches).
+Two extra lifecycle labels —
+`sdd:fastpath` and `sdd:fastpath-review` — mark the single-PR states.
+`/dispatch` is a noop on a single-PR tracking issue (the fan-out is
 unused).
 
 ## End-to-end flow
@@ -70,15 +84,15 @@ flowchart TD
     open([Human: open a feature or bug issue<br/>the template applies sdd:spec]):::human
 
     subgraph s_spec [Tracking issue state: sdd:spec]
-        a_classify[sdd-spec classifies the issue<br/>full path: draft a spec<br/>fast path: post a /fastpath proposal]:::agent
+        a_classify[sdd-spec classifies the issue<br/>full path: draft a spec<br/>single-PR path: post an /agile proposal]:::agent
         a_spec[sdd-spec drafts the spec<br/>opens a spec sub-issue and a spec PR]:::agent
         h_spec([Human: review and merge the spec PR<br/>the spec sub-issue closes on merge]):::human
     end
 
-    subgraph s_fast [Fast path: sdd:fastpath then sdd:fastpath-review]
-        h_fast([Human: comment /fastpath]):::human
-        a_fast[sdd-spec: stub spec PR + execution plan comment]:::agent
-        h_fast_merge([Human: review and merge the stub spec PR]):::human
+    subgraph s_fast [Single-PR path: sdd:fastpath then sdd:fastpath-review]
+        h_fast([Human: comment /agile or /fastpath]):::human
+        a_fast[sdd-spec: stub or light spec PR + execution plan comment]:::agent
+        h_fast_merge([Human: review and merge the spec PR<br/>or /approve first: sdd:approved arms auto-merge<br/>and the merge dispatches - either order works]):::human
         h_approve_fast([Human: comment /approve]):::human
     end
 
@@ -101,7 +115,7 @@ flowchart TD
     end
 
     subgraph s_dispatch [Tracking issue state: sdd:ready, awaiting /dispatch]
-        h_dispatch([Human: comment /dispatch on the tracking issue]):::human
+        h_dispatch([Human: comment /dispatch on the tracking issue<br/>or automatic with SDD_AUTO_DISPATCH=1]):::human
         a_dispatch[sdd-dispatch computes the ready set and fans out to<br/>sdd-execute variants, bounded by max-parallel<br/>re-fires on every task close until the tree drains]:::agent
     end
 
@@ -121,8 +135,9 @@ flowchart TD
 
     open --> a_classify
     a_classify -->|full path| a_spec --> h_spec --> h_triage --> a_arch --> h_arch
-    a_classify -->|fast-path proposal| h_fast
+    a_classify -->|single-PR proposal| h_fast
     h_fast --> a_fast --> h_fast_merge --> h_approve_fast --> a_exec
+    h_fast_merge -->|approved before merge: merge dispatches| a_exec
     h_arch -->|needs-spike residue: pre-plan spike wave| a_spikewave
     a_spikewave --> a_actuator --> a_spikedoc --> a_spikeval
     a_spikeval -->|proved: sdd:spike-resolved on the spike sub-issue| a_reentry
@@ -158,7 +173,7 @@ flowchart TD
 | 4. Review the architecture PR | you | Read the architecture record, comment, and merge it. Merging triggers phase B. | `sdd:triage` |
 | 5. Approve the plan | you | `sdd-triage` posts the proposed plan as a comment on the tracking issue. Comment `/approve` to materialize it, or `/revise <note>` to amend. | `sdd:triage` |
 | 6. Tree is created | `sdd-triage` | Phase C creates Unit sub-issues and sub-task issues together, each with its scope, proof artifacts, and a `model:*` tier label. | `sdd:ready` |
-| 6a. Dispatch the plan | you | Comment `/dispatch` on the tracking issue. `sdd-dispatch` arms the cascade: it computes the ready set from the dependency graph, fans out `sdd-execute` runs in a bounded matrix (`SDD_DISPATCH_MAX_PARALLEL`, default 5), and re-fires on every task close until the tree is drained. | `sdd:in-progress` |
+| 6a. Dispatch the plan | you | Comment `/dispatch` on the tracking issue — or set `SDD_AUTO_DISPATCH=1` and phase C completion arms the cascade automatically (ADR 0025; `/dispatch` stays the manual command and, via `sdd:dispatched`, the pause/resume control). `sdd-dispatch` arms the cascade: it computes the ready set from the dependency graph, fans out `sdd-execute` runs in a bounded matrix (`SDD_DISPATCH_MAX_PARALLEL`, default 5), and re-fires on every task close until the tree is drained. | `sdd:in-progress` |
 | 7. Tasks are implemented | `sdd-execute` | Each dispatched task: `sdd-execute` picks it up via `workflow_dispatch` from the cascade and opens an implementation PR. A human may also comment `/execute` on a task to run it immediately, outside the cascade. | `sdd:in-progress` |
 | 8. Validation runs | `sdd-validate` | At each phase boundary, `sdd-validate` posts advisory findings as a comment. A clean implementation pass moves the issue to `sdd:review`. | `sdd:review` |
 | 9. Code review runs | `sdd-review` | `sdd-review` posts review comments on the implementation PR. You read them and decide. | `sdd:review` |
@@ -169,35 +184,41 @@ single comment on the tracking issue, so a `/revise <note>` is cheap:
 `sdd-triage` re-posts the plan with the note applied and there is no tree
 to garbage-collect. ADR 0010 records the gate semantics.
 
-### Fast-path steps
+### Single-PR (agile) path steps
 
-The fast-path flow (ADR 0012) compresses spec, architecture, and plan
-into one agent run for single-session work. The steps below run in
+The single-PR flow (ADR 0012, generalized by ADR 0024) compresses
+spec, architecture, and plan
+into one agent run for work that fits in one implementation PR. The
+steps below run in
 place of the full table above when the tracking issue's lifecycle
-forks off to `sdd:fastpath` after `/fastpath`.
+forks off to `sdd:fastpath` after `/agile` or `/fastpath`.
 
 | Step | Who acts | What happens | Lifecycle label |
 |---|---|---|---|
 | 1. Open the issue | you | Open from the `feature` or `bug` template (same as the full path). | `sdd:spec` |
-| 2. Classify | `sdd-spec` | The agent reads the issue, checks six fast-path heuristics, and posts one proposal comment asking for `/fastpath` (small change) or `/spec` (full flow). Silence means the full flow runs. | `sdd:spec` |
-| 3. Confirm fast-path | you | Comment `/fastpath` on the tracking issue. The wrapper moves the lifecycle to `sdd:fastpath` and re-invokes `sdd-spec`. | `sdd:fastpath` |
-| 4. Author the stub | `sdd-spec` | One run produces a stub spec PR (problem statement, R-IDs, proof artifacts, one Unit) and an execution plan comment on the tracking issue. | `sdd:fastpath-review` |
-| 5. Merge the stub spec PR | you | Review and merge. The spec sub-issue closes via the existing `Closes` keyword. | `sdd:fastpath` |
-| 6. Approve and dispatch | you | Comment `/approve` on the tracking issue. The `sdd-spec` wrapper finds the plan comment, parses the `model:*` tier, and dispatches one `sdd-execute-{tier}` against the plan. No Unit or task sub-issues are created. | `sdd:in-progress` |
+| 2. Classify | `sdd-spec` | The agent reads the issue, checks the single-PR criteria (estimated diff ≤ `SDD_AGILE_MAX`, no new external dependency, no schema/data-format migration, no cross-cutting boundary change, no ADR-worthy decision), and posts one proposal comment asking for `/agile` (or `/fastpath`) or `/spec` (full flow). Silence means the full flow runs. | `sdd:spec` |
+| 3. Confirm the single-PR path | you | Comment `/agile` (or `/fastpath`) on the tracking issue. The wrapper moves the lifecycle to `sdd:fastpath` and re-invokes `sdd-spec`. | `sdd:fastpath` |
+| 4. Author the spec | `sdd-spec` | One run produces a spec PR — a stub (problem statement, R-IDs, proof artifacts, one Unit) for trivial work, a light spec (multiple units, full R-IDs, 1–3 proof artifacts per unit, optional Design notes) otherwise — and an execution plan comment on the tracking issue naming one task that spans the feature. | `sdd:fastpath-review` |
+| 5. Merge the spec PR | you | Review and merge. The spec sub-issue closes via the existing `Closes` keyword. Or comment `/approve` first: the approval is recorded as the `sdd:approved` marker, squash auto-merge is armed (with `SDD_AUTO_MERGE`), and the merge dispatches — merge and approve commute (ADR 0024). | `sdd:fastpath` |
+| 6. Approve and dispatch | you | Comment `/approve` on the tracking issue (skip if you approved in step 5 — the merge already dispatched). The `sdd-spec` wrapper finds the plan comment, parses the `model:*` tier, and dispatches one `sdd-execute-{tier}` against the plan. No Unit or task sub-issues are created. | `sdd:in-progress` |
 | 7. Implementation runs | `sdd-execute` | The variant opens one implementation PR with proof artifacts. `sdd-validate` and `sdd-review` run as on the full path; the absence of an architecture record and a sub-task tree is not a finding. | `sdd:in-progress` |
 | 8. Merge and close | you | Merge the implementation PR. `sdd-execute` moves the tracking issue to `sdd:done` and applies `needs-human` for your final close. | `sdd:done` |
 
-`/dispatch` on a fast-path tracking issue is a noop with a one-comment
+`/dispatch` on a single-PR tracking issue is a noop with a one-comment
 explanation pointing to `/approve`. A `/revise <note>` between the
-execution plan comment and `/approve` edits the plan in place (a new
-plan comment is posted; the prior one is hidden as `OUTDATED`).
+execution plan comment and the dispatch edits the plan in place (a new
+plan comment is posted; the prior one is hidden as `OUTDATED`). A
+`/revise` after an early `/approve` clears the `sdd:approved` marker —
+the plan changed, so re-approval is required — and a spec PR closed
+without merging clears it too.
 
 If during execution `sdd-execute` finds the work is materially bigger
-than fast-path assumed, it posts one comment naming the mismatch and
+than the classification assumed, it posts one comment naming the
+mismatch and
 applies `needs-human`. Your recourse is the standard `needs-human`
 flow: answer in a comment and either tighten the scope (the executor
 resumes) or comment `/spec` to bounce the issue into the full
-pipeline (`sdd:fastpath` becomes `sdd:spec`; the stub is the
+pipeline (`sdd:fastpath` becomes `sdd:spec`; the existing spec is the
 starting point of a fuller spec).
 
 ## Planning hardening
@@ -248,7 +269,8 @@ Across the whole pipeline a human takes only four kinds of action:
   `sdd-triage` translates the plan's architecture section into the architecture
   record. The marker clears once the architecture PR opens (or, on the fast
   path, the stub spec PR).
-- **Comment a command** to steer: `/spec`, `/fastpath`, `/triage`,
+- **Comment a command** to steer: `/spec`, `/fastpath` (or its alias
+  `/agile`), `/triage`,
   `/approve`, `/dispatch`, `/revise`, or `/execute`. See the command
   table in `shared/sdd-interaction.md`.
 - **Review and merge PRs.** Merging a PR is the approval signal that advances
@@ -291,7 +313,8 @@ never blocks a merge. Human review plus consumer CI is the only merge gate.
 - Open a test issue from the `feature` template and confirm it carries both
   the `kind:feature` and `sdd:spec` labels.
 - Confirm `templates/.github/labels.yml` defines all eight `sdd:*` lifecycle
-  labels, the `sdd:dispatched`, `plan:provided`, and `sdd:spike-resolved`
+  labels, the `sdd:dispatched`, `sdd:approved`, `plan:provided`, and
+  `sdd:spike-resolved`
   markers, the `kind:spike` label, and all three `model:*` tier labels.
 - Confirm `shared/sdd-interaction.md` states the lifecycle state machine, the
   command table, and the `needs-human` contract, and references

@@ -1,84 +1,276 @@
 name: sdd-fastpath-approve
 description: >
-  Deterministic fast-path /approve handler for sdd-spec (ADR 0012). Finds the
-  latest execution-plan comment on the tracking issue, parses its model tier,
-  dispatches the matching sdd-execute-{tier} variant with entry: fastpath, and
-  advances the tracking issue's lifecycle. Extracted verbatim (ADR 0015). The
-  caller mints the App token and passes it as github-token.
+  Deterministic single-PR-path approval handler for sdd-spec (ADR 0012,
+  amended by ADR 0024). In 'approve' mode it handles /approve on a fast-path
+  tracking issue: with the spec PR merged (sdd:fastpath) it finds the latest
+  execution-plan comment, parses its model tier, dispatches the matching
+  sdd-execute-{tier} variant with entry: fastpath, and advances the lifecycle;
+  with the spec PR still open (sdd:fastpath-review) it records the approval as
+  the orthogonal sdd:approved marker and arms squash auto-merge on the spec PR
+  so the merge event dispatches — making merge and approve order-commutative.
+  In 'merged' mode (the spec PR merged while sdd:approved was present) it runs
+  the same dispatch and clears the marker. In 'clear' mode (the spec PR closed
+  without merging) it removes the stale sdd:approved marker. In 'legacy' mode
+  (the default, taken by old consumer wrappers that pass no mode) the
+  open-spec-PR branch posts the pre-ADR-0024 merge-first guidance comment and
+  records nothing; the merged-state dispatch is unchanged. Extracted
+  verbatim (ADR 0015). The caller mints the App token and passes it as
+  github-token.
 
 inputs:
   github-token:
-    description: 'App-installation token for dispatch and label writes.'
+    description: 'App-installation token for dispatch, label, and auto-merge writes.'
     required: true
   tracking:
     description: 'Tracking issue number resolved by sdd-route-spec.'
     required: true
+  mode:
+    description: >-
+      One of 'approve' (an /approve comment arrived; record-and-arm when the
+      spec PR is still open), 'merged' (the spec PR merged while sdd:approved
+      was present; dispatch now), 'clear' (the spec PR closed without merging;
+      drop the stale sdd:approved marker), or 'legacy' (pre-ADR-0024
+      behavior: /approve while the spec PR is open posts the merge-first
+      guidance comment and records nothing). The default is 'legacy', NOT
+      'approve': old consumer wrappers pin this action @main and pass no
+      mode, but they have no approved-merge-dispatch job — recording
+      sdd:approved for them would deadlock the tracking issue (the new
+      sdd-route-spec suppresses the agent on the merged PR and nothing
+      dispatches). The new wrapper passes mode: approve explicitly.
+    required: false
+    default: 'legacy'
+  auto-merge:
+    description: >-
+      The consumer's SDD_AUTO_MERGE repository variable. When '1' or 'true',
+      an /approve while the spec PR is still open also arms squash
+      auto-merge on that PR; otherwise the approval is recorded and the
+      human merges by hand (the merge still dispatches).
+    required: false
+    default: ''
 
 runs:
   using: composite
   steps:
-    - name: Find plan comment and dispatch sdd-execute-{tier}
+    - name: Handle approval state and dispatch sdd-execute-{tier}
       uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
       env:
         TRACKING: ${{ inputs.tracking }}
+        MODE: ${{ inputs.mode }}
+        AUTO_MERGE: ${{ inputs.auto-merge }}
       with:
         github-token: ${{ inputs.github-token }}
         script: |
             const tracking = parseInt(process.env.TRACKING, 10);
+            const mode = process.env.MODE || 'approve';
             const sentinel = '[sdd-spec:fastpath-plan]';
 
-            // Before dispatching, confirm the tracking issue is in
-            // `sdd:fastpath` (the documented `/approve` state, per ADR
-            // 0012). If it is still in `sdd:fastpath-review` the stub
-            // spec PR has not merged yet; post a guidance comment
-            // pointing at the merge gate and stop. This lets the
-            // route-job carve-out accept either state symmetrically
-            // (kept consistent with sdd-triage's skipFastpath check)
-            // while keeping dispatch policy here.
+            // 'clear' mode: the spec PR closed without merging, so a
+            // recorded approval no longer refers to a mergeable spec.
+            // Drop the marker and tell the human re-approval is needed
+            // once a new spec PR is up (ADR 0024).
+            if (mode === 'clear') {
+              try {
+                await github.rest.issues.removeLabel({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: tracking,
+                  name: 'sdd:approved',
+                });
+              } catch (err) {
+                core.info('Could not remove sdd:approved from #' + tracking
+                  + ': ' + err.message);
+              }
+              try {
+                await github.rest.issues.createComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: tracking,
+                  body: 'The spec pull request closed without merging, so'
+                    + ' the recorded `/approve` (`sdd:approved`) has been'
+                    + ' cleared. Re-approve once a new spec PR is open or'
+                    + ' merged (ADR 0024).',
+                });
+              } catch (e) {
+                core.info('Could not post clear comment: ' + e.message);
+              }
+              return;
+            }
+
+            // Read the tracking issue's labels once; both remaining modes
+            // branch on them.
+            let issueLabels = [];
             try {
               const { data: issueData } = await github.rest.issues.get({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
                 issue_number: tracking,
               });
-              const issueLabels = (issueData.labels || []).map(
+              issueLabels = (issueData.labels || []).map(
                 (l) => l.name || l);
-              if (issueLabels.includes('sdd:fastpath-review')
-                  && !issueLabels.includes('sdd:fastpath')) {
-                core.info('/approve on #' + tracking
-                  + ' while sdd:fastpath-review is present; the stub'
-                  + ' spec PR has not merged. Posting guidance and'
-                  + ' exiting without dispatch.');
-                try {
-                  await github.rest.issues.createComment({
-                    owner: context.repo.owner,
-                    repo: context.repo.repo,
-                    issue_number: tracking,
-                    body: 'Fast-path `/approve` is gated on the stub'
-                      + ' spec PR merging. Merge the open stub spec'
-                      + ' pull request first; the tracking issue'
-                      + ' returns to `sdd:fastpath` and then `/approve`'
-                      + ' dispatches the implementation.',
-                  });
-                } catch (e) {
-                  core.info('Could not post guidance comment: '
-                    + e.message);
-                }
-                return;
-              }
             } catch (err) {
-              // A transient fetch error falls through to the dispatch
-              // path; the agent's lifecycle move below is idempotent
-              // and the worst case is a duplicate run on the right
-              // state.
-              core.info('Could not pre-check labels on #' + tracking
+              // Fail closed. With issueLabels empty, the approve/legacy
+              // guards below cannot match and the action would fall
+              // through to the dispatch path — for an /approve while the
+              // tracking issue is actually in sdd:fastpath-review, that
+              // would dispatch sdd-execute-{tier} against an unmerged
+              // spec PR and stamp sdd:in-progress. A transient error here
+              // must stop the run instead; the human retypes /approve (or
+              // re-runs the job on the merge event).
+              core.setFailed('Could not pre-check labels on #' + tracking
                 + ': ' + err.message);
+              return;
             }
 
-            // List comments on the tracking issue and find the latest plan
-            // comment by the sentinel marker. `/revise` between the plan
-            // post and `/approve` posts a new plan comment and hides the
-            // prior one; the latest one is the active plan.
+            // 'legacy' (the default) while the spec PR is still open
+            // (sdd:fastpath-review): an old consumer wrapper — pinned
+            // @main but without the approved-merge-dispatch job — called
+            // this action with no mode input. Recording sdd:approved
+            // here would deadlock: the new sdd-route-spec suppresses the
+            // agent when the marker is present on the merged spec PR,
+            // and the old wrapper has no job to dispatch instead. So
+            // degrade gracefully to the pre-ADR-0024 behavior: post the
+            // merge-first guidance comment and record nothing. The
+            // merged-state dispatch below is unchanged for legacy mode.
+            if (mode === 'legacy'
+                && issueLabels.includes('sdd:fastpath-review')
+                && !issueLabels.includes('sdd:fastpath')) {
+              core.info('/approve on #' + tracking + ' while'
+                + ' sdd:fastpath-review is present (legacy mode); the'
+                + ' spec PR has not merged. Posting guidance and exiting'
+                + ' without dispatch.');
+              try {
+                await github.rest.issues.createComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: tracking,
+                  body: 'Fast-path `/approve` is gated on the spec'
+                    + ' PR merging. Merge the open spec pull request'
+                    + ' first; the tracking issue returns to'
+                    + ' `sdd:fastpath` and then `/approve` dispatches'
+                    + ' the implementation.',
+                });
+              } catch (e) {
+                core.info('Could not post guidance comment: '
+                  + e.message);
+              }
+              return;
+            }
+
+            // 'approve' while the spec PR is still open
+            // (sdd:fastpath-review): record the approval as the orthogonal
+            // sdd:approved marker instead of refusing, and — when the
+            // consumer runs SDD_AUTO_MERGE — arm squash auto-merge on the
+            // open spec PR. The spec PR's merge event then dispatches via
+            // 'merged' mode, so /approve-then-merge and merge-then-/approve
+            // are commutative (ADR 0024; this replaces the former
+            // ordering-refusal branch).
+            if (mode === 'approve'
+                && issueLabels.includes('sdd:fastpath-review')
+                && !issueLabels.includes('sdd:fastpath')) {
+              try {
+                await github.rest.issues.addLabels({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: tracking,
+                  labels: ['sdd:approved'],
+                });
+              } catch (err) {
+                // Without the marker the merge event cannot see the
+                // approval, so fail loudly: the human can retype /approve.
+                core.setFailed('Could not record sdd:approved on #'
+                  + tracking + ': ' + err.message);
+                return;
+              }
+              // Find the open spec PR for this tracking issue: an open PR
+              // whose head branch carries the spec/ prefix and whose body
+              // references the tracking issue as #<n>.
+              let specPr = null;
+              const refRe = new RegExp('#' + tracking + '\\b');
+              try {
+                for (let page = 1; ; page += 1) {
+                  const { data } = await github.rest.pulls.list({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    state: 'open',
+                    per_page: 100,
+                    page,
+                  });
+                  for (const pr of data) {
+                    const headRef = (pr.head && pr.head.ref) || '';
+                    if (headRef.startsWith('spec/')
+                        && refRe.test(pr.body || '')) {
+                      specPr = pr;
+                      break;
+                    }
+                  }
+                  if (specPr || data.length < 100) {
+                    break;
+                  }
+                }
+              } catch (err) {
+                core.info('Could not search for the open spec PR of #'
+                  + tracking + ': ' + err.message);
+              }
+              const autoMergeWanted = ['1', 'true'].includes(
+                (process.env.AUTO_MERGE || '').trim().toLowerCase());
+              let armed = false;
+              if (specPr && autoMergeWanted) {
+                try {
+                  await github.graphql(
+                    'mutation($id: ID!) {'
+                    + ' enablePullRequestAutoMerge(input: {'
+                    + ' pullRequestId: $id, mergeMethod: SQUASH'
+                    + ' }) { clientMutationId } }',
+                    { id: specPr.node_id });
+                  armed = true;
+                } catch (err) {
+                  // Auto-merge can be unavailable (repo setting off, no
+                  // required checks) or the PR already mergeable-clean.
+                  // Degrade to a manual merge: the approval is recorded,
+                  // so the merge still dispatches.
+                  core.info('Could not arm auto-merge on spec PR #'
+                    + specPr.number + ': ' + err.message);
+                }
+              }
+              let body = 'Approval recorded (`sdd:approved`).';
+              if (specPr) {
+                body += armed
+                  ? ' Squash auto-merge is armed on the open spec PR;'
+                    + ' once it merges, the implementation dispatches'
+                    + ' automatically against the execution plan comment'
+                    + ' (ADR 0024).'
+                  : ' Merge the open spec PR to dispatch the'
+                    + ' implementation against the execution plan comment'
+                    + ' (ADR 0024).'
+                    + (autoMergeWanted
+                      ? ' (Auto-merge could not be armed on this'
+                        + ' repository; merging by hand still dispatches.)'
+                      : '');
+              } else {
+                body += ' No open spec PR was found for this tracking'
+                  + ' issue; once the spec PR merges, the implementation'
+                  + ' dispatches automatically (ADR 0024).';
+              }
+              try {
+                await github.rest.issues.createComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: tracking,
+                  body,
+                });
+              } catch (e) {
+                core.info('Could not post approval comment: ' + e.message);
+              }
+              return;
+            }
+
+            // Dispatch path: an /approve with the spec PR already merged
+            // (sdd:fastpath), or 'merged' mode (the spec PR just merged
+            // with sdd:approved recorded). List comments on the tracking
+            // issue and find the latest plan comment by the sentinel
+            // marker. `/revise` between the plan post and the dispatch
+            // posts a new plan comment and hides the prior one; the
+            // latest one is the active plan.
             let planComment = null;
             let page = 1;
             for (;;) {
@@ -107,16 +299,17 @@ runs:
               core.setFailed('No execution plan comment found on tracking'
                 + ' issue #' + tracking + '. Expected a comment carrying'
                 + ' the `' + sentinel + '` sentinel posted by sdd-spec on'
-                + ' /fastpath. /approve cannot dispatch without a plan.');
+                + ' /fastpath. The dispatch cannot run without a plan.');
               try {
                 await github.rest.issues.createComment({
                   owner: context.repo.owner,
                   repo: context.repo.repo,
                   issue_number: tracking,
-                  body: 'Fast-path `/approve` could not find an execution'
-                    + ' plan comment on this tracking issue. Re-run'
-                    + ' `/fastpath` to regenerate the stub spec and plan,'
-                    + ' or comment `/spec` to switch to the full pipeline.',
+                  body: 'The single-PR-path dispatch could not find an'
+                    + ' execution plan comment on this tracking issue.'
+                    + ' Re-run `/fastpath` (or `/agile`) to regenerate the'
+                    + ' spec and plan, or comment `/spec` to switch to the'
+                    + ' full pipeline.',
                 });
               } catch (e) {
                 core.info('Could not post failure comment: ' + e.message);
@@ -137,10 +330,10 @@ runs:
                   owner: context.repo.owner,
                   repo: context.repo.repo,
                   issue_number: tracking,
-                  body: 'Fast-path `/approve` could not parse a `model:`'
-                    + ' tier from the execution plan comment. Comment'
-                    + ' `/revise <note>` to re-post the plan with a'
-                    + ' `model: haiku|sonnet|opus` line.',
+                  body: 'The single-PR-path dispatch could not parse a'
+                    + ' `model:` tier from the execution plan comment.'
+                    + ' Comment `/revise <note>` to re-post the plan with'
+                    + ' a `model: haiku|sonnet|opus` line.',
                 });
               } catch (e) {
                 core.info('Could not post failure comment: ' + e.message);
@@ -166,16 +359,29 @@ runs:
               plan_comment_id: planComment.id,
               tier: tier,
             });
-            // Resolve the dispatch ref. `context.ref` is set on
-            // issue_comment events (the branch the workflow file was
-            // loaded from — the default branch by GitHub's rule). When
-            // it is somehow absent, fall back to the repository's
+            // Resolve the dispatch ref. On the pull_request (closed)
+            // event that drives 'merged' mode, `context.ref` is
+            // `refs/pull/<n>/merge` — a non-branch ref that
+            // createWorkflowDispatch rejects with a 422 — so use the
+            // merged spec PR's base branch (the branch the spec just
+            // landed on) instead. On issue_comment events `context.ref`
+            // is the default branch (the branch the workflow file was
+            // loaded from, by GitHub's rule) and is used as-is. When
+            // neither yields a branch ref, fall back to the repository's
             // default branch from the REST API, not a hardcoded "main":
-            // the `workflow_dispatch` event payload does not include
-            // `repository.default_branch`, and hardcoding `main`
-            // dispatches to a non-existent ref on repos whose default
-            // branch differs.
-            let dispatchRef = context.ref;
+            // hardcoding `main` dispatches to a non-existent ref on
+            // repos whose default branch differs.
+            let dispatchRef = '';
+            if (context.eventName === 'pull_request'
+                && context.payload.pull_request
+                && context.payload.pull_request.base
+                && context.payload.pull_request.base.ref) {
+              dispatchRef = 'refs/heads/'
+                + context.payload.pull_request.base.ref;
+            } else if (context.ref
+                && !context.ref.startsWith('refs/pull/')) {
+              dispatchRef = context.ref;
+            }
             if (!dispatchRef) {
               try {
                 const { data: repoData } = await github.rest.repos.get({
@@ -197,44 +403,31 @@ runs:
                 ref: dispatchRef,
                 inputs: { aw_context: awContext },
               });
-              core.info('Dispatched ' + workflow + ' for fast-path tracking'
-                + ' issue #' + tracking);
+              core.info('Dispatched ' + workflow + ' for single-PR-path'
+                + ' tracking issue #' + tracking + ' (' + mode + ' mode)');
             } catch (err) {
               core.setFailed('Failed to dispatch ' + workflow
                 + ' for fast-path #' + tracking + ': ' + err.message);
               return;
             }
 
-            // Dispatch succeeded; now move the lifecycle from
-            // sdd:fastpath (or sdd:fastpath-review, if the early-state
-            // pre-check above did not catch the case) to
-            // sdd:in-progress on the tracking issue. The remove and
-            // add are idempotent.
-            try {
-              await github.rest.issues.removeLabel({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                issue_number: tracking,
-                name: 'sdd:fastpath',
-              });
-            } catch (err) {
-              core.info('Could not remove sdd:fastpath from #' + tracking
-                + ': ' + err.message);
-            }
-            // Also clear sdd:fastpath-review so the both-labels-present
-            // edge (the early-state pre-check only catches review-only)
-            // does not strand a stale label on the tracking issue. A no-op
-            // when the label is absent.
-            try {
-              await github.rest.issues.removeLabel({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                issue_number: tracking,
-                name: 'sdd:fastpath-review',
-              });
-            } catch (err) {
-              core.info('Could not remove sdd:fastpath-review from #'
-                + tracking + ': ' + err.message);
+            // Dispatch succeeded; now move the lifecycle to
+            // sdd:in-progress on the tracking issue and clear every
+            // fast-path source state plus the sdd:approved marker (a
+            // no-op when absent). The removes and the add are idempotent.
+            for (const stale of ['sdd:fastpath', 'sdd:fastpath-review',
+                'sdd:approved']) {
+              try {
+                await github.rest.issues.removeLabel({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: tracking,
+                  name: stale,
+                });
+              } catch (err) {
+                core.info('Could not remove ' + stale + ' from #' + tracking
+                  + ': ' + err.message);
+              }
             }
             try {
               await github.rest.issues.addLabels({

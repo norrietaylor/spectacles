@@ -37,6 +37,9 @@
 - name: sdd:fastpath-review
   color: 5294e2
   description: Lifecycle - fast-path stub spec PR is open, awaiting human merge. See ADR 0012.
+- name: sdd:approved
+  color: 6f42c1
+  description: Marker - /approve recorded while the spec PR is open; its merge dispatches the implementation. See ADR 0024.
 - name: sdd:triage
   color: 0052cc
   description: Lifecycle - the spec is in architecture and triage by sdd-triage.
