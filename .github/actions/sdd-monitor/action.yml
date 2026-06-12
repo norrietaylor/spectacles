@@ -101,6 +101,17 @@ runs:
             // sdd-execute-* run in_progress or queued), so any deps-closed
             // open task with no PR and no run is genuinely stranded.
 
+            // Shared parent walk (task -> Unit -> tracker via GraphQL
+            // Issue.parent), one source of truth with sdd-status (#254).
+            // GITHUB_ACTION_PATH is this action's dir; '..' reaches the
+            // actions/ dir, then shared/parent-walk.js. The fail-closed
+            // contract is documented in the module: a lookup error
+            // rethrows and the caller treats it as "assume in flight".
+            const { walkToTracker } = require(
+              require('path').join(
+                process.env.GITHUB_ACTION_PATH, '..', 'shared',
+                'parent-walk.js'));
+
             const { owner, repo } = context.repo;
             // Default to 5 minutes; treat a missing, empty, or
             // non-numeric SDD_MONITOR_DEBOUNCE_MIN as "use the default".
@@ -475,70 +486,4 @@ runs:
                   '#' + trackerNum + ': failed to post /dispatch: '
                   + err.message);
               }
-            }
-
-            // walkToTracker: walk a task sub-issue up to its tracking
-            // issue (task -> Unit -> tracker, two hops per ADR 0005).
-            // Returns the tracker issue number, or 0 if the walk does not
-            // resolve to a two-hop root.
-            //
-            // The parent link is read via GraphQL `Issue.parent`, NOT via
-            // the REST `parent_issue_url` field. REST does not populate
-            // the child->parent pointer for native sub-issues reliably:
-            // the field comes back empty on the close webhook and on an
-            // immediate REST re-fetch (issue #133, the cascade-stall
-            // repro on this issue). sdd-dispatch's own route job switched
-            // to GraphQL for exactly this reason; the monitor mirrors it
-            // so the in-flight PR-rollup guard does not silently misfire.
-            //
-            // Fail-closed contract: parentNumberViaGraphql and walkToTracker
-            // distinguish a *resolved* walk (returns a number, or 0 when the
-            // walk legitimately reaches the top of the tree short of two
-            // hops) from an *unresolved* walk caused by a lookup error
-            // (rethrows). A swallowed error that collapsed to "no parent"
-            // would make an open sdd/ PR look unrelated to its tracker, the
-            // in-flight guard would clear, and the monitor would nudge a
-            // tracker whose layer is actually in flight — the cancellation
-            // storm issue #148 exists to prevent. The caller treats a thrown
-            // walk as "assume in flight" and skips the nudge for that
-            // tracker only.
-            async function parentNumberViaGraphql(nodeId) {
-              if (!nodeId) { return null; }
-              const result = await github.graphql(
-                'query($id: ID!) {' +
-                '  node(id: $id) {' +
-                '    ... on Issue { parent { id number } }' +
-                '  }' +
-                '}',
-                { id: nodeId });
-              const parent = result && result.node && result.node.parent;
-              return parent || null;
-            }
-
-            async function walkToTracker(ghCli, ownerArg, repoArg, taskNum) {
-              // Seed the GraphQL walk from the task issue's node id. A seed
-              // or parent lookup error rethrows so the caller fails closed;
-              // it must not be confused with a fully-walked tree that has no
-              // parent. Wrap callers in try/catch and treat a throw as
-              // "assume in flight" for that tracker.
-              const { data } = await ghCli.rest.issues.get({
-                owner: ownerArg, repo: repoArg, issue_number: taskNum,
-              });
-              let nodeId = data.node_id;
-              let parent = null;
-              let walked = 0;
-              while (nodeId && walked < 2) {
-                const next = await parentNumberViaGraphql(nodeId);
-                if (!next) { break; }
-                parent = next;
-                nodeId = next.id;
-                walked += 1;
-              }
-              // A task closure is exactly two hops below a tracking issue.
-              // A shorter walk means the seed was a Unit or the tracker
-              // itself, not a task — not a tracker match for this guard.
-              if (parent && walked === 2) {
-                return parent.number;
-              }
-              return 0;
             }
