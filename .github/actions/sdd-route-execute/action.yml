@@ -86,6 +86,74 @@ runs:
             // loops carry independent retry budgets.
             let reviseMarker = '<!-- sdd-execute:auto-revise -->';
 
+            // Collect the unresolved review-comment threads on a pull
+            // request as directive lines ('- <path>: <body>'). Resolved
+            // threads are skipped to avoid re-fixing addressed items;
+            // thread resolution state is only exposed by GraphQL. This is
+            // read-only. Shared by the CHANGES_REQUESTED implicit-revise
+            // path (issue #128) and the manual /revise path (issue #247).
+            // Pages through reviewThreads (following pageInfo.endCursor
+            // until hasNextPage is false) so PRs with more than 100
+            // threads do not silently drop unresolved feedback; mirrors
+            // the contract in sdd-resolve-review-threads/action.yml.
+            const collectUnresolvedThreadParts = async (prNumber) => {
+              const parts = [];
+              try {
+                let cursor = null;
+                let hasNextPage = true;
+                while (hasNextPage) {
+                  const result = await github.graphql(`
+                    query($owner:String!,$repo:String!,$pr:Int!,$after:String) {
+                      repository(owner:$owner,name:$repo) {
+                        pullRequest(number:$pr) {
+                          reviewThreads(first:100, after:$after) {
+                            pageInfo { hasNextPage endCursor }
+                            nodes {
+                              isResolved
+                              comments(first:1) { nodes { body path } }
+                            }
+                          }
+                        }
+                      }
+                    }`, {
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    pr: prNumber,
+                    after: cursor,
+                  });
+                  const reviewThreads = (result.repository
+                    && result.repository.pullRequest
+                    && result.repository.pullRequest.reviewThreads)
+                    || null;
+                  const threads = (reviewThreads && reviewThreads.nodes)
+                    || [];
+                  for (const t of threads) {
+                    if (t.isResolved) {
+                      continue;
+                    }
+                    const first = t.comments
+                      && t.comments.nodes
+                      && t.comments.nodes[0];
+                    if (first && (first.body || '').trim()) {
+                      const where = first.path ? (first.path + ': ') : '';
+                      parts.push('- ' + where + first.body.trim());
+                    }
+                  }
+                  hasNextPage = !!(reviewThreads
+                    && reviewThreads.pageInfo
+                    && reviewThreads.pageInfo.hasNextPage);
+                  cursor = (reviewThreads
+                    && reviewThreads.pageInfo
+                    && reviewThreads.pageInfo.endCursor)
+                    || null;
+                }
+              } catch (err) {
+                core.info('Could not read review threads on PR #'
+                  + prNumber + ': ' + err.message);
+              }
+              return parts;
+            };
+
             // The model tier is supplied by the wrapper as the tier
             // input; the tier gate below skips a task another tier owns.
             const TIER = process.env.TIER;
@@ -174,19 +242,67 @@ runs:
                   || permission === 'admin';
                 if (canWrite) {
                   run = true;
-                  ctx = isRevise
-                    ? {
-                        trigger: 'revise',
-                        item_type: 'pull_request',
-                        item_number: payload.issue.number,
-                        comment_id: payload.comment.id,
+                  if (isRevise) {
+                    // Supplementary revision context (issue #247). The
+                    // manual /revise path used to pass only the comment
+                    // text, while the implicit-revise paths assemble a
+                    // rich directive; close that asymmetry. Gather the
+                    // PR's unresolved review-comment threads (the shared
+                    // helper above) plus the recent discussion comments,
+                    // so the author need not restate feedback already
+                    // present in the thread. The /revise note stays the
+                    // primary instruction; this directive is supplementary.
+                    const prNumber = payload.issue.number;
+                    const parts =
+                      await collectUnresolvedThreadParts(prNumber);
+                    try {
+                      const comments = await github.paginate(
+                        github.rest.issues.listComments, {
+                          owner: context.repo.owner,
+                          repo: context.repo.repo,
+                          issue_number: prNumber,
+                          per_page: 100,
+                        });
+                      // The latest discussion comments, skipping the
+                      // triggering /revise comment itself, other slash
+                      // commands, and the hidden sdd-execute markers
+                      // (e.g. the auto-revise iteration counters).
+                      const recent = comments
+                        .filter((c) => c.id !== payload.comment.id)
+                        .filter((c) => {
+                          const b = (c.body || '').trim();
+                          return b.length > 0
+                            && !b.startsWith('/')
+                            && !b.includes('<!-- sdd-execute:');
+                        })
+                        .slice(-10);
+                      for (const c of recent) {
+                        const who = (c.user && c.user.login) || 'unknown';
+                        parts.push('- ' + who + ': '
+                          + (c.body || '').trim());
                       }
-                    : {
-                        trigger: 'command',
-                        item_type: 'issue',
-                        item_number: payload.issue.number,
-                        comment_id: payload.comment.id,
-                      };
+                    } catch (err) {
+                      core.info('Could not list discussion comments on'
+                        + ' PR #' + prNumber + ': ' + err.message);
+                    }
+                    const directive = parts.join('\n').trim();
+                    ctx = {
+                      trigger: 'revise',
+                      item_type: 'pull_request',
+                      item_number: prNumber,
+                      comment_id: payload.comment.id,
+                    };
+                    if (directive) {
+                      ctx.directive = directive;
+                    }
+                  } else {
+                    ctx = {
+                      trigger: 'command',
+                      item_type: 'issue',
+                      item_number: payload.issue.number,
+                      comment_id: payload.comment.id,
+                    };
+                  }
                 } else {
                   core.info(
                     'Command from an author without write access ('
@@ -278,9 +394,8 @@ runs:
                 } else {
                   const prNumber = pr.number;
                   // Assemble the directive: the review body plus the
-                  // unresolved review-comment threads. Resolved threads are
-                  // skipped to avoid re-fixing addressed items. Thread
-                  // resolution state is only exposed by GraphQL. This is
+                  // unresolved review-comment threads (the shared
+                  // collectUnresolvedThreadParts helper above). This is
                   // read-only; the cap count and the side-effecting marker /
                   // needs-human are deferred to the post-tier-gate block so
                   // only the owning tier mutates PR state.
@@ -288,45 +403,8 @@ runs:
                   if ((review.body || '').trim()) {
                     parts.push(review.body.trim());
                   }
-                  try {
-                    const result = await github.graphql(`
-                      query($owner:String!,$repo:String!,$pr:Int!) {
-                        repository(owner:$owner,name:$repo) {
-                          pullRequest(number:$pr) {
-                            reviewThreads(first:100) {
-                              nodes {
-                                isResolved
-                                comments(first:1) { nodes { body path } }
-                              }
-                            }
-                          }
-                        }
-                      }`, {
-                      owner: context.repo.owner,
-                      repo: context.repo.repo,
-                      pr: prNumber,
-                    });
-                    const threads = (result.repository
-                      && result.repository.pullRequest
-                      && result.repository.pullRequest.reviewThreads
-                      && result.repository.pullRequest.reviewThreads.nodes)
-                      || [];
-                    for (const t of threads) {
-                      if (t.isResolved) {
-                        continue;
-                      }
-                      const first = t.comments
-                        && t.comments.nodes
-                        && t.comments.nodes[0];
-                      if (first && (first.body || '').trim()) {
-                        const where = first.path ? (first.path + ': ') : '';
-                        parts.push('- ' + where + first.body.trim());
-                      }
-                    }
-                  } catch (err) {
-                    core.info('Could not read review threads on PR #'
-                      + prNumber + ': ' + err.message);
-                  }
+                  parts.push(
+                    ...await collectUnresolvedThreadParts(prNumber));
                   // A COMMENTED review is only actionable when it carries a
                   // body or at least one unresolved thread (i.e. `parts` is
                   // non-empty). A content-free / automated-summary COMMENTED
