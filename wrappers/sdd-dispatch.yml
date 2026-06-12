@@ -63,6 +63,12 @@ jobs:
     # An `issues: labeled` event only spawns a runner for the sdd:ready
     # label with SDD_AUTO_DISPATCH set (ADR 0024); every other label
     # add is skipped here without a runner (the issue #119 discipline).
+    # The SDD_AUTO_DISPATCH comparison matches the composite action's
+    # trim+lowercase parse for case: GitHub Actions expression `==`
+    # ignores case on strings, so 'True'/'TRUE' pass this gate too.
+    # Only a whitespace-padded value diverges (the action would trim
+    # it; this gate skips first), so the effective contract is the
+    # documented exact values '1'/'true', case-insensitively.
     if: |
       (github.event_name != 'issue_comment' && github.event_name != 'issues')
       || (

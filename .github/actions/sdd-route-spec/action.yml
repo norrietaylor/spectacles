@@ -301,38 +301,72 @@ runs:
               const isSpecBranch = headRef.startsWith('spec/');
               if (isSpecBranch) {
                 // Resolve the tracking issue carrying sdd:approved from
-                // the PR body's #N references. The spec PR body references
-                // the tracking issue as a bare #N (sdd-spec step 7); the
-                // spec sub-issue reference sdd-pr-sanitize adds never
-                // carries the marker, so the label check disambiguates.
+                // the spec file's canonical back-link, NOT from the PR
+                // body's #N mentions: the body is human-editable, so an
+                // unrelated approved tracker mentioned anywhere in the
+                // description must never be selected. The spec file the
+                // PR adds under docs/specs/ carries `tracking-issue: N`
+                // frontmatter (sdd-spec step 5 names it the back-link
+                // downstream agents grep for); read it at the PR's head
+                // SHA (reachable after branch deletion) and confirm that
+                // issue carries the marker. Any failure along the way
+                // leaves approvedTracking 0 and falls back to the agent
+                // path below, whose merged-PR branch posts the /approve
+                // guidance — recoverable.
                 let approvedTracking = 0;
-                const refs = [...new Set(
-                  ((payload.pull_request.body || '').match(/#(\d+)/g) || [])
-                    .map((r) => parseInt(r.slice(1), 10)))];
-                for (const num of refs.slice(0, 10)) {
-                  try {
-                    const { data } = await github.rest.issues.get({
+                try {
+                  let specFile = null;
+                  for (let page = 1; ; page += 1) {
+                    const { data } = await github.rest.pulls.listFiles({
                       owner: context.repo.owner,
                       repo: context.repo.repo,
-                      issue_number: num,
+                      pull_number: payload.pull_request.number,
+                      per_page: 100,
+                      page,
                     });
-                    if (data.pull_request) {
-                      continue;
-                    }
-                    const labels = (data.labels || []).map(
-                      (l) => l.name || l);
-                    if (labels.includes('sdd:approved')) {
-                      approvedTracking = num;
+                    specFile = data.find(
+                      (f) => /^docs\/specs\/.+\.md$/.test(f.filename)
+                        && f.status !== 'removed');
+                    if (specFile || data.length < 100) {
                       break;
                     }
-                  } catch (err) {
-                    // A transient fetch error on one reference must not
-                    // mask the others; an unresolvable approval falls
-                    // back to the agent path below, whose merged-PR
-                    // branch posts the /approve guidance — recoverable.
-                    core.info('Could not fetch issue #' + num + ': '
-                      + err.message);
                   }
+                  if (specFile) {
+                    const { data: contents } =
+                      await github.rest.repos.getContent({
+                        owner: context.repo.owner,
+                        repo: context.repo.repo,
+                        path: specFile.filename,
+                        ref: payload.pull_request.head.sha,
+                      });
+                    const text = Buffer.from(
+                      contents.content || '', 'base64').toString('utf8');
+                    const m = text.match(/^tracking-issue:\s*(\d+)\s*$/m);
+                    if (m) {
+                      const num = parseInt(m[1], 10);
+                      const { data } = await github.rest.issues.get({
+                        owner: context.repo.owner,
+                        repo: context.repo.repo,
+                        issue_number: num,
+                      });
+                      const labels = (data.labels || []).map(
+                        (l) => l.name || l);
+                      if (!data.pull_request
+                          && labels.includes('sdd:approved')) {
+                        approvedTracking = num;
+                      }
+                    } else {
+                      core.info('No tracking-issue frontmatter in '
+                        + specFile.filename + '; agent path handles it.');
+                    }
+                  } else {
+                    core.info('No docs/specs/ file in the spec PR diff;'
+                      + ' agent path handles it.');
+                  }
+                } catch (err) {
+                  core.info('Could not resolve the approved tracking'
+                    + ' issue from the spec file frontmatter: '
+                    + err.message);
                 }
                 if (merged && approvedTracking) {
                   core.setOutput('approved_dispatch', 'true');

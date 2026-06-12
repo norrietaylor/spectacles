@@ -203,12 +203,16 @@ runs:
             //     no parent (GraphQL Issue.parent, the authoritative
             //     source per issue #133 — a lookup error declines, fail
             //     closed).
-            //   - a materialized tree: at least one sub-issue must exist
-            //     under the tracking issue. If the label lands before the
-            //     tree (a safe-output ordering race), arming now would
-            //     let the lifecycle job mistake the empty tree for a
-            //     drained one; decline instead and let the operator
-            //     /dispatch manually.
+            //   - a materialized tree: at least one *task-level*
+            //     sub-issue (a grandchild — Feature -> Unit -> task per
+            //     ADR 0005) must exist under the tracking issue. A
+            //     direct-child check is not enough: if phase C has
+            //     created Units but not their task sub-issues yet (a
+            //     safe-output ordering race), compute would report zero
+            //     open tasks and the lifecycle job would mistake the
+            //     task-less tree for a drained one and stamp sdd:done;
+            //     decline instead and let the operator /dispatch
+            //     manually once tasks exist.
             if (event === 'issues' && payload.action === 'labeled'
                 && payload.label && payload.label.name === 'sdd:ready') {
               const autoDispatch = ['1', 'true'].includes(
@@ -231,25 +235,51 @@ runs:
                   core.info('GraphQL parent lookup failed for #'
                     + payload.issue.number + ': ' + err.message);
                 }
-                let hasChildren = false;
+                let hasTask = false;
                 if (isTracker) {
                   try {
-                    const childrenResp = await github.request(
-                      'GET /repos/{owner}/{repo}/issues/{issue_number}/sub_issues',
-                      {
-                        owner: context.repo.owner,
-                        repo: context.repo.repo,
-                        issue_number: payload.issue.number,
-                        per_page: 1,
-                        page: 1,
-                      });
-                    hasChildren = (childrenResp.data || []).length > 0;
+                    // Walk the direct children (Units) and probe each
+                    // for at least one child of its own (a task). Stop
+                    // at the first task found. A request failure on any
+                    // hop leaves hasTask false (fail closed: decline,
+                    // never arm on an unproven tree).
+                    const units = [];
+                    for (let page = 1; ; page += 1) {
+                      const { data } = await github.request(
+                        'GET /repos/{owner}/{repo}/issues/{issue_number}/sub_issues',
+                        {
+                          owner: context.repo.owner,
+                          repo: context.repo.repo,
+                          issue_number: payload.issue.number,
+                          per_page: 100,
+                          page,
+                        });
+                      units.push(...data);
+                      if (data.length < 100) {
+                        break;
+                      }
+                    }
+                    for (const unit of units) {
+                      const tasksResp = await github.request(
+                        'GET /repos/{owner}/{repo}/issues/{issue_number}/sub_issues',
+                        {
+                          owner: context.repo.owner,
+                          repo: context.repo.repo,
+                          issue_number: unit.number,
+                          per_page: 1,
+                          page: 1,
+                        });
+                      if ((tasksResp.data || []).length > 0) {
+                        hasTask = true;
+                        break;
+                      }
+                    }
                   } catch (err) {
-                    core.info('Could not list sub-issues for #'
+                    core.info('Could not walk the sub-issue tree of #'
                       + payload.issue.number + ': ' + err.message);
                   }
                 }
-                if (isTracker && hasChildren) {
+                if (isTracker && hasTask) {
                   run = true;
                   tracking = payload.issue.number;
                   kind = 'command';
@@ -257,8 +287,9 @@ runs:
                     + tracking + ' (sdd:ready with a materialized tree).');
                 } else if (isTracker) {
                   core.info('sdd:ready on #' + payload.issue.number
-                    + ' but no sub-issue tree yet; auto-dispatch declines'
-                    + ' (use /dispatch manually).');
+                    + ' but no task sub-issue exists under it yet;'
+                    + ' auto-dispatch declines (use /dispatch manually'
+                    + ' once the Unit/task tree has materialized).');
                 } else {
                   core.info('sdd:ready on sub-issue #'
                     + payload.issue.number + '; auto-dispatch ignores'

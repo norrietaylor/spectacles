@@ -212,8 +212,8 @@ with the following adjustments:
   not a finding for either depth.
 - The architecture boundary does not fire on a fast-path issue: there
   is no architecture PR. A run that nonetheless resolves to the
-  architecture boundary on a fast-path issue (e.g. an unrelated
-  `decisions/` edit pushed alongside the spec) is treated as a normal
+  architecture boundary on a fast-path issue (e.g. a fast-path PR that
+  edits only `decisions/`) is treated as a normal
   architecture-boundary check; the absence of a per-feature
   architecture record is not raised.
 - The triage boundary does not fire on a fast-path issue. A

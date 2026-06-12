@@ -38,11 +38,14 @@ Two deterministic guards in `sdd-route-dispatch`:
   *task* sub-issue; the labeled issue must have no parent (GraphQL
   `Issue.parent`, the authoritative source per issue #133; a lookup
   error declines, fail closed).
-- **A materialized tree.** At least one sub-issue must exist under the
-  tracking issue. If the label lands before the tree (a safe-output
-  ordering race), arming would let the lifecycle job mistake the empty
-  tree for a drained one and stamp `sdd:done`; auto-dispatch declines
-  instead and a manual `/dispatch` is the fallback.
+- **A materialized tree.** At least one *task-level* sub-issue (a
+  grandchild — Feature → Unit → task per ADR 0005) must exist under the
+  tracking issue. A direct child is not enough: if the label lands
+  before the tree is complete (a safe-output ordering race that can
+  leave Units without task sub-issues), arming would let the lifecycle
+  job mistake the task-less tree for a drained one and stamp
+  `sdd:done`; auto-dispatch declines instead and a manual `/dispatch`
+  is the fallback.
 
 `/dispatch` remains the manual command and the pause/resume control:
 removing `sdd:dispatched` pauses the cascade, a `/dispatch` resumes it
@@ -66,7 +69,8 @@ removing `sdd:dispatched` pauses the cascade, a `/dispatch` resumes it
 - `wrappers/sdd-dispatch.yml` listens for `issues: labeled` and its
   route gate admits only `sdd:ready` with `SDD_AUTO_DISPATCH` set.
 - `sdd-route-dispatch` arms only for a parentless issue with at least
-  one sub-issue, and declines (with a log line) otherwise.
+  one task-level sub-issue under a Unit, and declines (with a log
+  line) otherwise.
 - With the variable unset, a `sdd:ready` label gain spawns no dispatch.
 - `docs/sdd/install.md` documents `SDD_AUTO_DISPATCH` (unset = off).
 

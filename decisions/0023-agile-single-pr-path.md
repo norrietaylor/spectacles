@@ -129,8 +129,9 @@ skip the tree entirely (issue
   `vars.SDD_AGILE_MAX` into that input.
 - `sdd-spec.md` step 7a authors either depth; the light spec carries
   multiple units, full R-IDs, 1–3 proof artifacts per unit, and an
-  optional Design-notes section; the plan comment lists every R-ID as
-  one task.
+  optional Design-notes section; the plan comment stays a single task
+  that references every covered R-ID (one execute run, one
+  implementation PR — never one task per R-ID).
 - `/approve` while the spec PR is open records `sdd:approved` and arms
   squash auto-merge; the merge dispatches `sdd-execute-{tier}`, clears
   the marker, and advances to `sdd:in-progress` — in either order of

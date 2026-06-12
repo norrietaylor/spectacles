@@ -108,11 +108,17 @@ runs:
               issueLabels = (issueData.labels || []).map(
                 (l) => l.name || l);
             } catch (err) {
-              // A transient fetch error falls through to the dispatch
-              // path; the lifecycle moves below are idempotent and the
-              // worst case is a duplicate run on the right state.
-              core.info('Could not pre-check labels on #' + tracking
+              // Fail closed. With issueLabels empty, the approve/legacy
+              // guards below cannot match and the action would fall
+              // through to the dispatch path — for an /approve while the
+              // tracking issue is actually in sdd:fastpath-review, that
+              // would dispatch sdd-execute-{tier} against an unmerged
+              // spec PR and stamp sdd:in-progress. A transient error here
+              // must stop the run instead; the human retypes /approve (or
+              // re-runs the job on the merge event).
+              core.setFailed('Could not pre-check labels on #' + tracking
                 + ': ' + err.message);
+              return;
             }
 
             // 'legacy' (the default) while the spec PR is still open

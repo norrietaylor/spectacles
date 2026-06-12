@@ -52,8 +52,11 @@ units, full R-IDs, optional Design notes) for anything larger — plus a
 single execution-plan comment on the
 tracking issue; one `/approve` then dispatches the implementation:
 typed after the spec PR merges it dispatches directly, typed while the
-spec PR is still open it records the `sdd:approved` marker and arms
-squash auto-merge so the merge dispatches (merge and approve commute).
+spec PR is still open it records the `sdd:approved` marker — and, when
+the consumer sets `SDD_AUTO_MERGE`, also arms squash auto-merge —
+so the merge dispatches (merge and approve commute; with
+`SDD_AUTO_MERGE` unset the human merges the spec PR by hand and the
+merge still dispatches).
 Two extra lifecycle labels —
 `sdd:fastpath` and `sdd:fastpath-review` — mark the single-PR states.
 `/dispatch` is a noop on a single-PR tracking issue (the fan-out is
