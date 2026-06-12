@@ -6,7 +6,9 @@ description: >
   recovers tasks left stranded by a pre-agent execute failure (cancelled or
   activation-stage, issue #201): re-dispatches an sdd:ready / sdd:in-progress
   task that has no open sdd/ PR and no in-flight run, then escalates to
-  needs-human after a bounded number of attempts. Extracted verbatim
+  needs-human after a bounded number of attempts. Also detects a CodeRabbit
+  review stall on an open sdd/ PR (issue #257): bounded "@coderabbitai
+  review" nudges per head sha, then needs-human. Extracted verbatim
   (ADR 0015). The caller mints the App token and passes it as github-token;
   the in-flight run-status gate uses a separate runs-token (the workflow
   GITHUB_TOKEN), so the App installation never needs the Actions permission.
@@ -20,14 +22,45 @@ inputs:
     required: true
   runs-token:
     description: >
-      Workflow GITHUB_TOKEN (actions:read) used only for the in-flight
-      run-status gate (listWorkflowRunsForRepo). Kept separate from the App
-      token so the monitor does not require the Actions permission on the App
-      installation — requesting an ungranted scope 422s the whole token mint
-      (issue #249).
+      Workflow GITHUB_TOKEN used for the in-flight run-status gate
+      (listWorkflowRunsForRepo, actions:read) and the CodeRabbit config
+      presence probe (getContent, contents:read). Kept separate from the App
+      token so the monitor does not require the Actions or Contents
+      permission on the App installation — requesting an ungranted scope
+      422s the whole token mint (issue #249).
     required: true
   debounce-min:
     description: 'Debounce window in minutes; empty falls back to the script default.'
+    required: false
+    default: ''
+  coderabbit:
+    description: >
+      CodeRabbit stall-detection toggle (SDD_CODERABBIT, issue #257). '1'
+      force-enables, '0' force-disables; empty (the default) auto-detects
+      from a .coderabbit.yaml / .coderabbit.yml at the repository root.
+    required: false
+    default: ''
+  coderabbit-stall-min:
+    description: >
+      Minutes an open non-draft sdd/ PR's head commit must age with no
+      review or comment from coderabbitai[bot] before the PR counts as
+      stalled; empty falls back to the script default.
+    required: false
+    default: ''
+  coderabbit-nudge-max:
+    description: >
+      Maximum "@coderabbitai review" nudge comments per head sha before the
+      monitor escalates the PR to needs-human; empty falls back to the
+      script default.
+    required: false
+    default: ''
+  app-id:
+    description: >
+      Numeric id of the GitHub App whose installation token is passed as
+      github-token. When set, the CodeRabbit nudge/escalation marker budget
+      counts only comments performed via this App, so a marker string
+      pasted by any other commenter cannot burn the nudge budget or
+      suppress escalation. Empty falls back to author-blind counting.
     required: false
     default: ''
 
@@ -486,4 +519,330 @@ runs:
                   '#' + trackerNum + ': failed to post /dispatch: '
                   + err.message);
               }
+            }
+
+    # CodeRabbit stall detection, enablement probe (issue #257). Runs on the
+    # workflow GITHUB_TOKEN: only the config-file presence check (getContent)
+    # needs contents:read, and the App token deliberately carries no Contents
+    # permission. The .coderabbit.yaml config file is optional for a
+    # CodeRabbit install, hence the SDD_CODERABBIT override in both
+    # directions. This pass is NOT gated on the in-flight step: a live
+    # sdd-execute run says nothing about CodeRabbit's silence on an already
+    # open PR, and the pass posts no /dispatch, so the cancellation-storm
+    # concern behind the in-flight gate does not apply.
+    - name: CodeRabbit enablement
+      id: coderabbit
+      uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+      env:
+        SDD_CODERABBIT: ${{ inputs.coderabbit }}
+      with:
+        github-token: ${{ inputs.runs-token }}
+        script: |
+            // SDD_CODERABBIT=0 force-disables, =1 force-enables; anything
+            // else falls through to the config-file presence probe.
+            const flag = (process.env.SDD_CODERABBIT || '').trim();
+            if (flag === '0') {
+              core.info('SDD_CODERABBIT=0; CodeRabbit stall detection off.');
+              core.setOutput('enabled', 'false');
+              return;
+            }
+            if (flag === '1') {
+              core.info('SDD_CODERABBIT=1; CodeRabbit stall detection on.');
+              core.setOutput('enabled', 'true');
+              return;
+            }
+            const { owner, repo } = context.repo;
+            for (const path of ['.coderabbit.yaml', '.coderabbit.yml']) {
+              try {
+                await github.rest.repos.getContent({ owner, repo, path });
+                core.info(
+                  path + ' present; CodeRabbit stall detection on.');
+                core.setOutput('enabled', 'true');
+                return;
+              } catch (err) {
+                if (err.status !== 404) {
+                  // Fail closed on a non-404 probe error: better to skip a
+                  // pass (the cron retries in ten minutes) than to nudge a
+                  // repo that may not run CodeRabbit at all.
+                  core.info(
+                    'Could not probe ' + path + ': ' + err.message
+                    + '; treating as absent.');
+                }
+              }
+            }
+            core.info(
+              'No CodeRabbit config and SDD_CODERABBIT unset; '
+              + 'stall detection off.');
+            core.setOutput('enabled', 'false');
+
+    # CodeRabbit stall detection (issue #257). For each open non-draft sdd/
+    # PR without needs-human: when the head commit has aged past the stall
+    # window and coderabbitai[bot] has left no review and no comment since
+    # that commit, post a bounded App-authored "@coderabbitai review" nudge;
+    # once the per-head-sha nudge budget is spent and the PR is still
+    # stalled on a later pass, apply needs-human and post one escalation
+    # comment. A new push (new head sha) resets the budget, matching
+    # CodeRabbit's per-push review model. Runs on the App token: the nudge
+    # and escalation comments must be App-authored (issues:write), and the
+    # PR/review reads ride the App's pull-requests:read.
+    - name: CodeRabbit stall detection
+      if: steps.coderabbit.outputs.enabled == 'true'
+      uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+      env:
+        SDD_CODERABBIT_STALL_MIN: ${{ inputs.coderabbit-stall-min }}
+        SDD_CODERABBIT_NUDGE_MAX: ${{ inputs.coderabbit-nudge-max }}
+        SDD_MONITOR_APP_ID: ${{ inputs.app-id }}
+      with:
+        github-token: ${{ inputs.github-token }}
+        script: |
+            const { owner, repo } = context.repo;
+            // CodeRabbit appears as `coderabbitai` with or without the
+            // `[bot]` suffix depending on surface; accept both, matching
+            // the reviewer carve-out in sdd-route-execute.
+            const isCodeRabbit = (login) => {
+              const lc = (login || '').toLowerCase();
+              return lc === 'coderabbitai' || lc === 'coderabbitai[bot]';
+            };
+
+            // Same NaN-guard idiom as the debounce window above: a typo in
+            // the repo var must fall back to the default, not silently
+            // disable (or zero out) the gate.
+            const parsedStall = parseInt(
+              process.env.SDD_CODERABBIT_STALL_MIN || '', 10);
+            const stallMin =
+              Number.isFinite(parsedStall) && parsedStall > 0
+                ? parsedStall
+                : 30;
+            const parsedMax = parseInt(
+              process.env.SDD_CODERABBIT_NUDGE_MAX || '', 10);
+            const nudgeMax =
+              Number.isFinite(parsedMax) && parsedMax > 0
+                ? parsedMax
+                : 2;
+            // App id of the github-token's owner, for the marker-budget
+            // author gate below. Optional: when unset the budget falls
+            // back to author-blind counting (never to a zero count —
+            // that would un-bound the nudge loop).
+            const parsedAppId = parseInt(
+              process.env.SDD_MONITOR_APP_ID || '', 10);
+            const appId =
+              Number.isFinite(parsedAppId) && parsedAppId > 0
+                ? parsedAppId
+                : null;
+
+            let openPrs = [];
+            try {
+              openPrs = await github.paginate(
+                github.rest.pulls.list,
+                { owner, repo, state: 'open', per_page: 100 });
+            } catch (err) {
+              core.info(
+                'Could not list open PRs: ' + err.message
+                + '; nothing to do.');
+              return;
+            }
+            // Candidates: open non-draft sdd/ implementation PRs not
+            // already escalated to needs-human. Human-authored PRs (no
+            // sdd/ branch) are out of scope in V1 — the nudge itself
+            // would be safe, but scope stays demand-driven (no
+            // SDD_CODERABBIT_SCOPE yet).
+            const candidates = openPrs.filter((p) =>
+              !p.draft
+              && ((p.head && p.head.ref) || '').startsWith('sdd/')
+              && !(p.labels || []).some(
+                (l) => (typeof l === 'string' ? l : l.name)
+                  === 'needs-human'));
+            if (!candidates.length) {
+              core.info(
+                'No open non-draft sdd/ PRs without needs-human; '
+                + 'nothing to do.');
+              return;
+            }
+
+            for (const pr of candidates) {
+              const prNum = pr.number;
+              const headSha = pr.head.sha;
+
+              // Head-commit timestamp via the PR commits list — a
+              // pull-requests:read endpoint, so the App token covers it
+              // (repos.getCommit would need contents:read, which the App
+              // token deliberately lacks).
+              let headMs = NaN;
+              try {
+                const commits = await github.paginate(
+                  github.rest.pulls.listCommits,
+                  { owner, repo, pull_number: prNum, per_page: 100 });
+                const head =
+                  commits.find((c) => c.sha === headSha)
+                  || commits[commits.length - 1];
+                const meta = head && head.commit;
+                const date = meta
+                  && ((meta.committer && meta.committer.date)
+                    || (meta.author && meta.author.date));
+                headMs = date ? Date.parse(date) : NaN;
+              } catch (err) {
+                core.info(
+                  'PR #' + prNum + ': could not read head commit ('
+                  + err.message + '); skipping.');
+                continue;
+              }
+              if (!Number.isFinite(headMs)) {
+                core.info(
+                  'PR #' + prNum + ': no head commit timestamp; skipping.');
+                continue;
+              }
+              const ageMin = Math.floor((Date.now() - headMs) / 60000);
+              if (ageMin < stallMin) {
+                core.info(
+                  'PR #' + prNum + ': head ' + headSha.slice(0, 7)
+                  + ' is ' + ageMin + 'm old (< ' + stallMin
+                  + 'm stall window); skipping.');
+                continue;
+              }
+
+              // Stall predicate: no review AND no comment by CodeRabbit
+              // (either login form) since the head commit. Reviews and
+              // review (diff) comments are pull-requests:read; issue
+              // comments ride issues:write's implied read. The issue
+              // comments are fetched once and reused for the marker
+              // budget below.
+              let reviews = [];
+              let reviewComments = [];
+              let issueComments = [];
+              try {
+                reviews = await github.paginate(
+                  github.rest.pulls.listReviews,
+                  { owner, repo, pull_number: prNum, per_page: 100 });
+                reviewComments = await github.paginate(
+                  github.rest.pulls.listReviewComments,
+                  { owner, repo, pull_number: prNum, per_page: 100 });
+                issueComments = await github.paginate(
+                  github.rest.issues.listComments,
+                  { owner, repo, issue_number: prNum, per_page: 100 });
+              } catch (err) {
+                core.info(
+                  'PR #' + prNum + ': could not read CodeRabbit activity ('
+                  + err.message + '); skipping.');
+                continue;
+              }
+              const since = (items, ts) => items.some((it) =>
+                isCodeRabbit(it.user && it.user.login)
+                && Number.isFinite(Date.parse(ts(it)))
+                && Date.parse(ts(it)) >= headMs);
+              const active =
+                since(reviews, (r) => r.submitted_at)
+                || since(reviewComments, (c) => c.created_at)
+                || since(issueComments, (c) => c.created_at);
+              if (active) {
+                core.info(
+                  'PR #' + prNum + ': CodeRabbit active since head '
+                  + headSha.slice(0, 7) + '; not stalled.');
+                continue;
+              }
+
+              // Bounded nudges. The hidden marker in each App-authored
+              // nudge comment is the durable per-head-sha budget counter;
+              // a new push mints a new sha and so resets the budget. The
+              // escalation marker is one-shot per head sha: needs-human
+              // already keeps the PR out of the candidate set, and the
+              // marker stops a re-escalation if an operator removes the
+              // label while the stall persists.
+              const nudgeMarker =
+                '<!-- sdd-monitor:coderabbit-nudge sha=' + headSha + ' -->';
+              const escalateMarker =
+                '<!-- sdd-monitor:coderabbit-escalated sha=' + headSha
+                + ' -->';
+              // Budget state is derived only from comments performed via
+              // the configured App (the monitor's own author identity).
+              // The marker format is predictable, so an author-blind
+              // count would let any commenter spoof markers to burn the
+              // nudge budget or suppress escalation outright.
+              const appComments = appId
+                ? issueComments.filter((c) =>
+                  c.performed_via_github_app
+                  && c.performed_via_github_app.id === appId)
+                : issueComments;
+              const nudges = appComments.filter(
+                (c) => (c.body || '').includes(nudgeMarker)).length;
+              const escalated = appComments.some(
+                (c) => (c.body || '').includes(escalateMarker));
+              if (escalated) {
+                core.info(
+                  'PR #' + prNum + ': already escalated for head '
+                  + headSha.slice(0, 7) + '; skipping.');
+                continue;
+              }
+
+              if (nudges < nudgeMax) {
+                // Nudge: marker + audit line + the command on its own
+                // line. Whether CodeRabbit honors @coderabbitai review
+                // from an App author is unverified (issue #257 open
+                // question 1); the escalation below delivers the value
+                // even if the nudge is ignored.
+                const body =
+                  nudgeMarker + '\n\n'
+                  + 'sdd-monitor: CodeRabbit has not reviewed head '
+                  + headSha.slice(0, 7) + ' after ' + ageMin
+                  + 'm; nudging (attempt ' + (nudges + 1) + ' of '
+                  + nudgeMax + ').\n\n'
+                  + '@coderabbitai review';
+                try {
+                  await github.rest.issues.createComment({
+                    owner, repo, issue_number: prNum, body,
+                  });
+                  core.info(
+                    'PR #' + prNum + ': posted CodeRabbit nudge '
+                    + (nudges + 1) + '/' + nudgeMax + ' for head '
+                    + headSha.slice(0, 7) + '.');
+                } catch (err) {
+                  core.warning(
+                    'PR #' + prNum + ': failed to post nudge: '
+                    + err.message);
+                }
+                continue;
+              }
+
+              // Budget exhausted and still stalled on a later pass:
+              // escalate. needs-human is the framework's standard visible
+              // hand-off; the audit comment tells the operator what to do.
+              const escalateBody =
+                escalateMarker + '\n\n'
+                + 'sdd-monitor: CodeRabbit has not reviewed after '
+                + nudges + ' nudge' + (nudges === 1 ? '' : 's')
+                + '; review manually or merge per policy. Applying '
+                + 'needs-human.';
+              // Label first, and only persist the escalation marker once
+              // needs-human is actually applied: the marker makes later
+              // passes skip this PR, so posting it after a failed label
+              // would strand the stall with no visible hand-off and no
+              // retry path. On a label failure, skip the comment — the
+              // next pass retries the whole escalation.
+              let labeled = false;
+              try {
+                await github.rest.issues.addLabels({
+                  owner, repo, issue_number: prNum,
+                  labels: ['needs-human'],
+                });
+                labeled = true;
+              } catch (err) {
+                core.warning(
+                  'PR #' + prNum + ': failed to apply needs-human: '
+                  + err.message);
+              }
+              if (!labeled) {
+                continue;
+              }
+              try {
+                await github.rest.issues.createComment({
+                  owner, repo, issue_number: prNum, body: escalateBody,
+                });
+              } catch (err) {
+                core.warning(
+                  'PR #' + prNum + ': failed to post escalation: '
+                  + err.message);
+              }
+              core.info(
+                'PR #' + prNum + ': escalated CodeRabbit stall to '
+                + 'needs-human after ' + nudges + ' nudge'
+                + (nudges === 1 ? '' : 's') + '.');
             }
