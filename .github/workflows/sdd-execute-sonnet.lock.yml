@@ -1,4 +1,4 @@
-# gh-aw-metadata: {"schema_version":"v4","frontmatter_hash":"6a31d86e2344f7f6d51bbda7ebe112db8f20b14cb627b5ce1700e6e5b2f94235","body_hash":"904234438ecc6044fceb3010f3019eaa4034db0e8a616a36d24083f27838e6fc","compiler_version":"v0.77.5","agent_id":"copilot","agent_model":"claude-sonnet-4.6"}
+# gh-aw-metadata: {"schema_version":"v4","frontmatter_hash":"49547ef9f7f381d54b6140606bc9ee6c4bb21b134dab3f1ec4e6286b9423ef5d","body_hash":"149fe9c18ee2f7d6379adec3a0cdaf8b984f6bb484255418e68e19d29c26983a","compiler_version":"v0.77.5","agent_id":"copilot","agent_model":"claude-sonnet-4.6"}
 # gh-aw-manifest: {"version":1,"secrets":["APP_PRIVATE_KEY","COPILOT_GITHUB_TOKEN","GH_AW_CI_TRIGGER_TOKEN","GH_AW_GITHUB_MCP_SERVER_TOKEN","GH_AW_GITHUB_TOKEN","GH_AW_OTEL_ENDPOINT","GITHUB_TOKEN"],"actions":[{"repo":"actions/checkout","sha":"de0fac2e4500dabe0009e67214ff5f5447ce83dd","version":"v6.0.2"},{"repo":"actions/create-github-app-token","sha":"bcd2ba49218906704ab6c1aa796996da409d3eb1","version":"v3.2.0"},{"repo":"actions/download-artifact","sha":"3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c","version":"v8.0.1"},{"repo":"actions/github-script","sha":"3a2844b7e9c422d3c10d287c895573f7108da1b3","version":"v9.0.0"},{"repo":"actions/setup-node","sha":"48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e","version":"v6.4.0"},{"repo":"actions/upload-artifact","sha":"043fb46d1a93c77aae656e7c1c64a875d1fc6a0a","version":"v7.0.1"},{"repo":"dtolnay/rust-toolchain","sha":"29eef336d9b2848a0b548edc03f92a220660cdb8","version":"29eef336d9b2848a0b548edc03f92a220660cdb8"},{"repo":"github/gh-aw-actions/setup","sha":"3ea13c02d765410340d533515cb31a7eef2baaf0","version":"v0.77.5"}],"containers":[{"image":"ghcr.io/github/gh-aw-firewall/agent:0.25.58"},{"image":"ghcr.io/github/gh-aw-firewall/api-proxy:0.25.58"},{"image":"ghcr.io/github/gh-aw-firewall/squid:0.25.58"},{"image":"ghcr.io/github/gh-aw-mcpg:v0.3.22"},{"image":"ghcr.io/github/github-mcp-server:v1.1.0"},{"image":"ghcr.io/github/serena-mcp-server:latest","digest":"sha256:bf343399e3725c45528f531a230f3a04521d4cdef29f9a5af6282ff0d3c393c5","pinned_image":"ghcr.io/github/serena-mcp-server:latest@sha256:bf343399e3725c45528f531a230f3a04521d4cdef29f9a5af6282ff0d3c393c5"},{"image":"mcr.microsoft.com/playwright/mcp:v0.0.75"},{"image":"node:lts-alpine","digest":"sha256:2bdb65ed1dab192432bc31c95f94155ca5ad7fc1392fb7eb7526ab682fa5bf14","pinned_image":"node:lts-alpine@sha256:2bdb65ed1dab192432bc31c95f94155ca5ad7fc1392fb7eb7526ab682fa5bf14"}]}
 #    ___                   _   _      
 #   / _ \                 | | (_)     
@@ -250,24 +250,24 @@ jobs:
         run: |
           bash "${RUNNER_TEMP}/gh-aw/actions/create_prompt_first.sh"
           {
-          cat << 'GH_AW_PROMPT_a75c8ef8eaeb40f3_EOF'
+          cat << 'GH_AW_PROMPT_eb79e7c0a012e11e_EOF'
           <system>
-          GH_AW_PROMPT_a75c8ef8eaeb40f3_EOF
+          GH_AW_PROMPT_eb79e7c0a012e11e_EOF
           cat "${RUNNER_TEMP}/gh-aw/prompts/xpia.md"
           cat "${RUNNER_TEMP}/gh-aw/prompts/temp_folder_prompt.md"
           cat "${RUNNER_TEMP}/gh-aw/prompts/markdown.md"
           cat "${RUNNER_TEMP}/gh-aw/prompts/safe_outputs_prompt.md"
-          cat << 'GH_AW_PROMPT_a75c8ef8eaeb40f3_EOF'
+          cat << 'GH_AW_PROMPT_eb79e7c0a012e11e_EOF'
           <safe-output-tools>
           Tools: add_comment, update_issue, create_pull_request, add_labels(max:2), remove_labels(max:2), push_to_pull_request_branch, missing_tool, missing_data, noop
-          GH_AW_PROMPT_a75c8ef8eaeb40f3_EOF
+          GH_AW_PROMPT_eb79e7c0a012e11e_EOF
           cat "${RUNNER_TEMP}/gh-aw/prompts/safe_outputs_create_pull_request.md"
           cat "${RUNNER_TEMP}/gh-aw/prompts/safe_outputs_push_to_pr_branch.md"
-          cat << 'GH_AW_PROMPT_a75c8ef8eaeb40f3_EOF'
+          cat << 'GH_AW_PROMPT_eb79e7c0a012e11e_EOF'
           </safe-output-tools>
-          GH_AW_PROMPT_a75c8ef8eaeb40f3_EOF
+          GH_AW_PROMPT_eb79e7c0a012e11e_EOF
           cat "${RUNNER_TEMP}/gh-aw/prompts/mcp_cli_tools_prompt.md"
-          cat << 'GH_AW_PROMPT_a75c8ef8eaeb40f3_EOF'
+          cat << 'GH_AW_PROMPT_eb79e7c0a012e11e_EOF'
           <github-context>
           The following GitHub context information is available for this workflow:
           {{#if github.actor}}
@@ -296,9 +296,9 @@ jobs:
           {{/if}}
           </github-context>
           
-          GH_AW_PROMPT_a75c8ef8eaeb40f3_EOF
+          GH_AW_PROMPT_eb79e7c0a012e11e_EOF
           cat "${RUNNER_TEMP}/gh-aw/prompts/github_mcp_tools_with_safeoutputs_prompt.md"
-          cat << 'GH_AW_PROMPT_a75c8ef8eaeb40f3_EOF'
+          cat << 'GH_AW_PROMPT_eb79e7c0a012e11e_EOF'
           </system>
           # Core principles
           
@@ -1057,9 +1057,13 @@ jobs:
              pull request this agent opened.** Address the note by pushing further
              commits to the same branch, exactly as for a review comment (step 7). The
              `aw_context` input carries `trigger: 'revise'`, the pull request number,
-             and the comment id. Confirm ownership — the head branch follows
-             `sdd/<task-id>-<slug>` — before acting; if it is not such a branch, emit
-             `noop`.
+             the comment id, and — when the pull request has unresolved review-comment
+             threads or recent discussion comments — a `directive` field the wrapper
+             assembled from them (issue #247). The `/revise` note is the primary
+             instruction; the `directive` is supplementary context, so the author need
+             not restate feedback already present in the thread. Confirm ownership —
+             the head branch follows `sdd/<task-id>-<slug>` — before acting; if it is
+             not such a branch, emit `noop`.
           6. **A `CHANGES_REQUESTED` review was submitted on an implementation pull
              request this agent opened.** The wrapper treats a formal review with
              state `changes_requested` from CodeRabbit or a write-access human, on a
@@ -1535,9 +1539,14 @@ jobs:
           repo may lint commit subjects.
           
           For a `/revise` trigger (situation 5) there is no anchored diff: treat the
-          text after `/revise` in the triggering comment as the instruction, edit the
-          in-scope files to satisfy it, and push the follow-up commits to the same
-          branch with `push-to-pull-request-branch` exactly as for a review comment.
+          text after `/revise` in the triggering comment as the primary instruction.
+          When `aw_context.directive` is also present, the wrapper assembled it from
+          the pull request's unresolved review-comment threads and recent discussion
+          comments (issue #247): read it as supplementary context and address that
+          thread feedback alongside the note, so the author need not restate feedback
+          already present in the thread. Edit the in-scope files to satisfy the note
+          and that context, then push the follow-up commits to the same branch with
+          `push-to-pull-request-branch` exactly as for a review comment.
           Here too, never emit `create-pull-request`. For an implicit-revise trigger
           from a `CHANGES_REQUESTED` review (situation 6), the instruction is the
           `aw_context.directive` field the wrapper assembled (the review body plus the
@@ -1706,7 +1715,7 @@ jobs:
             moves to `sdd:done` and gains `needs-human`, and the tracking issue is not
             closed by the agent.
           
-          GH_AW_PROMPT_a75c8ef8eaeb40f3_EOF
+          GH_AW_PROMPT_eb79e7c0a012e11e_EOF
           } > "$GH_AW_PROMPT"
       - name: Interpolate variables and render templates
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
@@ -1933,9 +1942,9 @@ jobs:
           mkdir -p "${RUNNER_TEMP}/gh-aw/safeoutputs"
           mkdir -p /tmp/gh-aw/safeoutputs
           mkdir -p /tmp/gh-aw/mcp-logs/safeoutputs
-          cat > "${RUNNER_TEMP}/gh-aw/safeoutputs/config.json" << 'GH_AW_SAFE_OUTPUTS_CONFIG_8e3dd9d6a1d9eee2_EOF'
+          cat > "${RUNNER_TEMP}/gh-aw/safeoutputs/config.json" << 'GH_AW_SAFE_OUTPUTS_CONFIG_5280f898c9f83cfd_EOF'
           {"add_comment":{"max":1},"add_labels":{"allowed":["sdd:in-progress","sdd:done","needs-human"],"max":2},"create_pull_request":{"draft":false,"max":1,"max_patch_files":100,"max_patch_size":1024,"protect_top_level_dot_folders":true,"protected_files":["bun.lockb","bunfig.toml","deno.json","deno.jsonc","deno.lock","global.json","NuGet.Config","Directory.Packages.props","mix.exs","mix.lock","go.mod","go.sum","stack.yaml","stack.yaml.lock","pom.xml","build.gradle","build.gradle.kts","settings.gradle","settings.gradle.kts","gradle.properties","requirements.txt","Pipfile","Pipfile.lock","setup.py","setup.cfg","Gemfile","Gemfile.lock","uv.lock","CODEOWNERS","DESIGN.md","README.md","CONTRIBUTING.md","CHANGELOG.md","SECURITY.md","CODE_OF_CONDUCT.md","AGENTS.md","CLAUDE.md","GEMINI.md"],"protected_files_policy":"fallback-to-issue"},"create_report_incomplete_issue":{},"missing_data":{},"missing_tool":{},"noop":{"max":1,"report-as-issue":"true"},"push_to_pull_request_branch":{"if_no_changes":"warn","max":1,"max_patch_size":1024,"protect_top_level_dot_folders":true,"protected_files":["bun.lockb","bunfig.toml","deno.json","deno.jsonc","deno.lock","global.json","NuGet.Config","Directory.Packages.props","mix.exs","mix.lock","go.mod","go.sum","stack.yaml","stack.yaml.lock","pom.xml","build.gradle","build.gradle.kts","settings.gradle","settings.gradle.kts","gradle.properties","requirements.txt","Pipfile","Pipfile.lock","setup.py","setup.cfg","Gemfile","Gemfile.lock","uv.lock","CODEOWNERS","DESIGN.md","README.md","CONTRIBUTING.md","CHANGELOG.md","SECURITY.md","CODE_OF_CONDUCT.md","AGENTS.md","CLAUDE.md","GEMINI.md"]},"remove_labels":{"allowed":["sdd:ready","sdd:review","sdd:fastpath","sdd:in-progress"],"max":2},"report_incomplete":{},"update_issue":{"allow_body":true,"allow_status":true,"max":1,"target":"*"}}
-          GH_AW_SAFE_OUTPUTS_CONFIG_8e3dd9d6a1d9eee2_EOF
+          GH_AW_SAFE_OUTPUTS_CONFIG_5280f898c9f83cfd_EOF
       - name: Generate Safe Outputs Tools
         env:
           GH_AW_TOOLS_META_JSON: |
@@ -2287,7 +2296,7 @@ jobs:
           
           mkdir -p /home/runner/.copilot
           GH_AW_NODE=$(which node 2>/dev/null || command -v node 2>/dev/null || echo node)
-          cat << GH_AW_MCP_CONFIG_2a106a85e90fa06a_EOF | "$GH_AW_NODE" "${RUNNER_TEMP}/gh-aw/actions/start_mcp_gateway.cjs"
+          cat << GH_AW_MCP_CONFIG_dec4f367f0d8bed8_EOF | "$GH_AW_NODE" "${RUNNER_TEMP}/gh-aw/actions/start_mcp_gateway.cjs"
           {
             "mcpServers": {
               "github": {
@@ -2413,7 +2422,7 @@ jobs:
               }
             }
           }
-          GH_AW_MCP_CONFIG_2a106a85e90fa06a_EOF
+          GH_AW_MCP_CONFIG_dec4f367f0d8bed8_EOF
       - name: Mount MCP servers as CLIs
         id: mount-mcp-clis
         continue-on-error: true

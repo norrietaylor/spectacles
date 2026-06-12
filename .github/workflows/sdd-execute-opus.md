@@ -243,9 +243,13 @@ one applies from the `aw_context` input before doing anything else.
    pull request this agent opened.** Address the note by pushing further
    commits to the same branch, exactly as for a review comment (step 7). The
    `aw_context` input carries `trigger: 'revise'`, the pull request number,
-   and the comment id. Confirm ownership — the head branch follows
-   `sdd/<task-id>-<slug>` — before acting; if it is not such a branch, emit
-   `noop`.
+   the comment id, and — when the pull request has unresolved review-comment
+   threads or recent discussion comments — a `directive` field the wrapper
+   assembled from them (issue #247). The `/revise` note is the primary
+   instruction; the `directive` is supplementary context, so the author need
+   not restate feedback already present in the thread. Confirm ownership —
+   the head branch follows `sdd/<task-id>-<slug>` — before acting; if it is
+   not such a branch, emit `noop`.
 6. **A `CHANGES_REQUESTED` review was submitted on an implementation pull
    request this agent opened.** The wrapper treats a formal review with
    state `changes_requested` from CodeRabbit or a write-access human, on a
@@ -721,9 +725,14 @@ follow-up commit subject uses the same conventional-commit form as step 6 —
 repo may lint commit subjects.
 
 For a `/revise` trigger (situation 5) there is no anchored diff: treat the
-text after `/revise` in the triggering comment as the instruction, edit the
-in-scope files to satisfy it, and push the follow-up commits to the same
-branch with `push-to-pull-request-branch` exactly as for a review comment.
+text after `/revise` in the triggering comment as the primary instruction.
+When `aw_context.directive` is also present, the wrapper assembled it from
+the pull request's unresolved review-comment threads and recent discussion
+comments (issue #247): read it as supplementary context and address that
+thread feedback alongside the note, so the author need not restate feedback
+already present in the thread. Edit the in-scope files to satisfy the note
+and that context, then push the follow-up commits to the same branch with
+`push-to-pull-request-branch` exactly as for a review comment.
 Here too, never emit `create-pull-request`. For an implicit-revise trigger
 from a `CHANGES_REQUESTED` review (situation 6), the instruction is the
 `aw_context.directive` field the wrapper assembled (the review body plus the
