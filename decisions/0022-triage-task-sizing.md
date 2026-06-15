@@ -12,6 +12,11 @@ superseded-by:
 - Status: Accepted
 - Date: 2026-06-10
 
+> **Amended by [ADR 0026](0026-demoable-unit-sizing.md) (2026-06-15):** the
+> default `SDD_TRIAGE_MIN_TASK` floor is raised from 300 to 400 net lines to
+> match the new demoable-unit target. The cohesion mechanism in this ADR is
+> unchanged.
+
 ## Context
 
 `sdd-triage` decomposes a feature into task sub-issues, and each task is a full

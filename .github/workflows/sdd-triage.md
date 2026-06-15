@@ -6,7 +6,7 @@ on:
         description: >
           Task-bundling diff floor in net lines, from the consumer's
           SDD_TRIAGE_MIN_TASK repository variable (the wrapper maps it in).
-          Blank means the variable is unset; the agent falls back to 300. `0`
+          Blank means the variable is unset; the agent falls back to 400. `0`
           disables bundling. See step 5.
         type: string
         required: false
@@ -652,7 +652,7 @@ sibling. The floor resolves at run time to:
 SDD_TRIAGE_MIN_TASK = ${{ inputs.min_task }}
 ```
 
-A blank value means the variable is unset — use 300. A value of `0` disables
+A blank value means the variable is unset — use 400. A value of `0` disables
 bundling, restoring one task per requirement. The line count never forces two
 unrelated tasks together: cohesion is the gate, the floor only breaks ties. The
 aim is that a feature whose whole scope is a few hundred lines across a handful

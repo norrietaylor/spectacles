@@ -70,6 +70,14 @@ Applied at the spec boundary: a pull request that adds or changes a
    empty-PR rule from the imported proof-artifacts fragment. A demoable unit
    with no proof artifact, or a proof artifact that would pass against an empty
    pull request, is a Blocker.
+5. **Demoable unit sized to a reviewable PR.** The lower-bound companion to the
+   unit-sizing rule (ADR 0026), symmetric to triage gate 5's under-decomposed
+   task. A demoable unit whose estimated implementation is well under the
+   `SDD_SPEC_MIN_UNIT` floor (default 400 net lines) and that has a cohesive
+   sibling it could fold into — an overlapping implementation file set, or a
+   strict produce/consume chain — is under-sized and a Warning. A unit
+   separated from its neighbours by a real dependency edge is exempt. Advisory,
+   never a Blocker.
 
 ## Architecture gates
 

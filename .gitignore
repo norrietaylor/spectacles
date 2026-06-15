@@ -11,3 +11,6 @@ site/
 # inlined-imports the compiled .lock.yml workflows are self-contained and need
 # no committed copy of it (ADR 0004).
 .github/aw/imports/
+
+# gh-aw audit artifacts. `gh aw audit <run-id>` downloads run logs here.
+.github/aw/logs/
