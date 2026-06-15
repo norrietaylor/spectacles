@@ -16,6 +16,20 @@ permissions:
   issues: read
   pull-requests: read
 engine: copilot
+# Runaway backstop (max-runs = AWF apiProxy invocation cap; one run is one model
+# API call). A phase-A run that loops without making progress — e.g. re-reading
+# the same issue across calls — grows the per-call context unbounded until it
+# trips the AWF effective-token hard rail (25M), which fails the run silently
+# with no safe output, an unrecoverable state. Capping invocations converts that
+# into a graceful stop: the engine is forced to emit a final turn, which the
+# safe-outputs contract steers to a noop/report_incomplete the human can resume
+# from. copilot does not support the per-turn `max-turns` field, so the
+# invocation cap is the available lever (default is 500). Biased low on purpose —
+# a truncated heavy phase-A is recoverable (resume re-triggers), a rail-death is
+# not. This is a coarse cap, not the cure; the structural fix (per-phase prompt +
+# MCP scoping so context stops growing) is tracked separately. Tune with OTEL
+# call-distribution data once it accrues.
+max-runs: 25
 # Agent-firewall egress allow-list. `defaults` is gh-aw's baseline host set;
 # `*.run.app` lets the agent export OTLP spans to the observability collector on
 # Cloud Run (firewalled otherwise). See ADR 0020.
