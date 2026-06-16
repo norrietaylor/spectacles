@@ -30,8 +30,8 @@ permissions:
 # effective-token per-run cap and failed every scheduled run. The commit-delta
 # document set (step 3) and Haiku together keep a run well under that ceiling.
 engine:
-  id: copilot
-  model: claude-haiku-4.5
+  id: claude
+  model: claude-haiku-4-5
 # Agent-firewall egress allow-list. `defaults` is gh-aw's baseline host set;
 # `*.run.app` lets the agent export OTLP spans to the observability collector on
 # Cloud Run (firewalled otherwise). The Distillery MCP host is injected
