@@ -1,0 +1,53 @@
+diff --git a/pkg/constants/engine_constants.go b/pkg/constants/engine_constants.go
+index f7e54c9..9ec58d5 100644
+--- a/pkg/constants/engine_constants.go
++++ b/pkg/constants/engine_constants.go
+@@ -69,7 +69,7 @@ var EngineOptions = []EngineOption{
+ 		Value:              string(ClaudeEngine),
+ 		Label:              "Claude",
+ 		Description:        "Anthropic Claude Code coding agent",
+-		SecretName:         "ANTHROPIC_API_KEY",
++		SecretName:         "CLAUDE_CODE_OAUTH_TOKEN",
+ 		AlternativeSecrets: []string{},
+ 		KeyURL:             "https://console.anthropic.com/settings/keys",
+ 		WhenNeeded:         "Claude engine workflows",
+diff --git a/pkg/workflow/claude_engine.go b/pkg/workflow/claude_engine.go
+index 999ecb5..21d419a 100644
+--- a/pkg/workflow/claude_engine.go
++++ b/pkg/workflow/claude_engine.go
+@@ -57,7 +57,7 @@ func (e *ClaudeEngine) GetRequiredSecretNames(workflowData *WorkflowData) []stri
+ 	if isAnthropicWIF(workflowData) {
+ 		return collectCommonMCPSecrets(workflowData)
+ 	}
+-	return append([]string{"ANTHROPIC_API_KEY"}, collectCommonMCPSecrets(workflowData)...)
++	return append([]string{"CLAUDE_CODE_OAUTH_TOKEN"}, collectCommonMCPSecrets(workflowData)...)
+ }
+ 
+ // GetSecretValidationStep returns the secret validation step for the Claude engine.
+@@ -68,7 +68,7 @@ func (e *ClaudeEngine) GetSecretValidationStep(workflowData *WorkflowData) GitHu
+ 	}
+ 	return BuildDefaultSecretValidationStep(
+ 		workflowData,
+-		[]string{"ANTHROPIC_API_KEY"},
++		[]string{"CLAUDE_CODE_OAUTH_TOKEN"},
+ 		"Claude Code",
+ 		"https://github.github.com/gh-aw/reference/engines/#anthropic-claude-code",
+ 	)
+@@ -328,7 +328,7 @@ func (e *ClaudeEngine) GetExecutionSteps(workflowData *WorkflowData, logFile str
+ 			PathSetup:      "touch " + AgentStepSummaryPath, // Runs BEFORE AWF on the host
+ 			// Exclude every env var whose step-env value is a secret so the agent
+ 			// cannot read raw token values via bash tools (env / printenv).
+-			ExcludeEnvVarNames: ComputeAWFExcludeEnvVarNames(workflowData, []string{"ANTHROPIC_API_KEY"}),
++			ExcludeEnvVarNames: ComputeAWFExcludeEnvVarNames(workflowData, nil),
+ 		})
+ 	} else {
+ 		// Run Claude command without AWF wrapper
+@@ -346,7 +346,7 @@ func (e *ClaudeEngine) GetExecutionSteps(workflowData *WorkflowData, logFile str
+ 
+ 	// Build environment variables map
+ 	env := map[string]string{
+-		"ANTHROPIC_API_KEY":       "${{ secrets.ANTHROPIC_API_KEY }}",
++		"CLAUDE_CODE_OAUTH_TOKEN": "${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}",
+ 		"DISABLE_TELEMETRY":       "1",
+ 		"DISABLE_ERROR_REPORTING": "1",
+ 		"DISABLE_BUG_COMMAND":     "1",

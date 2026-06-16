@@ -24,7 +24,7 @@ permissions:
   contents: read
   issues: read
   pull-requests: read
-engine: copilot
+engine: claude
 # Agent-firewall egress allow-list. `defaults` is gh-aw's baseline host set;
 # `*.run.app` lets the agent export OTLP spans to the observability collector on
 # Cloud Run (firewalled otherwise). See ADR 0020.

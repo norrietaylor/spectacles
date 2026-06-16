@@ -42,15 +42,33 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      - name: Install gh-aw
+      - name: Set up Go
+        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
+        with:
+          go-version: '1.26'
+      - name: Build patched gh-aw
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh extension install github/gh-aw --pin v0.77.5
+          GH_AW_PIN: v0.77.5
+        run: |
+          set -euo pipefail
+          # Stock gh-aw ignores CLAUDE_CODE_OAUTH_TOKEN and would regenerate
+          # ANTHROPIC_API_KEY locks, reddening this gate. Build the pinned tag
+          # with our OAuth-token patch. Version ldflags MUST equal the pin so the
+          # lock output is byte-identical to the committed locks this job diffs.
+          git clone --depth 1 --branch "${GH_AW_PIN}" \
+            https://github.com/github/gh-aw "${RUNNER_TEMP}/gh-aw-src"
+          git -C "${RUNNER_TEMP}/gh-aw-src" apply \
+            "${GITHUB_WORKSPACE}/.github/gh-aw-patches/claude-oauth-token.patch"
+          ( cd "${RUNNER_TEMP}/gh-aw-src" \
+            && go build -ldflags "-s -w -X main.version=${GH_AW_PIN} -X main.isRelease=true" \
+                 -o /usr/local/bin/gh-aw ./cmd/gh-aw )
+          gh-aw --version
       - name: Compile and check lock drift
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh aw compile --no-check-update
+          gh-aw compile --no-check-update
           # git status --porcelain reports both modified tracked locks and
           # untracked new ones (??), so a freshly generated but uncommitted
           # .lock.yml is caught — git diff alone would miss an untracked file.
