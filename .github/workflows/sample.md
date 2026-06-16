@@ -3,7 +3,7 @@ on:
   workflow_dispatch:
 permissions:
   contents: read
-engine: copilot
+engine: claude
 ---
 
 # Sample agentic workflow

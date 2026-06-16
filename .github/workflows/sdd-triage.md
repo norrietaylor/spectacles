@@ -15,7 +15,7 @@ permissions:
   contents: read
   issues: read
   pull-requests: read
-engine: copilot
+engine: claude
 # Runaway backstop (max-runs = AWF apiProxy invocation cap; one run is one model
 # API call). A phase-A run that loops without making progress — e.g. re-reading
 # the same issue across calls — grows the per-call context unbounded until it

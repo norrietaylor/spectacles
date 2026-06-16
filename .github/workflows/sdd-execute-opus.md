@@ -16,8 +16,8 @@ permissions:
   issues: read
   pull-requests: read
 engine:
-  id: copilot
-  model: claude-opus-4.6
+  id: claude
+  model: claude-opus-4-8
 # Agent-firewall egress allow-list. `defaults` keeps gh-aw's baseline host set
 # (GitHub APIs, the Copilot proxy, the npm registry, the Ubuntu/Microsoft
 # package mirrors); the two crates.io hosts let a Rust consumer's toolchain
