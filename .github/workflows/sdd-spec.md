@@ -11,6 +11,15 @@ on:
         type: string
         required: false
         default: ''
+      min_unit:
+        description: >
+          Demoable-unit bundling diff floor in net lines, from the consumer's
+          SDD_SPEC_MIN_UNIT repository variable (the wrapper maps it in). Blank
+          means the variable is unset; the agent falls back to 400. `0` disables
+          unit bundling. See step 5.
+        type: string
+        required: false
+        default: ''
 permissions:
   contents: read
   issues: read
@@ -594,6 +603,39 @@ The spec must:
   file/symbol or `(informed by ...)` evidence and framed as an existing
   constraint or verification-only concern, never as new work to build; a
   requirement with no in-tree evidence is expressed as work to do.
+
+**Size each demoable unit to a reviewable pull request, not to the smallest
+testable slice (ADR 0026).** A demoable unit is the grain at which `sdd-triage`
+later creates one Unit sub-issue and at least one implementation task, and each
+task is a full agent cascade — one `sdd-execute` run, one pull request, one CI
+pipeline, one `sdd-validate` pass, one `sdd-review` pass, one merge. That
+overhead is fixed per task and does not shrink with the diff, so an over-split
+spec pays it many times for little delivered work. Aim for a unit whose
+implementation is a cohesive ~400 net changed lines — the size of a pull request
+a human reviews in one sitting — not ~100. Fold two prospective units into one
+when either holds, unless a dependency edge to a *third* unit forces them apart:
+
+- their implementation file sets overlap (one is a subset of, or shares a file
+  with, the other), or
+- they form a strict produce-then-consume chain with no other consumer (one
+  unit exists only to feed another).
+
+Layer a soft tie-breaker on the cohesion test: a candidate unit whose estimated
+implementation — your pre-implementation judgment of net changed lines across
+the files it touches, the same basis as `sdd-triage`'s task estimate (ADR 0022)
+— is under the `SDD_SPEC_MIN_UNIT` floor and that has a cohesive sibling is
+folded into that sibling. The floor resolves at run time to:
+
+```text
+SDD_SPEC_MIN_UNIT = ${{ inputs.min_unit }}
+```
+
+A blank value means the variable is unset — use 400. A value of `0` disables
+unit bundling, restoring the natural split. The line count never forces two
+unrelated units together: cohesion is the gate, the floor only breaks ties. This
+is the ADR 0022 task-bundling instinct applied one level up, at the unit grain;
+larger units mean `sdd-triage` starts from fewer, better-scoped requirements
+before it folds tasks within them.
 
 ### 5a. Translate the plan into the spec (`plan:provided`)
 

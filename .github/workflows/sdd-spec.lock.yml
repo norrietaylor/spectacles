@@ -1,4 +1,4 @@
-# gh-aw-metadata: {"schema_version":"v4","frontmatter_hash":"912cec977d835f2e750c0d14aee0e808f90af1c9cd95699a6d9823f23115a8bc","body_hash":"a7ca3f2c6539a9acd1f84b823e30221611f68de5ee706e44d0eb47d98fd95cbd","compiler_version":"v0.77.5","agent_id":"claude"}
+# gh-aw-metadata: {"schema_version":"v4","frontmatter_hash":"9ffb9f5a5932b92cc3e5ba9efb5a47f859e300ca62f8d776cc860bf3d2a1b7e3","body_hash":"a75c99365ac87568e9f5fcf676858f199459a27ec76a5384f6d85f3b8ad47762","compiler_version":"v0.77.5","agent_id":"claude"}
 # gh-aw-manifest: {"version":1,"secrets":["APP_PRIVATE_KEY","CLAUDE_CODE_OAUTH_TOKEN","DISTILLERY_OAUTH_TOKEN","GH_AW_CI_TRIGGER_TOKEN","GH_AW_GITHUB_MCP_SERVER_TOKEN","GH_AW_GITHUB_TOKEN","GH_AW_OTEL_ENDPOINT","GITHUB_TOKEN"],"actions":[{"repo":"actions/checkout","sha":"de0fac2e4500dabe0009e67214ff5f5447ce83dd","version":"v6.0.2"},{"repo":"actions/create-github-app-token","sha":"bcd2ba49218906704ab6c1aa796996da409d3eb1","version":"v3.2.0"},{"repo":"actions/download-artifact","sha":"3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c","version":"v8.0.1"},{"repo":"actions/github-script","sha":"3a2844b7e9c422d3c10d287c895573f7108da1b3","version":"v9.0.0"},{"repo":"actions/setup-node","sha":"48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e","version":"v6.4.0"},{"repo":"actions/upload-artifact","sha":"043fb46d1a93c77aae656e7c1c64a875d1fc6a0a","version":"v7.0.1"},{"repo":"github/gh-aw-actions/setup","sha":"3ea13c02d765410340d533515cb31a7eef2baaf0","version":"v0.77.5"}],"containers":[{"image":"ghcr.io/github/gh-aw-firewall/agent:0.25.58"},{"image":"ghcr.io/github/gh-aw-firewall/api-proxy:0.25.58"},{"image":"ghcr.io/github/gh-aw-firewall/squid:0.25.58"},{"image":"ghcr.io/github/gh-aw-mcpg:v0.3.22"},{"image":"ghcr.io/github/github-mcp-server:v1.1.0"},{"image":"ghcr.io/github/serena-mcp-server:latest","digest":"sha256:bf343399e3725c45528f531a230f3a04521d4cdef29f9a5af6282ff0d3c393c5","pinned_image":"ghcr.io/github/serena-mcp-server:latest@sha256:bf343399e3725c45528f531a230f3a04521d4cdef29f9a5af6282ff0d3c393c5"},{"image":"node:lts-alpine","digest":"sha256:2bdb65ed1dab192432bc31c95f94155ca5ad7fc1392fb7eb7526ab682fa5bf14","pinned_image":"node:lts-alpine@sha256:2bdb65ed1dab192432bc31c95f94155ca5ad7fc1392fb7eb7526ab682fa5bf14"}]}
 #    ___                   _   _      
 #   / _ \                 | | (_)     
@@ -76,6 +76,12 @@ on:
         default: ""
         description: |
           Single-PR classifier diff ceiling in net lines, from the consumer's SDD_AGILE_MAX repository variable (the wrapper maps it in). Blank means the variable is unset; the agent falls back to 800. See step 3a.
+        required: false
+        type: string
+      min_unit:
+        default: ""
+        description: |
+          Demoable-unit bundling diff floor in net lines, from the consumer's SDD_SPEC_MIN_UNIT repository variable (the wrapper maps it in). Blank means the variable is unset; the agent falls back to 400. `0` disables unit bundling. See step 5.
         required: false
         type: string
     outputs:
@@ -262,29 +268,30 @@ jobs:
           GH_AW_GITHUB_RUN_ID: ${{ github.run_id }}
           GH_AW_GITHUB_WORKSPACE: ${{ github.workspace }}
           GH_AW_INPUTS_AGILE_MAX: ${{ inputs.agile_max }}
+          GH_AW_INPUTS_MIN_UNIT: ${{ inputs.min_unit }}
           GH_AW_VARS_DISTILLERY_PROJECT: ${{ vars.DISTILLERY_PROJECT }}
         # poutine:ignore untrusted_checkout_exec
         run: |
           bash "${RUNNER_TEMP}/gh-aw/actions/create_prompt_first.sh"
           {
-          cat << 'GH_AW_PROMPT_c34cb03f7d75631b_EOF'
+          cat << 'GH_AW_PROMPT_e1400aa720e2069d_EOF'
           <system>
-          GH_AW_PROMPT_c34cb03f7d75631b_EOF
+          GH_AW_PROMPT_e1400aa720e2069d_EOF
           cat "${RUNNER_TEMP}/gh-aw/prompts/xpia.md"
           cat "${RUNNER_TEMP}/gh-aw/prompts/temp_folder_prompt.md"
           cat "${RUNNER_TEMP}/gh-aw/prompts/markdown.md"
           cat "${RUNNER_TEMP}/gh-aw/prompts/safe_outputs_prompt.md"
-          cat << 'GH_AW_PROMPT_c34cb03f7d75631b_EOF'
+          cat << 'GH_AW_PROMPT_e1400aa720e2069d_EOF'
           <safe-output-tools>
           Tools: add_comment, create_issue, create_pull_request, add_labels(max:2), remove_labels(max:3), push_to_pull_request_branch, hide_comment(max:5), missing_tool, missing_data, noop
-          GH_AW_PROMPT_c34cb03f7d75631b_EOF
+          GH_AW_PROMPT_e1400aa720e2069d_EOF
           cat "${RUNNER_TEMP}/gh-aw/prompts/safe_outputs_create_pull_request.md"
           cat "${RUNNER_TEMP}/gh-aw/prompts/safe_outputs_push_to_pr_branch.md"
-          cat << 'GH_AW_PROMPT_c34cb03f7d75631b_EOF'
+          cat << 'GH_AW_PROMPT_e1400aa720e2069d_EOF'
           </safe-output-tools>
-          GH_AW_PROMPT_c34cb03f7d75631b_EOF
+          GH_AW_PROMPT_e1400aa720e2069d_EOF
           cat "${RUNNER_TEMP}/gh-aw/prompts/mcp_cli_tools_prompt.md"
-          cat << 'GH_AW_PROMPT_c34cb03f7d75631b_EOF'
+          cat << 'GH_AW_PROMPT_e1400aa720e2069d_EOF'
           <github-context>
           The following GitHub context information is available for this workflow:
           {{#if github.actor}}
@@ -313,9 +320,9 @@ jobs:
           {{/if}}
           </github-context>
           
-          GH_AW_PROMPT_c34cb03f7d75631b_EOF
+          GH_AW_PROMPT_e1400aa720e2069d_EOF
           cat "${RUNNER_TEMP}/gh-aw/prompts/github_mcp_tools_with_safeoutputs_prompt.md"
-          cat << 'GH_AW_PROMPT_c34cb03f7d75631b_EOF'
+          cat << 'GH_AW_PROMPT_e1400aa720e2069d_EOF'
           </system>
           # Core principles
           
@@ -1397,6 +1404,39 @@ jobs:
             constraint or verification-only concern, never as new work to build; a
             requirement with no in-tree evidence is expressed as work to do.
           
+          **Size each demoable unit to a reviewable pull request, not to the smallest
+          testable slice (ADR 0026).** A demoable unit is the grain at which `sdd-triage`
+          later creates one Unit sub-issue and at least one implementation task, and each
+          task is a full agent cascade — one `sdd-execute` run, one pull request, one CI
+          pipeline, one `sdd-validate` pass, one `sdd-review` pass, one merge. That
+          overhead is fixed per task and does not shrink with the diff, so an over-split
+          spec pays it many times for little delivered work. Aim for a unit whose
+          implementation is a cohesive ~400 net changed lines — the size of a pull request
+          a human reviews in one sitting — not ~100. Fold two prospective units into one
+          when either holds, unless a dependency edge to a *third* unit forces them apart:
+          
+          - their implementation file sets overlap (one is a subset of, or shares a file
+            with, the other), or
+          - they form a strict produce-then-consume chain with no other consumer (one
+            unit exists only to feed another).
+          
+          Layer a soft tie-breaker on the cohesion test: a candidate unit whose estimated
+          implementation — your pre-implementation judgment of net changed lines across
+          the files it touches, the same basis as `sdd-triage`'s task estimate (ADR 0022)
+          — is under the `SDD_SPEC_MIN_UNIT` floor and that has a cohesive sibling is
+          folded into that sibling. The floor resolves at run time to:
+          
+          ```text
+          SDD_SPEC_MIN_UNIT = __GH_AW_INPUTS_MIN_UNIT__
+          ```
+          
+          A blank value means the variable is unset — use 400. A value of `0` disables
+          unit bundling, restoring the natural split. The line count never forces two
+          unrelated units together: cohesion is the gate, the floor only breaks ties. This
+          is the ADR 0022 task-bundling instinct applied one level up, at the unit grain;
+          larger units mean `sdd-triage` starts from fewer, better-scoped requirements
+          before it folds tasks within them.
+          
           ### 5a. Translate the plan into the spec (`plan:provided`)
           
           This step refines step 5 when the tracking issue carries `plan:provided`
@@ -1885,7 +1925,7 @@ jobs:
             from the plan, the execution plan comment is the plan reformatted, and
             `plan:provided` is removed when the spec PR opens.
           
-          GH_AW_PROMPT_c34cb03f7d75631b_EOF
+          GH_AW_PROMPT_e1400aa720e2069d_EOF
           } > "$GH_AW_PROMPT"
       - name: Interpolate variables and render templates
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
@@ -1894,6 +1934,7 @@ jobs:
           GH_AW_ENGINE_ID: "claude"
           GH_AW_VARS_DISTILLERY_PROJECT: ${{ vars.DISTILLERY_PROJECT }}
           GH_AW_INPUTS_AGILE_MAX: ${{ inputs.agile_max }}
+          GH_AW_INPUTS_MIN_UNIT: ${{ inputs.min_unit }}
         with:
           script: |
             const { setupGlobals } = require('${{ runner.temp }}/gh-aw/actions/setup_globals.cjs');
@@ -1913,6 +1954,7 @@ jobs:
           GH_AW_GITHUB_RUN_ID: ${{ github.run_id }}
           GH_AW_GITHUB_WORKSPACE: ${{ github.workspace }}
           GH_AW_INPUTS_AGILE_MAX: ${{ inputs.agile_max }}
+          GH_AW_INPUTS_MIN_UNIT: ${{ inputs.min_unit }}
           GH_AW_MCP_CLI_SERVERS_LIST: '- `safeoutputs` — run `safeoutputs --help` to see available tools'
           GH_AW_NEEDS_PRE_ACTIVATION_OUTPUTS_ACTIVATED: ${{ needs.pre_activation.outputs.activated }}
           GH_AW_VARS_DISTILLERY_PROJECT: ${{ vars.DISTILLERY_PROJECT }}
@@ -1936,6 +1978,7 @@ jobs:
                 GH_AW_GITHUB_RUN_ID: process.env.GH_AW_GITHUB_RUN_ID,
                 GH_AW_GITHUB_WORKSPACE: process.env.GH_AW_GITHUB_WORKSPACE,
                 GH_AW_INPUTS_AGILE_MAX: process.env.GH_AW_INPUTS_AGILE_MAX,
+                GH_AW_INPUTS_MIN_UNIT: process.env.GH_AW_INPUTS_MIN_UNIT,
                 GH_AW_MCP_CLI_SERVERS_LIST: process.env.GH_AW_MCP_CLI_SERVERS_LIST,
                 GH_AW_NEEDS_PRE_ACTIVATION_OUTPUTS_ACTIVATED: process.env.GH_AW_NEEDS_PRE_ACTIVATION_OUTPUTS_ACTIVATED,
                 GH_AW_VARS_DISTILLERY_PROJECT: process.env.GH_AW_VARS_DISTILLERY_PROJECT
@@ -2114,9 +2157,9 @@ jobs:
           mkdir -p "${RUNNER_TEMP}/gh-aw/safeoutputs"
           mkdir -p /tmp/gh-aw/safeoutputs
           mkdir -p /tmp/gh-aw/mcp-logs/safeoutputs
-          cat > "${RUNNER_TEMP}/gh-aw/safeoutputs/config.json" << 'GH_AW_SAFE_OUTPUTS_CONFIG_2f8f9a7e0c22f53e_EOF'
+          cat > "${RUNNER_TEMP}/gh-aw/safeoutputs/config.json" << 'GH_AW_SAFE_OUTPUTS_CONFIG_f20e9bcc414dd814_EOF'
           {"add_comment":{"max":1},"add_labels":{"allowed":["sdd:spec","sdd:triage","sdd:fastpath","sdd:fastpath-review","needs-human"],"max":2},"create_issue":{"max":1},"create_pull_request":{"branch_prefix":"spec/","draft":false,"max":1,"max_patch_files":100,"max_patch_size":1024,"protect_top_level_dot_folders":true,"protected_files":["package.json","bun.lockb","bunfig.toml","deno.json","deno.jsonc","deno.lock","global.json","NuGet.Config","Directory.Packages.props","mix.exs","mix.lock","go.mod","go.sum","stack.yaml","stack.yaml.lock","pom.xml","build.gradle","build.gradle.kts","settings.gradle","settings.gradle.kts","gradle.properties","package-lock.json","yarn.lock","pnpm-lock.yaml","npm-shrinkwrap.json","requirements.txt","Pipfile","Pipfile.lock","pyproject.toml","setup.py","setup.cfg","Gemfile","Gemfile.lock","uv.lock","CODEOWNERS","DESIGN.md","README.md","CONTRIBUTING.md","CHANGELOG.md","SECURITY.md","CODE_OF_CONDUCT.md","CLAUDE.md","AGENTS.md"],"protected_files_policy":"request_review","title_prefix":"docs"},"create_report_incomplete_issue":{},"hide_comment":{"max":5},"missing_data":{},"missing_tool":{},"noop":{"max":1,"report-as-issue":"true"},"push_to_pull_request_branch":{"if_no_changes":"warn","max":1,"max_patch_size":1024,"protect_top_level_dot_folders":true,"protected_files":["package.json","bun.lockb","bunfig.toml","deno.json","deno.jsonc","deno.lock","global.json","NuGet.Config","Directory.Packages.props","mix.exs","mix.lock","go.mod","go.sum","stack.yaml","stack.yaml.lock","pom.xml","build.gradle","build.gradle.kts","settings.gradle","settings.gradle.kts","gradle.properties","package-lock.json","yarn.lock","pnpm-lock.yaml","npm-shrinkwrap.json","requirements.txt","Pipfile","Pipfile.lock","pyproject.toml","setup.py","setup.cfg","Gemfile","Gemfile.lock","uv.lock","CODEOWNERS","DESIGN.md","README.md","CONTRIBUTING.md","CHANGELOG.md","SECURITY.md","CODE_OF_CONDUCT.md","CLAUDE.md","AGENTS.md"]},"remove_labels":{"allowed":["sdd:spec","sdd:fastpath","sdd:fastpath-review","plan:provided","sdd:approved"],"max":3},"report_incomplete":{}}
-          GH_AW_SAFE_OUTPUTS_CONFIG_2f8f9a7e0c22f53e_EOF
+          GH_AW_SAFE_OUTPUTS_CONFIG_f20e9bcc414dd814_EOF
       - name: Generate Safe Outputs Tools
         env:
           GH_AW_TOOLS_META_JSON: |
@@ -2475,7 +2518,7 @@ jobs:
           export MCP_GATEWAY_DOCKER_COMMAND='docker run -i --rm --network host --add-host host.docker.internal:127.0.0.1 --user '"${MCP_GATEWAY_UID}"':'"${MCP_GATEWAY_GID}"' --group-add '"${DOCKER_SOCK_GID}"' -v '"${DOCKER_SOCK_PATH}"':/var/run/docker.sock -e MCP_GATEWAY_PORT -e MCP_GATEWAY_DOMAIN -e MCP_GATEWAY_API_KEY -e MCP_GATEWAY_PAYLOAD_DIR -e MCP_GATEWAY_PAYLOAD_SIZE_THRESHOLD -e DOCKER_HOST=unix:///var/run/docker.sock -e DEBUG -e MCP_GATEWAY_LOG_DIR -e GH_AW_MCP_LOG_DIR -e GH_AW_SAFE_OUTPUTS -e GH_AW_SAFE_OUTPUTS_CONFIG_PATH -e GH_AW_SAFE_OUTPUTS_TOOLS_PATH -e GH_AW_ASSETS_BRANCH -e GH_AW_ASSETS_MAX_SIZE_KB -e GH_AW_ASSETS_ALLOWED_EXTS -e DEFAULT_BRANCH -e GITHUB_MCP_SERVER_TOKEN -e GITHUB_MCP_GUARD_MIN_INTEGRITY -e GITHUB_MCP_GUARD_REPOS -e GITHUB_REPOSITORY -e GITHUB_SERVER_URL -e GITHUB_SHA -e GITHUB_WORKSPACE -e GITHUB_TOKEN -e GITHUB_RUN_ID -e GITHUB_RUN_NUMBER -e GITHUB_RUN_ATTEMPT -e GITHUB_JOB -e GITHUB_ACTION -e GITHUB_EVENT_NAME -e GITHUB_EVENT_PATH -e GITHUB_ACTOR -e GITHUB_ACTOR_ID -e GITHUB_TRIGGERING_ACTOR -e GITHUB_WORKFLOW -e GITHUB_WORKFLOW_REF -e GITHUB_WORKFLOW_SHA -e GITHUB_REF -e GITHUB_REF_NAME -e GITHUB_REF_TYPE -e GITHUB_HEAD_REF -e GITHUB_BASE_REF -e GH_AW_SAFE_OUTPUTS_PORT -e GH_AW_SAFE_OUTPUTS_API_KEY -e GITHUB_AW_OTEL_TRACE_ID -e GITHUB_AW_OTEL_PARENT_SPAN_ID -e OTEL_EXPORTER_OTLP_HEADERS -e DISTILLERY_OAUTH_TOKEN -v /tmp/gh-aw/mcp-payloads:/tmp/gh-aw/mcp-payloads:rw -v /opt:/opt:ro -v /tmp:/tmp:rw -v '"${GITHUB_WORKSPACE}"':'"${GITHUB_WORKSPACE}"':rw ghcr.io/github/gh-aw-mcpg:v0.3.22'
           
           GH_AW_NODE=$(which node 2>/dev/null || command -v node 2>/dev/null || echo node)
-          cat << GH_AW_MCP_CONFIG_312698d274ee570f_EOF | "$GH_AW_NODE" "${RUNNER_TEMP}/gh-aw/actions/start_mcp_gateway.cjs"
+          cat << GH_AW_MCP_CONFIG_0cc3c83b841b696f_EOF | "$GH_AW_NODE" "${RUNNER_TEMP}/gh-aw/actions/start_mcp_gateway.cjs"
           {
             "mcpServers": {
               "distillery": {
@@ -2581,7 +2624,7 @@ jobs:
               }
             }
           }
-          GH_AW_MCP_CONFIG_312698d274ee570f_EOF
+          GH_AW_MCP_CONFIG_0cc3c83b841b696f_EOF
       - name: Mount MCP servers as CLIs
         id: mount-mcp-clis
         continue-on-error: true

@@ -208,6 +208,10 @@ jobs:
       # optional SDD_AGILE_MAX variable into the lock's agile_max input;
       # unset passes empty and the agent falls back to 800.
       agile_max: ${{ vars.SDD_AGILE_MAX }}
+      # Demoable-unit bundling floor (ADR 0026). Maps the consumer's optional
+      # SDD_SPEC_MIN_UNIT variable into the lock's min_unit input; unset passes
+      # empty and the agent falls back to 400.
+      min_unit: ${{ vars.SDD_SPEC_MIN_UNIT }}
     # Mapped explicitly, not `secrets: inherit`: inherit does not pass secrets
     # to a reusable workflow in a different owner than the caller.
     secrets:
