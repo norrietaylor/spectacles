@@ -369,10 +369,12 @@ onto the existing architecture pull request's branch. Phase B produces one
 **plan comment** on the tracking issue: it lists the Units in dependency order
 and, under each Unit, the full preview of every sub-task `/approve` would
 create. Phase B creates **no** sub-issues. Phase C, gated on `/approve`,
-creates one Unit sub-issue per demoable unit and one implementation task
-sub-issue per single-session unit of work — each task nested under its Unit
-and carrying a structured body block that matches the plan-comment preview —
-and moves the tracking issue to `sdd:ready` (ADR 0010).
+creates one Unit sub-issue per demoable unit that groups **≥2** tasks and one
+implementation task sub-issue per single-session unit of work — each task
+nested under its Unit, or, when its Unit would hold a single task, parented
+directly to the tracking issue with no Unit (Feature → task, ADR 0028) — and
+carrying a structured body block that matches the plan-comment preview, and
+moves the tracking issue to `sdd:ready` (ADR 0010).
 On a `/revise` asking to amend the **merged** `architecture.md` document, it
 opens an **amendment PR** that edits the record in place on a fresh branch
 (preserving the `status` and `tracking-issue` frontmatter), unless a task is
@@ -873,6 +875,16 @@ sub-task showing:
 - its `depends on:` edges, and
 - its `model:*` tier.
 
+**Preview the single-task-Unit collapse (ADR 0028).** A Unit is a grouping
+container; one that would hold exactly **one** task earns no Unit sub-issue.
+When a Unit in the plan holds a single task, mark it in the preview as
+collapsing — note that `/approve` will parent its one task **directly to the
+tracking issue** (Feature → task), creating no Unit sub-issue for it. A Unit
+holding **≥2** tasks is previewed as a Unit grouping its tasks as usual. The
+preview must show the same structure phase C materializes (step 6), so the
+human approves exactly the tree that will be built (ADR 0010): a single-task
+group reads as a feature-parented task, a multi-task group reads as a Unit.
+
 Under each Unit, list any requirement the baseline pass found already
 satisfied on a line of the form `ALREADY EXISTS: <requirement> — <evidence>`,
 where the evidence is the existing file/symbol or `(informed by ...)`
@@ -968,10 +980,29 @@ failure (the cycle, or the unmapped requirement IDs), apply `needs-human`,
 and emit `noop`. The failure mode is "plan rejected, no tree created"
 rather than "partial tree, needs cleanup" (ADR 0010).
 
+**Collapse single-task Units (ADR 0028).** A Unit is a grouping container; a
+Unit that holds exactly **one** task contributes a sub-issue with no execution
+purpose. Before creating Units, partition the plan's Units by the number of
+tasks each holds:
+
+- A Unit holding **≥2** tasks is materialized as a Unit sub-issue, and its
+  tasks are parented to that Unit — the Feature → Unit → task path below.
+- A Unit holding exactly **one** task **collapses**: emit **no** Unit
+  `create-issue` for it; parent its single task **directly to the tracking
+  issue**, so the tree nests Feature → task with no intervening Unit. The
+  task is unchanged — same title, `## Task` body block, `model:*` tier, and
+  `sdd:ready` rule — only its `parent` differs.
+
+The plan comment (step 5) already previews this collapse, so phase C
+materializes exactly what was previewed (ADR 0010): a Unit shown in the plan
+as a single-task group is created here as a feature-parented task, not a Unit
+sub-issue. Apply the collapse per Unit; a feature may mix collapsed
+feature-parented tasks and multi-task Unit sub-issues in the same tree.
+
 Unit creation is **create-or-reuse by Unit title**, never blind-create.
 Before emitting any Unit `create-issue`, read the tracking issue's existing
-`sub_issues` and index the open ones by title. For each Unit in the plan,
-match its title (for example `Unit 1: Tokenizer`) against that index:
+`sub_issues` and index the open ones by title. For each **multi-task** Unit in
+the plan, match its title (for example `Unit 1: Tokenizer`) against that index:
 
 - If a sub-issue with that exact Unit title **already exists** under the
   tracking issue, **reuse it** — do **not** emit a `create-issue` for the
@@ -987,18 +1018,22 @@ sub-issue per Unit, not a spurious empty duplicate (bug
 backstop the way sub-tasks do (ADR 0008), so this title match is the only
 thing preventing a duplicate empty Unit.
 
-Each Unit `create-issue` sets its `parent` field to the tracking issue
-number. The `parent` field nests the new issue under the tracking issue in
-the same step. Every Unit `create-issue` must carry `parent`; an unparented
+Each **multi-task** Unit `create-issue` sets its `parent` field to the tracking
+issue number. The `parent` field nests the new issue under the tracking issue
+in the same step. Every Unit `create-issue` must carry `parent`; an unparented
 Unit breaks the feature tree and `sdd-execute`'s completion check, which
 finds Units through the tracking issue's sub-issue list. Each Unit issue's
 title names the unit (for example `Unit 1: Repository foundation`) and its
 body summarizes the unit's purpose, the requirement IDs it covers, and the
-units it depends on.
+units it depends on. A collapsed single-task Unit produces no such issue
+(ADR 0028).
 
-For each sub-task in the plan, emit one `create-issue` safe-output whose
-`parent` field is set to its **Unit** issue number — not the tracking issue
-number — so the tree nests Feature → Unit → task (ADR 0005). Emit at most
+For each sub-task in the plan, emit one `create-issue` safe-output. Its
+`parent` field is its **Unit** issue number when the task belongs to a
+multi-task Unit — not the tracking issue number — so the tree nests
+Feature → Unit → task (ADR 0005). For a **collapsed single-task Unit** the
+task's `parent` is the **tracking issue** number itself, so the tree nests
+Feature → task with no intervening Unit (ADR 0028). Emit at most
 one `create-issue` per sub-task: two calls with the same title under the
 same Unit are a duplicate, and the deterministic `sdd-triage-dedupe-tasks`
 workflow closes the later one as a duplicate (ADR 0008). Every sub-task

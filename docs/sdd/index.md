@@ -9,7 +9,7 @@ entirely through GitHub primitives you already use: opening an issue, applying
 a label, writing a comment, and reviewing and merging a pull request. There is
 no new tool to install and no separate task board.
 
-## The six agents
+## The agents
 
 | Agent | Turns | Into |
 |---|---|---|
@@ -19,6 +19,7 @@ no new tool to install and no separate task board.
 | `sdd-execute` | a ready task sub-issue, or a fast-path tracking issue on `/approve` | an implementation PR with proof artifacts |
 | `sdd-validate` | a phase-boundary artifact | advisory findings posted as a comment |
 | `sdd-review` | an implementation PR | code-review comments on correctness, security, and spec compliance |
+| `sdd-derive` | a pull request that shipped with no spec | a spec authored retrospectively from the code, delivered as a `spec/<slug>` documentation PR with a gap analysis (ADR 0027) |
 
 Lifecycle labels on the tracking issue: `sdd:spec`, `sdd:fastpath`,
 `sdd:fastpath-review`, `sdd:triage`, `sdd:ready`, `sdd:in-progress`,
@@ -28,8 +29,11 @@ never carries `sdd:triage`, `sdd:ready`, or `sdd:review`.
 
 `sdd-triage` runs three phases under one workflow: architecture design, a
 plan-comment proposal on the tracking issue, and — on `/approve` — the
-creation of the Unit and task sub-issue tree (ADR 0010). Structure is only
-created after `/approve`: until then the plan is a proposal, not a tree.
+creation of the Unit and task sub-issue tree (ADR 0010). A demoable unit that
+groups two or more tasks becomes a Unit sub-issue; a unit that holds a single
+task collapses to a task parented directly to the feature (Feature → task), so
+no Unit sub-issue is created for it (ADR 0028). Structure is only created after
+`/approve`: until then the plan is a proposal, not a tree.
 
 `sdd-dispatch` is the cascade orchestrator. On `/dispatch` it computes the
 ready set from the dependency graph and fans out to `sdd-execute` variants
@@ -110,7 +114,7 @@ flowchart TD
     end
 
     subgraph s_ready [Tracking issue state: sdd:ready]
-        a_tasks[sdd-triage phase C: creates Unit sub-issues and<br/>task sub-issues; labels unblocked tasks sdd:ready]:::agent
+        a_tasks[sdd-triage phase C: creates Unit sub-issues for multi-task units<br/>and task sub-issues, collapsing a single-task unit to a feature-parented task;<br/>labels unblocked tasks sdd:ready]:::agent
         a_cycle[sdd-cycle-detect: deterministic DAG backstop<br/>parks needs-human on a cycle the LLM missed]:::agent
     end
 
@@ -221,6 +225,31 @@ resumes) or comment `/spec` to bounce the issue into the full
 pipeline (`sdd:fastpath` becomes `sdd:spec`; the existing spec is the
 starting point of a fuller spec).
 
+## Retrospective specs
+
+The forward pipeline assumes a spec exists before code. Code explored directly
+on a feature branch — opened with no tracking issue — ships without one.
+`sdd-derive` (ADR 0027) is the reverse path: it reads a pull request and authors
+a spec from the implemented code.
+
+There are two ways in. When a pull request opens or updates without SDD lineage
+(no `sdd/` head branch, no `Closes` link) and its diff is over the
+`SDD_SPEC_MIN_UNIT` floor (default 400), a deterministic check posts one offer
+comment and a `needs-spec` marker. Comment `/derive-spec` on that pull request
+to take the offer; ignore it to defer. Separately, the `sdd-unspecced-scan`
+workflow runs weekly and upserts one roll-up issue listing every unspecced
+merged pull request; a maintainer comments `/derive-spec #12 #34` there to
+derive a set at once.
+
+Either way, `sdd-derive` opens a separate `spec/<slug>` documentation pull
+request adding the spec under `docs/specs/`, and comments the link on the source
+pull request. The derived spec carries a **Gap Analysis** section recording what
+the code did not do — implementation gaps, missing failure paths, weak
+acceptance criteria, and skipped demoable units. Those gaps stay in the spec for
+a human to triage; `sdd-derive` opens no follow-up issues. A derived spec's
+`tracking-issue` is blank, so `sdd-doc-status` leaves it at `planned` until a
+human links one.
+
 ## Planning hardening
 
 Two backstops keep the plan honest before and after `/approve`. Both run inside
@@ -251,7 +280,9 @@ implied edge is added to the plan and materialized verbatim by phase C. The
 agent also checks the implied dependency graph for cycles before it posts. As a
 deterministic backstop for a cycle the LLM misses, the `sdd-triage` wrapper runs
 an `sdd-cycle-detect` composite-action job **after** phase-C materialization: it
-walks the Feature → Unit → task sub-issues, and if it finds a real cycle (or a
+walks the Feature → Unit → task sub-issues — including a task parented directly
+to the feature when its Unit collapsed to one task (ADR 0028) — and if it finds
+a real cycle (or a
 `blocked by` reference it cannot resolve in the tree) it parks the tracking issue
 at `needs-human` with a comment naming the cycle. The agent's in-prompt check is
 the primary guarantee; this job is the authoritative backstop.

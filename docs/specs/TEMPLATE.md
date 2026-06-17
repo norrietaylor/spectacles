@@ -94,6 +94,16 @@ Knowledge gaps surfaced by the Distillery gap pass (prior constraints,
 referenced-but-missing artifacts, contradictions, thin areas), each cited as
 `(informed by #N)` or `(informed by ADR-NNNN)`. Empty if none.
 
+## Gap Analysis
+
+Populated only by a retrospectively derived spec (`sdd-derive`, ADR 0027);
+empty for a forward-authored spec. One bullet per gap found auditing the
+implemented code against this spec, naming the affected `file` or
+`R{unit}.{seq}` and the gap class: an implementation gap (a requirement the
+feature implies but does not implement), a missing failure path (absent or
+untested error handling and boundary conditions), a weak acceptance criterion
+(behavior weaker than the requirement it claims), or a skipped demoable unit.
+
 ## Verification
 
 How to verify the spec is complete and the feature demonstrable end to end.
