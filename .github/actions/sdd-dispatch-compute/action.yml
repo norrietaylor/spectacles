@@ -142,17 +142,19 @@ runs:
             // A single-task Unit collapses to a feature-parented task (ADR
             // 0028): such a task is a direct child of the tracking issue with
             // no intervening Unit, so the walk admits it directly. A direct
-            // child is a task — not a Unit, spec, or architecture sub-issue —
-            // when it carries exactly one model:* tier label; only tasks carry
-            // a model:* tier (the same disambiguator the ready-set loop uses).
+            // child is a task — not a Unit, spec, architecture, or spike
+            // sub-issue — when its body carries the `## Task` block (the repo's
+            // canonical task-body guard, distinct from a spike's `## Spike`
+            // block which also carries a model:* tier). Classifying by the body
+            // marker keeps the test tier-independent, so a task with a
+            // malformed model:* label is admitted here and reaches the
+            // invalid-tier refusal below rather than being silently treated as
+            // a Unit and dropped from open_task_count.
             // The REST sub-issues endpoint returns child issues. A page size
             // of 100 covers any realistic feature; this loops if needed.
-            const SUPPORTED_TIERS = new Set([
-              'model:haiku', 'model:sonnet', 'model:opus']);
+            const TASK_BLOCK = /^## Task\b/m;
             function isTask(issue) {
-              const names = (issue.labels || []).map((l) => l.name || l);
-              const tiers = names.filter((l) => SUPPORTED_TIERS.has(l));
-              return tiers.length === 1;
+              return TASK_BLOCK.test(issue.body || '');
             }
             async function listChildren(parentNumber) {
               const items = [];

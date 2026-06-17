@@ -61,15 +61,17 @@ runs:
             // A single-task Unit collapses to a feature-parented task (ADR
             // 0028): such a task is a direct child of the tracking issue with
             // no intervening Unit. A direct child is a task — not a Unit, spec,
-            // or architecture sub-issue — when it carries exactly one model:*
-            // tier label (the same disambiguator the dispatch matrix uses);
-            // only tasks carry a model:* tier.
-            const SUPPORTED_TIERS = new Set([
-              'model:haiku', 'model:sonnet', 'model:opus']);
+            // architecture, or spike sub-issue — when its body carries the
+            // `## Task` block. This is the repo's canonical task-body guard
+            // (sdd-triage step 6; deliberately distinct from a spike's
+            // `## Spike` block, which also carries a model:* tier). Classifying
+            // by the body marker, not the tier label, keeps the test
+            // tier-independent: a task with a malformed or missing model:* label
+            // is still walked here rather than mistaken for a Unit and dropped
+            // from the DAG.
+            const TASK_BLOCK = /^## Task\b/m;
             function isTask(issue) {
-              const names = (issue.labels || []).map((l) => l.name || l);
-              const tiers = names.filter((l) => SUPPORTED_TIERS.has(l));
-              return tiers.length === 1;
+              return TASK_BLOCK.test(issue.body || '');
             }
             async function listChildren(parentNumber) {
               const items = [];

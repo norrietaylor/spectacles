@@ -45,10 +45,14 @@ Feature → Unit → task tree-walkers (issue #272, Lever 2).
    multi-task group reads as a Unit. Phase C materializes exactly the previewed
    plan (ADR 0010).
 3. **The tree-walkers admit a feature-parented task.** A task is distinguished
-   from a Unit, spec, or architecture sub-issue at the feature level by carrying
-   the `## Task` block (deterministically: exactly one `model:*` tier label,
-   which only tasks carry). Three walkers learn the Feature → task shape
-   alongside Feature → Unit → task:
+   from a Unit, spec, architecture, or spike sub-issue at the feature level by
+   carrying the `## Task` body block — the repo's canonical task-body guard,
+   deliberately distinct from a spike's `## Spike` block. The deterministic
+   walkers match that block (`/^## Task\b/m`) rather than the `model:*` tier
+   label, because a spike also carries a `model:*` tier and a malformed-tier
+   task must still be admitted: tier validity is checked separately, in
+   `sdd-dispatch-compute`'s invalid-tier refusal, not at classification time.
+   Three walkers learn the Feature → task shape alongside Feature → Unit → task:
    - `sdd-execute-{haiku,sonnet,opus}` step 8 completion sweep — a
      feature-parented task is a leaf with no Unit to close; the feature-complete
      check now requires every feature-parented task closed too.
