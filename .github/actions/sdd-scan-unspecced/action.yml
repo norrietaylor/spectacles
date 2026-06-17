@@ -47,9 +47,12 @@ runs:
               || headRef.startsWith('arch/')
               || /\bcloses\s+#\d+/i.test(body || '');
 
-            // Walk closed PRs newest-first; stop once past the window.
+            // Walk recently-updated closed PRs and keep those merged inside the
+            // window. The list is sorted by `updated`, not `merged_at`, so a
+            // recently-touched but long-merged PR can appear early — filter
+            // each PR on its own merged_at rather than breaking on the first
+            // out-of-window one (which would drop later in-window merges).
             const unspecced = [];
-            outer:
             for (let page = 1; page <= 10; page += 1) {
               const { data } = await github.rest.pulls.list({
                 owner, repo, state: 'closed', sort: 'updated',
@@ -57,7 +60,7 @@ runs:
               if (!data.length) break;
               for (const pr of data) {
                 if (!pr.merged_at) continue;
-                if (new Date(pr.merged_at) < cutoff) break outer;
+                if (new Date(pr.merged_at) < cutoff) continue;
                 const headRef = (pr.head && pr.head.ref) || '';
                 const author = (pr.user && pr.user.login) || '';
                 if (hasLineage(headRef, pr.body)) continue;
@@ -93,20 +96,21 @@ runs:
               core.info('Roll-up search failed: ' + err.message);
             }
 
-            // Nothing to report: close the loop quietly. Leave any existing
-            // roll-up in place (it still lists older unaddressed PRs).
-            if (!unspecced.length && !existing) {
-              core.info('No unspecced PRs and no existing roll-up; nothing to do.');
+            // Nothing to report: close the loop quietly and leave any existing
+            // roll-up untouched (it still lists older unaddressed PRs — an
+            // empty-window run must not overwrite that backlog).
+            if (!unspecced.length) {
+              core.info(existing
+                ? 'No unspecced PRs in the current window; leaving the existing '
+                  + 'roll-up #' + existing.number + ' unchanged.'
+                : 'No unspecced PRs and no existing roll-up; nothing to do.');
               return;
             }
 
-            const list = unspecced.length
-              ? unspecced.map(
-                  (p) => `- [ ] #${p.number} — ${p.title} (~${p.size} lines)`).join('\n')
-              : '_No unspecced merged pull requests in the current window._';
-            const cmd = unspecced.length
-              ? '`/derive-spec ' + unspecced.map((p) => '#' + p.number).join(' ') + '`'
-              : '`/derive-spec #<n> #<n>`';
+            const list = unspecced.map(
+              (p) => `- [ ] #${p.number} — ${p.title} (~${p.size} lines)`).join('\n');
+            const cmd = '`/derive-spec '
+              + unspecced.map((p) => '#' + p.number).join(' ') + '`';
             const body = [
               MARKER,
               '## Unspecced merged pull requests',

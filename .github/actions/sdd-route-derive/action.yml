@@ -107,23 +107,33 @@ runs:
 
               let offer = !hasLineage && !isBot && size >= floor;
 
-              // Docs-only diff: every changed file is under docs/ or is a
-              // top-level markdown/text doc. A spec for docs is noise.
+              // A single pass over the changed files decides two suppressions:
+              // a docs-only diff (every file under docs/ or a markdown/text
+              // doc — a spec for docs is noise), and a PR that already carries
+              // a spec under docs/specs/** (lineage the head-ref/Closes checks
+              // miss when the spec ships on a non-spec branch).
               if (offer) {
                 try {
                   let docsOnly = true;
+                  let touchesSpecDocs = false;
                   let any = false;
                   for (let page = 1; ; page += 1) {
                     const { data } = await github.rest.pulls.listFiles({
                       owner, repo, pull_number: pr.number, per_page: 100, page });
                     for (const f of data) {
                       any = true;
+                      if (/^docs\/specs\//.test(f.filename)) touchesSpecDocs = true;
                       if (!/^docs\//.test(f.filename)
                           && !/\.(md|mdx|txt|rst)$/i.test(f.filename)) {
                         docsOnly = false;
                       }
                     }
                     if (data.length < 100) break;
+                  }
+                  if (touchesSpecDocs) {
+                    core.info('PR #' + pr.number
+                      + ' already touches docs/specs/**; no offer.');
+                    offer = false;
                   }
                   if (any && docsOnly) {
                     core.info('PR #' + pr.number + ' is docs-only; no offer.');
