@@ -961,10 +961,11 @@ merge.
   - Remove the `sdd:spec` label (`remove-labels`) and apply the
     `sdd:triage` label (`add-labels`).
   - Post one comment on the tracking issue: note that the spec is merged,
-    link the merged spec file, and state the next step in exact terms — a
-    write-access author comments `/triage` on this tracking issue to start
-    the architecture phase. Name the `/triage` command explicitly;
-    "triage is next" alone leaves the reader without the action.
+    link the merged spec file, and state the next step in exact terms —
+    applying the `sdd:triage` label automatically starts the architecture
+    phase (`sdd-triage-arch`); no human action is required. A write-access
+    author may comment `/triage` to re-run the architecture phase manually
+    if needed, but the label alone triggers it.
 
 - **Single-PR path** (the tracking issue currently carries
   `sdd:fastpath-review`):

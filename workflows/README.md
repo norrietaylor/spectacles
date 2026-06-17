@@ -70,7 +70,9 @@ on the gh-aw `command:` trigger.
 | Agent | Hosted reusable workflow | Wrapper |
 |---|---|---|
 | `sdd-spec` | `.github/workflows/sdd-spec.lock.yml` | `wrappers/sdd-spec.yml` |
-| `sdd-triage` | `.github/workflows/sdd-triage.lock.yml` | `wrappers/sdd-triage.yml` |
+| `sdd-triage` (arch) | `.github/workflows/sdd-triage-arch.lock.yml` | `wrappers/sdd-triage.yml` |
+| `sdd-triage` (plan) | `.github/workflows/sdd-triage-plan.lock.yml` | `wrappers/sdd-triage.yml` |
+| `sdd-triage` (materialize) | `.github/workflows/sdd-triage-materialize.lock.yml` | `wrappers/sdd-triage.yml` |
 | `sdd-execute` (haiku) | `.github/workflows/sdd-execute-haiku.lock.yml` | `wrappers/sdd-execute-haiku.yml` |
 | `sdd-execute` (sonnet) | `.github/workflows/sdd-execute-sonnet.lock.yml` | `wrappers/sdd-execute-sonnet.yml` |
 | `sdd-execute` (opus) | `.github/workflows/sdd-execute-opus.lock.yml` | `wrappers/sdd-execute-opus.yml` |

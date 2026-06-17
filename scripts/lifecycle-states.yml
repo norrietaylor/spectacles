@@ -148,3 +148,11 @@ writer_aliases:
     - sdd-execute-haiku
     - sdd-execute-sonnet
     - sdd-execute-opus
+  # sdd-triage is split into three per-phase compiled workflows (issue #271,
+  # ADR 0029). Only the materialize phase writes a lifecycle label (sdd:ready);
+  # the three stems collapse to the logical `sdd-triage` writer here the same
+  # way the sdd-execute tiers do.
+  sdd-triage:
+    - sdd-triage-arch
+    - sdd-triage-plan
+    - sdd-triage-materialize
