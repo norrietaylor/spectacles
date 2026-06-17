@@ -1,9 +1,12 @@
 name: sdd-route-triage
 description: >
-  Route decision for sdd-triage. Filters tracking-issue triage/resume label
-  events, gates /triage /approve /revise on real repository permission, carves
-  out the fast-path /approve (handled by sdd-spec), and routes merged
-  architecture PRs. Extracted verbatim (ADR 0015).
+  Route decision for the per-phase sdd-triage workflows. Filters tracking-issue
+  triage/resume label events, gates /triage /approve on real repository
+  permission, carves out the fast-path /approve (handled by sdd-spec), routes a
+  /revise only on an architecture PR (a /revise is a pull-request-only command),
+  and routes merged architecture PRs. Emits a deterministic `target`
+  (arch | plan | materialize) the wrapper maps to the matching phase workflow
+  (issue #271, ADR 0029). Extracted verbatim (ADR 0015).
 
 inputs:
   github-token:
@@ -14,9 +17,9 @@ inputs:
     description: >
       Spike-wave re-entry (issue #229). When set to a tracking issue number,
       the action short-circuits the webhook routing and emits aw_context naming
-      that tracking issue with phase B. The sdd-spike-reentry wrapper passes
-      this after it has confirmed the wave drained, to re-enter phase B whose
-      natural arch-PR-merge trigger already fired before the wave existed.
+      that tracking issue with target=plan. The sdd-spike-reentry wrapper passes
+      this after it has confirmed the wave drained, to re-enter the plan phase
+      whose natural arch-PR-merge trigger already fired before the wave existed.
     required: false
     default: ''
 
@@ -29,10 +32,16 @@ outputs:
     value: ${{ steps.decide.outputs.aw_context }}
   phase:
     description: >
-      The SDD triage phase this event drives: 'A' (sdd:triage label or /triage
-      comment), 'B' (merged arch PR), 'C' (/approve comment), or '' otherwise.
-      The cycle-detect wrapper job gates on 'C'.
+      The SDD triage phase this event drives: 'A' (arch), 'B' (plan), 'C'
+      (materialize), or '' otherwise. Retained for readability; the wrapper gates
+      on `target`.
     value: ${{ steps.decide.outputs.phase }}
+  target:
+    description: >
+      The per-phase triage workflow this event routes to: 'arch', 'plan',
+      'materialize', or '' when should_run is false. The wrapper maps it to the
+      matching reusable lock; the cycle-detect job gates on 'materialize'.
+    value: ${{ steps.decide.outputs.target }}
   item_number:
     description: >
       The tracking issue (or PR) number from aw_context, surfaced directly so
@@ -53,67 +62,93 @@ runs:
         script: |
             const event = context.eventName;
             const payload = context.payload;
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
             let run = false;
             let ctx = {};
+            // phase is the human-readable SDD phase; target is the per-phase
+            // workflow the wrapper routes to. 'A'/arch designs the architecture,
+            // 'B'/plan posts the plan comment, 'C'/materialize commits the tree.
+            // A resume or a non-routed event leaves both ''.
+            let phase = '';
+            let target = '';
+
+            const emit = () => {
+              core.setOutput('should_run', run ? 'true' : 'false');
+              core.setOutput('aw_context', run ? JSON.stringify(ctx) : '');
+              core.setOutput('phase', run ? phase : '');
+              core.setOutput('target', run ? target : '');
+              core.setOutput('item_number',
+                run && ctx.item_number ? String(ctx.item_number) : '');
+            };
 
             // Spike-wave re-entry (issue #229). When the sdd-spike-reentry
-            // wrapper passes a tracking issue number, short-circuit the
-            // webhook routing: emit aw_context naming that tracking issue and
-            // set phase B. Phase B's natural arch-PR-merge trigger fired
-            // before the spike wave existed, so the wave draining cannot
+            // wrapper passes a tracking issue number, short-circuit the webhook
+            // routing: emit aw_context naming that tracking issue and route to
+            // the plan phase. The plan phase's natural arch-PR-merge trigger
+            // fired before the spike wave existed, so the wave draining cannot
             // re-fire it through a real webhook — the wrapper synthesizes the
-            // re-entry deterministically and routes it here. Phase is B (post
-            // the plan), never C, so the sdd-triage wrapper's cycle-detect job
-            // (gated on phase C) does not fire on a re-entry.
+            // re-entry deterministically and routes it here.
             const reentry = (process.env.REENTRY_TRACKING_ISSUE || '').trim();
             if (reentry) {
               const reentryNum = parseInt(reentry, 10);
               if (Number.isInteger(reentryNum) && reentryNum > 0) {
-                core.setOutput('should_run', 'true');
-                core.setOutput('aw_context', JSON.stringify({
+                run = true;
+                phase = 'B';
+                target = 'plan';
+                ctx = {
                   item_type: 'issue',
                   item_number: reentryNum,
                   reentry: 'spike-wave-drained',
-                }));
-                core.setOutput('phase', 'B');
-                core.setOutput('item_number', String(reentryNum));
-                return;
+                };
+                return emit();
               }
               core.info('reentry-tracking-issue is not a positive integer ('
                 + reentry + '); ignoring.');
             }
-            // The SDD triage phase this event drives, surfaced as an output so
-            // the wrapper's deterministic cycle-detect job can gate on phase C
-            // (the /approve materialization). 'A' = architecture design,
-            // 'B' = plan-preview comment, 'C' = materialize the tree. A resume
-            // (needs-human cleared) and a non-routed event leave it ''; the
-            // cycle-detect job only fires on 'C', so a '' on a resume is safe.
-            let phase = '';
 
-            // A tracking issue gained sdd:triage (phase A), or needs-human was
+            // Does the tracking issue carry an active plan comment? The plan
+            // phase posts a comment opening with the `<!-- sdd-triage:plan -->`
+            // sentinel. Its presence means the arch PR has merged and the plan
+            // has been posted — the resume discriminator between the arch phase
+            // (no plan yet) and the plan phase (plan posted).
+            async function hasPlanComment(issueNumber) {
+              try {
+                const comments = await github.paginate(
+                  github.rest.issues.listComments,
+                  { owner, repo, issue_number: issueNumber, per_page: 100 });
+                return comments.some((c) =>
+                  (c.body || '').includes('<!-- sdd-triage:plan -->'));
+              } catch (err) {
+                core.info('Could not list comments for #' + issueNumber + ': '
+                  + err.message);
+                return false;
+              }
+            }
+
+            // A tracking issue gained sdd:triage (arch), or needs-human was
             // cleared (resume).
             if (event === 'issues') {
               const action = payload.action;
               const label = payload.label && payload.label.name;
+              let resume = false;
               if (action === 'labeled' && label === 'sdd:triage') {
                 run = true;
                 phase = 'A';
+                target = 'arch';
               } else if (action === 'unlabeled' && label === 'needs-human') {
                 run = true;
-                // Resume of whatever phase handed off; left '' (the
-                // cycle-detect job only fires on a fresh phase C).
+                resume = true;
               }
               // The triage boundary is the tracking issue only. sdd:triage or a
-              // needs-human clear on a sub-issue (a Unit or a task, each of
-              // which has a parent in the feature tree) must not route triage.
-              // A tracking issue has no parent; filter on parent_issue_url, the
-              // same guard sdd-validate applies on its sdd:ready route.
+              // needs-human clear on a sub-issue (a Unit or a task, each with a
+              // parent in the feature tree) must not route triage. A tracking
+              // issue has no parent; filter on parent_issue_url, the same guard
+              // sdd-validate applies on its sdd:ready route.
               if (run) {
                 try {
                   const { data } = await github.rest.issues.get({
-                    owner: context.repo.owner,
-                    repo: context.repo.repo,
-                    issue_number: payload.issue.number,
+                    owner, repo, issue_number: payload.issue.number,
                   });
                   if (data.parent_issue_url) {
                     run = false;
@@ -128,115 +163,150 @@ runs:
               }
               if (run) {
                 ctx = { item_type: 'issue', item_number: payload.issue.number };
+                if (resume) {
+                  // Route the resume by whether a plan comment exists: a
+                  // pre-plan architecture hand-off resumes the arch phase; a
+                  // post-plan hand-off resumes the plan phase. A materialize
+                  // cycle-failure resume routes to plan (benign — the human
+                  // re-comments /approve, which routes to materialize).
+                  const planned = await hasPlanComment(payload.issue.number);
+                  target = planned ? 'plan' : 'arch';
+                  phase = planned ? 'B' : 'A';
+                }
               }
+              return emit();
             }
 
-            // A /triage, /approve, or /revise comment from an author with repo
-            // write access. The gate is the actor's real repository
-            // permission, not author_association: author_association reports
-            // the relationship to the thread (OWNER/MEMBER/COLLABORATOR),
-            // which is not the same as push access. A MEMBER of the org need
-            // not have write on this repo, and a COLLABORATOR may be
-            // read-only. The collaborators/{user}/permission API returns the
-            // actual permission level; only write, maintain, or admin may run
-            // a command.
+            // A /triage or /approve comment from a write-access author, or a
+            // /revise comment on an architecture PR. The gate is the actor's
+            // real repository permission, not author_association: only write,
+            // maintain, or admin may run a command.
             if (event === 'issue_comment' && payload.action === 'created') {
               const body = (payload.comment.body || '').trim();
               const firstWord = body.split(/\s+/)[0];
               const isCommand = firstWord === '/triage'
                 || firstWord === '/approve' || firstWord === '/revise';
-              if (isCommand) {
-                const actor = payload.comment.user.login;
-                let permission = 'none';
+              if (!isCommand) {
+                return emit();
+              }
+              const actor = payload.comment.user.login;
+              let permission = 'none';
+              try {
+                const resp = await github.rest.repos
+                  .getCollaboratorPermissionLevel({ owner, repo, username: actor });
+                // role_name is the precise role when present; permission is the
+                // legacy bucket (admin/write/read/none).
+                permission = resp.data.role_name || resp.data.permission;
+              } catch (err) {
+                core.info('Could not resolve repo permission for ' + actor
+                  + ': ' + err.message);
+              }
+              const canWrite = permission === 'write'
+                || permission === 'maintain' || permission === 'admin';
+              if (!canWrite) {
+                core.info('Command from an author without write access ('
+                  + permission + '); ignoring.');
+                return emit();
+              }
+              const isPr = !!payload.issue.pull_request;
+
+              // /revise is a pull-request-only command. Triage routes it only
+              // on an architecture PR (head ref arch/<slug>), where the arch
+              // phase pushes the edit onto the existing branch. A /revise on a
+              // tracking issue, or on a non-architecture PR, is not this agent's
+              // concern (other wrappers own their own PRs' /revise).
+              if (firstWord === '/revise') {
+                if (!isPr) {
+                  core.info('/revise on a tracking issue ignored; /revise is a'
+                    + ' pull-request-only command.');
+                  return emit();
+                }
+                let headRef = '';
                 try {
-                  const resp = await github.rest.repos
-                    .getCollaboratorPermissionLevel({
-                      owner: context.repo.owner,
-                      repo: context.repo.repo,
-                      username: actor,
-                    });
-                  // role_name is the precise role (write/maintain/triage/...)
-                  // when present; permission is the legacy bucket
-                  // (admin/write/read/none) that collapses maintain into
-                  // write and triage into read.
-                  permission = resp.data.role_name || resp.data.permission;
+                  const { data } = await github.rest.pulls.get({
+                    owner, repo, pull_number: payload.issue.number,
+                  });
+                  headRef = (data.head && data.head.ref) || '';
                 } catch (err) {
-                  core.info(
-                    'Could not resolve repo permission for ' + actor
+                  core.info('Could not fetch PR #' + payload.issue.number
                     + ': ' + err.message);
                 }
-                const canWrite = permission === 'write'
-                  || permission === 'maintain' || permission === 'admin';
-                if (canWrite) {
-                  // Fast-path carve-out (ADR 0012): /approve on a tracking
-                  // issue carrying sdd:fastpath (or sdd:fastpath-review,
-                  // when the human typed /approve before the stub spec PR
-                  // merged) is handled by the sdd-spec wrapper's
-                  // fastpath-approve job (it dispatches sdd-execute-{tier}
-                  // directly, or noops with a guidance comment when the
-                  // stub PR is still open). This wrapper skips /approve in
-                  // both cases so the two wrappers do not both fire on the
-                  // same comment.
-                  const isPr = !!payload.issue.pull_request;
-                  let skipFastpath = false;
-                  if (firstWord === '/approve' && !isPr) {
-                    try {
-                      const { data } = await github.rest.issues.get({
-                        owner: context.repo.owner,
-                        repo: context.repo.repo,
-                        issue_number: payload.issue.number,
-                      });
-                      const labels = (data.labels || []).map(
-                        (l) => l.name || l);
-                      if (labels.includes('sdd:fastpath')
-                          || labels.includes('sdd:fastpath-review')) {
-                        skipFastpath = true;
-                        core.info('/approve on a fast-path tracking'
-                          + ' issue; sdd-spec wrapper will handle it.');
-                      }
-                    } catch (err) {
-                      core.info('Could not fetch issue #'
-                        + payload.issue.number + ': ' + err.message);
-                    }
-                  }
-                  if (!skipFastpath) {
-                    run = true;
-                    // Phase from the command: /triage designs the architecture
-                    // (A), /approve materializes the tree (C). /revise re-runs
-                    // phase B or reconciles post-approve; it does not freshly
-                    // materialize, so it leaves phase '' and the cycle-detect
-                    // job does not fire on it.
-                    if (firstWord === '/triage') {
-                      phase = 'A';
-                    } else if (firstWord === '/approve') {
-                      phase = 'C';
-                    }
-                    ctx = {
-                      item_type: isPr ? 'pull_request' : 'issue',
-                      item_number: payload.issue.number,
-                      comment_id: payload.comment.id,
-                    };
-                  }
-                } else {
-                  core.info(
-                    'Command from an author without write access ('
-                    + permission + '); ignoring.');
+                if (!headRef.startsWith('arch/')) {
+                  core.info('/revise on a non-architecture PR (head: ' + headRef
+                    + '); not this agent\'s concern.');
+                  return emit();
                 }
+                run = true;
+                phase = 'A';
+                target = 'arch';
+                ctx = {
+                  item_type: 'pull_request',
+                  item_number: payload.issue.number,
+                  comment_id: payload.comment.id,
+                };
+                return emit();
               }
+
+              // /triage and /approve are tracking-issue commands.
+              if (isPr) {
+                core.info(firstWord + ' on a pull request is not routed by'
+                  + ' triage.');
+                return emit();
+              }
+
+              if (firstWord === '/approve') {
+                // Fast-path carve-out (ADR 0012): /approve on a tracking issue
+                // carrying sdd:fastpath (or sdd:fastpath-review) is handled by
+                // the sdd-spec wrapper's fastpath-approve job. This wrapper
+                // skips it so the two wrappers do not both fire.
+                try {
+                  const { data } = await github.rest.issues.get({
+                    owner, repo, issue_number: payload.issue.number,
+                  });
+                  const labels = (data.labels || []).map((l) => l.name || l);
+                  if (labels.includes('sdd:fastpath')
+                      || labels.includes('sdd:fastpath-review')) {
+                    core.info('/approve on a fast-path tracking issue; sdd-spec'
+                      + ' handles it.');
+                    return emit();
+                  }
+                } catch (err) {
+                  core.info('Could not fetch issue #' + payload.issue.number
+                    + ': ' + err.message);
+                }
+                run = true;
+                phase = 'C';
+                target = 'materialize';
+                ctx = {
+                  item_type: 'issue',
+                  item_number: payload.issue.number,
+                  comment_id: payload.comment.id,
+                };
+                return emit();
+              }
+
+              // /triage
+              run = true;
+              phase = 'A';
+              target = 'arch';
+              ctx = {
+                item_type: 'issue',
+                item_number: payload.issue.number,
+                comment_id: payload.comment.id,
+              };
+              return emit();
             }
 
             // A merged architecture pull request. Scoped to architecture PRs
-            // only: the head branch must follow the arch/<slug> convention. A
-            // merged non-architecture PR is not this agent's concern and is
-            // left to no-op.
+            // only: the head branch must follow the arch/<slug> convention.
             if (event === 'pull_request' && payload.action === 'closed') {
               const merged = payload.pull_request.merged === true;
               const headRef = payload.pull_request.head
                 && payload.pull_request.head.ref || '';
-              const isArchBranch = headRef.startsWith('arch/');
-              if (merged && isArchBranch) {
+              if (merged && headRef.startsWith('arch/')) {
                 run = true;
                 phase = 'B';
+                target = 'plan';
                 ctx = {
                   item_type: 'pull_request',
                   item_number: payload.pull_request.number,
@@ -244,12 +314,7 @@ runs:
               } else if (merged) {
                 core.info('Merged PR is not an arch branch; ignoring.');
               }
+              return emit();
             }
 
-            core.setOutput('should_run', run ? 'true' : 'false');
-            core.setOutput('aw_context', run ? JSON.stringify(ctx) : '');
-            // phase and item_number are surfaced for the wrapper's
-            // deterministic cycle-detect job; both empty when not running.
-            core.setOutput('phase', run ? phase : '');
-            core.setOutput('item_number',
-              run && ctx.item_number ? String(ctx.item_number) : '');
+            return emit();

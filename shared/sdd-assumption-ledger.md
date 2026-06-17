@@ -1,7 +1,7 @@
 # Assumption ledger
 
 > This fragment is the canonical home of the assumption-ledger contract. It is
-> currently **inlined** into `.github/workflows/sdd-triage.md` step 2 rather than
+> currently **inlined** into `.github/workflows/sdd-triage-arch.md` step 2 rather than
 > imported: a new shared fragment cannot be imported from `@main` in the same
 > pull request that introduces it, because `gh aw compile` resolves `@main`
 > against remote `main`, where the file does not yet exist. Following the

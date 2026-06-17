@@ -114,7 +114,7 @@ to the tracking issue**. Each Unit sub-issue's own sub-issues are the
 **task sub-issues** that carry the structured body block (the `## Task` block
 with `repo:`, `spec:`, `requirements:`, `files in scope:`, `proof artifacts:`,
 `verification:`, and `depends on:` fields — see
-`.github/workflows/sdd-triage.md` step 6). All five gates below inspect those
+`.github/workflows/sdd-triage-materialize.md` step 2). All five gates below inspect those
 task sub-issues, whether nested under a Unit — Feature → Unit → task — or
 parented directly to the feature — Feature → task — not the Units themselves.
 A task sub-issue carries the `## Task` block and exactly one `model:*` tier
@@ -135,7 +135,7 @@ task, and descend into each Unit child to enumerate its task sub-issues.
    - **2a. Latent-edge pass completed.** The plan's implied edges — an artifact
      a task's proof consumes that a sibling task produces — were enumerated and
      written as `blocked by` lines, not left latent (see
-     `.github/workflows/sdd-triage.md` step 5). A missing latent-edge pass is a
+     `.github/workflows/sdd-triage-plan.md` step 2). A missing latent-edge pass is a
      Warning.
    - **2b. Dependencies form a DAG.** The declared **and** implied `blocked by`
      edges across the **task sub-issues** form a directed acyclic graph. A
@@ -162,7 +162,7 @@ task, and descend into each Unit child to enumerate its task sub-issues.
    such a cohesive sibling exists. Two tasks that share no files and stand in no
    producer/consumer relation are independent however small — do not flag them.
    A genuine `blocked by` edge from either task to a *third* task justifies the
-   split and clears the finding. See `.github/workflows/sdd-triage.md` step 5.
+   split and clears the finding. See `.github/workflows/sdd-triage-plan.md` step 2.
 
 ## Implementation gates
 

@@ -1,7 +1,7 @@
 # Latent-edge pass
 
 > This fragment is the canonical home of the latent-edge-pass contract. It is
-> currently **inlined** into `.github/workflows/sdd-triage.md` step 5 rather than
+> currently **inlined** into `.github/workflows/sdd-triage-plan.md` step 2 rather than
 > imported: a new shared fragment cannot be imported from `@main` in the same
 > pull request that introduces it, because `gh aw compile` resolves `@main`
 > against remote `main`, where the file does not yet exist. Following the
