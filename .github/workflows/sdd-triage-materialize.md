@@ -418,7 +418,7 @@ lifecycle state:
 
 - Remove the `sdd:triage` label from the tracking issue (`remove-labels`).
 - Add the `sdd:ready` label to the tracking issue (`add-labels`).
-- Post one comment on the tracking issue stating the next step: the unblocked
+- Post one comment on the tracking issue (`add-comment`) stating the next step: the unblocked
   task sub-issues are already labelled `sdd:ready` (set at creation in step 2);
   `sdd-execute` implements a ready task on its daily schedule, and a
   write-access author may comment `/execute` on a task sub-issue to run one

@@ -1,4 +1,4 @@
-# gh-aw-metadata: {"schema_version":"v4","frontmatter_hash":"1fe439c5aead4136dc49e4de6ebdc6c83f58b07beb8be80ccd58174931d2f1c0","body_hash":"7120f980dc76234b457c5374759429a1aeee73cb672c24165d0df7758ec225d5","compiler_version":"v0.77.5","agent_id":"claude"}
+# gh-aw-metadata: {"schema_version":"v4","frontmatter_hash":"3457350d5bca14fdc0bbb0db8cc76ab26249440d1da7ac8c350f9d4699a599d7","body_hash":"8185e266f68fa421846c5ad2f26f2b4f34f564165d46c812d8fba39a449c0c88","compiler_version":"v0.77.5","agent_id":"claude"}
 # gh-aw-manifest: {"version":1,"secrets":["APP_PRIVATE_KEY","CLAUDE_CODE_OAUTH_TOKEN","GH_AW_GITHUB_MCP_SERVER_TOKEN","GH_AW_GITHUB_TOKEN","GH_AW_OTEL_ENDPOINT","GITHUB_TOKEN"],"actions":[{"repo":"actions/checkout","sha":"de0fac2e4500dabe0009e67214ff5f5447ce83dd","version":"v6.0.2"},{"repo":"actions/create-github-app-token","sha":"bcd2ba49218906704ab6c1aa796996da409d3eb1","version":"v3.2.0"},{"repo":"actions/download-artifact","sha":"3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c","version":"v8.0.1"},{"repo":"actions/github-script","sha":"3a2844b7e9c422d3c10d287c895573f7108da1b3","version":"v9.0.0"},{"repo":"actions/setup-node","sha":"48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e","version":"v6.4.0"},{"repo":"actions/upload-artifact","sha":"043fb46d1a93c77aae656e7c1c64a875d1fc6a0a","version":"v7.0.1"},{"repo":"github/gh-aw-actions/setup","sha":"3ea13c02d765410340d533515cb31a7eef2baaf0","version":"v0.77.5"}],"containers":[{"image":"ghcr.io/github/gh-aw-firewall/agent:0.25.58"},{"image":"ghcr.io/github/gh-aw-firewall/api-proxy:0.25.58"},{"image":"ghcr.io/github/gh-aw-firewall/squid:0.25.58"},{"image":"ghcr.io/github/gh-aw-mcpg:v0.3.22"},{"image":"ghcr.io/github/github-mcp-server:v1.1.0"},{"image":"node:lts-alpine","digest":"sha256:2bdb65ed1dab192432bc31c95f94155ca5ad7fc1392fb7eb7526ab682fa5bf14","pinned_image":"node:lts-alpine@sha256:2bdb65ed1dab192432bc31c95f94155ca5ad7fc1392fb7eb7526ab682fa5bf14"}]}
 #    ___                   _   _      
 #   / _ \                 | | (_)     
@@ -245,20 +245,20 @@ jobs:
         run: |
           bash "${RUNNER_TEMP}/gh-aw/actions/create_prompt_first.sh"
           {
-          cat << 'GH_AW_PROMPT_4d63c2e448cd6d81_EOF'
+          cat << 'GH_AW_PROMPT_5ee3bbfd86210e9a_EOF'
           <system>
-          GH_AW_PROMPT_4d63c2e448cd6d81_EOF
+          GH_AW_PROMPT_5ee3bbfd86210e9a_EOF
           cat "${RUNNER_TEMP}/gh-aw/prompts/xpia.md"
           cat "${RUNNER_TEMP}/gh-aw/prompts/temp_folder_prompt.md"
           cat "${RUNNER_TEMP}/gh-aw/prompts/markdown.md"
           cat "${RUNNER_TEMP}/gh-aw/prompts/safe_outputs_prompt.md"
-          cat << 'GH_AW_PROMPT_4d63c2e448cd6d81_EOF'
+          cat << 'GH_AW_PROMPT_5ee3bbfd86210e9a_EOF'
           <safe-output-tools>
           Tools: add_comment, create_issue(max:30), add_labels(max:20), remove_labels(max:2), missing_tool, missing_data, noop
           </safe-output-tools>
-          GH_AW_PROMPT_4d63c2e448cd6d81_EOF
+          GH_AW_PROMPT_5ee3bbfd86210e9a_EOF
           cat "${RUNNER_TEMP}/gh-aw/prompts/mcp_cli_tools_prompt.md"
-          cat << 'GH_AW_PROMPT_4d63c2e448cd6d81_EOF'
+          cat << 'GH_AW_PROMPT_5ee3bbfd86210e9a_EOF'
           <github-context>
           The following GitHub context information is available for this workflow:
           {{#if github.actor}}
@@ -287,9 +287,9 @@ jobs:
           {{/if}}
           </github-context>
           
-          GH_AW_PROMPT_4d63c2e448cd6d81_EOF
+          GH_AW_PROMPT_5ee3bbfd86210e9a_EOF
           cat "${RUNNER_TEMP}/gh-aw/prompts/github_mcp_tools_with_safeoutputs_prompt.md"
-          cat << 'GH_AW_PROMPT_4d63c2e448cd6d81_EOF'
+          cat << 'GH_AW_PROMPT_5ee3bbfd86210e9a_EOF'
           </system>
           # Core principles
           
@@ -857,7 +857,7 @@ jobs:
           
           - Remove the `sdd:triage` label from the tracking issue (`remove-labels`).
           - Add the `sdd:ready` label to the tracking issue (`add-labels`).
-          - Post one comment on the tracking issue stating the next step: the unblocked
+          - Post one comment on the tracking issue (`add-comment`) stating the next step: the unblocked
             task sub-issues are already labelled `sdd:ready` (set at creation in step 2);
             `sdd-execute` implements a ready task on its daily schedule, and a
             write-access author may comment `/execute` on a task sub-issue to run one
@@ -912,7 +912,7 @@ jobs:
           - An open `kind:spike` child of the tracking issue makes `/approve` refuse with
             one comment and emit `noop` (no `needs-human`, no tree).
           
-          GH_AW_PROMPT_4d63c2e448cd6d81_EOF
+          GH_AW_PROMPT_5ee3bbfd86210e9a_EOF
           } > "$GH_AW_PROMPT"
       - name: Interpolate variables and render templates
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
@@ -1135,9 +1135,9 @@ jobs:
           mkdir -p "${RUNNER_TEMP}/gh-aw/safeoutputs"
           mkdir -p /tmp/gh-aw/safeoutputs
           mkdir -p /tmp/gh-aw/mcp-logs/safeoutputs
-          cat > "${RUNNER_TEMP}/gh-aw/safeoutputs/config.json" << 'GH_AW_SAFE_OUTPUTS_CONFIG_a960dd28a0e479cd_EOF'
+          cat > "${RUNNER_TEMP}/gh-aw/safeoutputs/config.json" << 'GH_AW_SAFE_OUTPUTS_CONFIG_8c1b738b5511fe4f_EOF'
           {"add_comment":{"max":1},"add_labels":{"allowed":["sdd:ready","needs-human"],"max":20},"create_issue":{"max":30},"create_report_incomplete_issue":{},"missing_data":{},"missing_tool":{},"noop":{"max":1,"report-as-issue":"true"},"remove_labels":{"allowed":["sdd:triage"],"max":2},"report_incomplete":{}}
-          GH_AW_SAFE_OUTPUTS_CONFIG_a960dd28a0e479cd_EOF
+          GH_AW_SAFE_OUTPUTS_CONFIG_8c1b738b5511fe4f_EOF
       - name: Generate Safe Outputs Tools
         env:
           GH_AW_TOOLS_META_JSON: |
@@ -1407,7 +1407,7 @@ jobs:
           export MCP_GATEWAY_DOCKER_COMMAND='docker run -i --rm --network host --add-host host.docker.internal:127.0.0.1 --user '"${MCP_GATEWAY_UID}"':'"${MCP_GATEWAY_GID}"' --group-add '"${DOCKER_SOCK_GID}"' -v '"${DOCKER_SOCK_PATH}"':/var/run/docker.sock -e MCP_GATEWAY_PORT -e MCP_GATEWAY_DOMAIN -e MCP_GATEWAY_API_KEY -e MCP_GATEWAY_PAYLOAD_DIR -e MCP_GATEWAY_PAYLOAD_SIZE_THRESHOLD -e DOCKER_HOST=unix:///var/run/docker.sock -e DEBUG -e MCP_GATEWAY_LOG_DIR -e GH_AW_MCP_LOG_DIR -e GH_AW_SAFE_OUTPUTS -e GH_AW_SAFE_OUTPUTS_CONFIG_PATH -e GH_AW_SAFE_OUTPUTS_TOOLS_PATH -e GH_AW_ASSETS_BRANCH -e GH_AW_ASSETS_MAX_SIZE_KB -e GH_AW_ASSETS_ALLOWED_EXTS -e DEFAULT_BRANCH -e GITHUB_MCP_SERVER_TOKEN -e GITHUB_MCP_GUARD_MIN_INTEGRITY -e GITHUB_MCP_GUARD_REPOS -e GITHUB_REPOSITORY -e GITHUB_SERVER_URL -e GITHUB_SHA -e GITHUB_WORKSPACE -e GITHUB_TOKEN -e GITHUB_RUN_ID -e GITHUB_RUN_NUMBER -e GITHUB_RUN_ATTEMPT -e GITHUB_JOB -e GITHUB_ACTION -e GITHUB_EVENT_NAME -e GITHUB_EVENT_PATH -e GITHUB_ACTOR -e GITHUB_ACTOR_ID -e GITHUB_TRIGGERING_ACTOR -e GITHUB_WORKFLOW -e GITHUB_WORKFLOW_REF -e GITHUB_WORKFLOW_SHA -e GITHUB_REF -e GITHUB_REF_NAME -e GITHUB_REF_TYPE -e GITHUB_HEAD_REF -e GITHUB_BASE_REF -e GH_AW_SAFE_OUTPUTS_PORT -e GH_AW_SAFE_OUTPUTS_API_KEY -e GITHUB_AW_OTEL_TRACE_ID -e GITHUB_AW_OTEL_PARENT_SPAN_ID -e OTEL_EXPORTER_OTLP_HEADERS -v /tmp/gh-aw/mcp-payloads:/tmp/gh-aw/mcp-payloads:rw -v /opt:/opt:ro -v /tmp:/tmp:rw -v '"${GITHUB_WORKSPACE}"':'"${GITHUB_WORKSPACE}"':rw ghcr.io/github/gh-aw-mcpg:v0.3.22'
           
           GH_AW_NODE=$(which node 2>/dev/null || command -v node 2>/dev/null || echo node)
-          cat << GH_AW_MCP_CONFIG_835dc393f672e49f_EOF | "$GH_AW_NODE" "${RUNNER_TEMP}/gh-aw/actions/start_mcp_gateway.cjs"
+          cat << GH_AW_MCP_CONFIG_6cbb222744e2a891_EOF | "$GH_AW_NODE" "${RUNNER_TEMP}/gh-aw/actions/start_mcp_gateway.cjs"
           {
             "mcpServers": {
               "github": {
@@ -1452,7 +1452,7 @@ jobs:
               }
             }
           }
-          GH_AW_MCP_CONFIG_835dc393f672e49f_EOF
+          GH_AW_MCP_CONFIG_6cbb222744e2a891_EOF
       - name: Mount MCP servers as CLIs
         id: mount-mcp-clis
         continue-on-error: true

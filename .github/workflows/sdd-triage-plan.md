@@ -426,7 +426,7 @@ consumed artifact:
 
 Before posting, check the dependency graph the plan implies for cycles. If a
 cycle is not mechanically resolvable, do **not** post the plan: emit one
-comment naming the cycle, apply the `needs-human` label, and emit `noop`. No
+comment naming the cycle, apply the `needs-human` label (`add-labels`), and emit `noop`. No
 sub-issues exist yet, so the hand-off leaves nothing to garbage-collect; a
 human breaks the cycle and clears the label to resume (situation 3 above).
 
