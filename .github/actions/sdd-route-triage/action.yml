@@ -122,7 +122,11 @@ runs:
               } catch (err) {
                 core.info('Could not list comments for #' + issueNumber + ': '
                   + err.message);
-                return false;
+                // Undetermined — return null, not false. A transient list
+                // failure must not be read as "no plan comment" (that would
+                // misroute a post-plan resume to arch and re-open the merged
+                // arch PR). The caller skips the route when it cannot tell.
+                return null;
               }
             }
 
@@ -170,6 +174,15 @@ runs:
                   // cycle-failure resume routes to plan (benign — the human
                   // re-comments /approve, which routes to materialize).
                   const planned = await hasPlanComment(payload.issue.number);
+                  if (planned === null) {
+                    // Could not determine the resume target (comment list
+                    // failed). Do not guess a phase — skip the route; clearing
+                    // needs-human again, or the next event, re-triggers it.
+                    run = false;
+                    core.info('Could not determine resume target for #'
+                      + payload.issue.number + '; skipping route.');
+                    return emit();
+                  }
                   target = planned ? 'plan' : 'arch';
                   phase = planned ? 'B' : 'A';
                 }
@@ -254,25 +267,39 @@ runs:
                 return emit();
               }
 
+              // Enforce the tracking-issue boundary, the same guard the issues
+              // event applies: a tracking issue has no parent. A /triage or
+              // /approve on a sub-issue (a Unit, task, or spike) must not route.
+              // Fetch once and reuse the data for the /approve fastpath check.
+              let issueData = null;
+              try {
+                const { data } = await github.rest.issues.get({
+                  owner, repo, issue_number: payload.issue.number,
+                });
+                issueData = data;
+              } catch (err) {
+                core.info('Could not fetch issue #' + payload.issue.number
+                  + ': ' + err.message);
+                return emit();
+              }
+              if (issueData.parent_issue_url) {
+                core.info('Issue #' + payload.issue.number + ' has a parent ('
+                  + issueData.parent_issue_url + '); ' + firstWord
+                  + ' is a tracking-issue command, ignoring.');
+                return emit();
+              }
+
               if (firstWord === '/approve') {
                 // Fast-path carve-out (ADR 0012): /approve on a tracking issue
                 // carrying sdd:fastpath (or sdd:fastpath-review) is handled by
                 // the sdd-spec wrapper's fastpath-approve job. This wrapper
                 // skips it so the two wrappers do not both fire.
-                try {
-                  const { data } = await github.rest.issues.get({
-                    owner, repo, issue_number: payload.issue.number,
-                  });
-                  const labels = (data.labels || []).map((l) => l.name || l);
-                  if (labels.includes('sdd:fastpath')
-                      || labels.includes('sdd:fastpath-review')) {
-                    core.info('/approve on a fast-path tracking issue; sdd-spec'
-                      + ' handles it.');
-                    return emit();
-                  }
-                } catch (err) {
-                  core.info('Could not fetch issue #' + payload.issue.number
-                    + ': ' + err.message);
+                const labels = (issueData.labels || []).map((l) => l.name || l);
+                if (labels.includes('sdd:fastpath')
+                    || labels.includes('sdd:fastpath-review')) {
+                  core.info('/approve on a fast-path tracking issue; sdd-spec'
+                    + ' handles it.');
+                  return emit();
                 }
                 run = true;
                 phase = 'C';
