@@ -125,8 +125,14 @@ pre-agent-steps:
       tracking=""
       pr_block="null"
       if [ "$item_type" = "pull_request" ]; then
-        pr_json="$(gh api "repos/${repo}/pulls/${item_number}" 2>/dev/null || true)"
-        [ -n "$pr_json" ] || pr_json='{}'
+        # Required core read: a failed fetch must flip the whole prefetch to
+        # unavailable (the agent falls back to live reads), not normalize to {}
+        # and masquerade as available. pipefail + no `|| true` lets `if !`
+        # see the gh failure.
+        if ! pr_json="$(gh api "repos/${repo}/pulls/${item_number}" 2>/dev/null)"; then
+          unavailable "pr-fetch-failed"
+        fi
+        [ -n "$pr_json" ] || unavailable "pr-fetch-empty"
         pr_diff="$(gh api -H 'Accept: application/vnd.github.v3.diff' "repos/${repo}/pulls/${item_number}" 2>/dev/null | head -c 40000 || true)"
         pr_block="$(jq -n --argjson pr "$pr_json" --arg diff "$pr_diff" '{number: ($pr.number // null), title: ($pr.title // null), state: ($pr.state // null), merged: ($pr.merged // null), head_ref: ($pr.head.ref // null), base_ref: ($pr.base.ref // null), body: ($pr.body // null), diff_truncated_40k: $diff}' 2>/dev/null || true)"
         [ -n "$pr_block" ] || pr_block="null"
@@ -139,14 +145,25 @@ pre-agent-steps:
       subissues_block="[]"
       specfiles_block="[]"
       if [ -n "$tracking" ]; then
-        issue_json="$(gh api "repos/${repo}/issues/${tracking}" 2>/dev/null || true)"
-        [ -n "$issue_json" ] || issue_json='{}'
+        # Required core read (see the pr-fetch note above): a failed tracking
+        # issue fetch flips the prefetch to unavailable rather than producing
+        # an empty issue/labels/comments set that reads as "no data".
+        if ! issue_json="$(gh api "repos/${repo}/issues/${tracking}" 2>/dev/null)"; then
+          unavailable "issue-fetch-failed"
+        fi
+        [ -n "$issue_json" ] || unavailable "issue-fetch-empty"
         issue_block="$(jq -n --argjson i "$issue_json" '{number: ($i.number // null), title: ($i.title // null), state: ($i.state // null), body: ($i.body // null)}' 2>/dev/null || true)"
         [ -n "$issue_block" ] || issue_block="null"
         labels_block="$(printf '%s' "$issue_json" | jq '[.labels[]?.name]' 2>/dev/null || true)"
         [ -n "$labels_block" ] || labels_block="[]"
-        comments_block="$(gh api --paginate "repos/${repo}/issues/${tracking}/comments" 2>/dev/null | jq -s 'add // [] | map({id, user: (.user.login // null), created_at, body})' 2>/dev/null || true)"
-        [ -n "$comments_block" ] || comments_block="[]"
+        # Required core read: the triggering /approve|/revise comment lives
+        # here. A failed fetch must not normalize to [] (indistinguishable from
+        # "no comments") — flip to unavailable so the agent reads comments live.
+        # pipefail propagates a gh failure through the jq pipe to `if !`.
+        if ! comments_block="$(gh api --paginate "repos/${repo}/issues/${tracking}/comments" 2>/dev/null | jq -s 'add // [] | map({id, user: (.user.login // null), created_at, body})' 2>/dev/null)"; then
+          unavailable "comments-fetch-failed"
+        fi
+        [ -n "$comments_block" ] || unavailable "comments-fetch-empty"
         # Sub-issue tree: tracking -> Unit -> task (the endpoint sdd-cycle-detect
         # uses). An empty tree (phase A, pre-materialize) yields [].
         units_json="$(gh api --paginate "repos/${repo}/issues/${tracking}/sub_issues" 2>/dev/null | jq -s 'add // []' 2>/dev/null || true)"
