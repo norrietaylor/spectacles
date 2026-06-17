@@ -71,6 +71,7 @@ secret-masking:
 inlined-imports: true
 strict: false
 imports:
+  - norrietaylor/spectacles/shared/sdd-revise-pr-checkout.md@main
   - norrietaylor/spectacles/shared/principles.md@main
   - norrietaylor/spectacles/shared/runtime-setup.md@main
   - norrietaylor/spectacles/shared/repo-conventions.md@main
