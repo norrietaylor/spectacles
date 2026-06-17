@@ -464,6 +464,7 @@ jobs:
           | `/revise <note>` | spec PR, architecture PR, tracking issue, or implementation PR | re-run the owning agent with the note as an added instruction |
           | `/execute` | a task sub-issue | trigger `sdd-execute` for that task immediately, outside the cascade |
           | `/status` | tracking issue, or any sub-issue under one | force-refresh the deterministic `sdd-status` comment — the one self-updating status surface per tracking issue, located by its `` sentinel and edited in place; the ack is an eyes reaction on the command comment, never a new comment (issue #254) |
+          | `/derive-spec` | an unspecced pull request, or the weekly unspecced-PR roll-up issue (with a `#N` set) | trigger `sdd-derive` to author a spec retrospectively from the implemented code, delivered as a separate `spec/<slug>` documentation PR with a gap analysis; on the roll-up issue it derives each listed `#N` (ADR 0027) |
           
           Merging the spec PR advances to the architecture phase; merging the
           architecture PR advances to a plan-comment phase. `/approve` is the one
