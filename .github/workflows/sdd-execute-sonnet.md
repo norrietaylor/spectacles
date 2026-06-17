@@ -276,10 +276,12 @@ with the captured proof output in the body, and moves the task sub-issue to
 it owns, it pushes follow-up commits to that pull request's existing branch
 with `push-to-pull-request-branch` — it never opens a second pull request.
 When no eligible task exists, it emits `noop` and exits 0. When every
-task under a Unit is closed it closes that Unit sub-issue; when a feature's
-spec, architecture, and every Unit sub-issue is closed it moves the feature to
-`sdd:done` and applies `needs-human` for a human's final review and close. It
-closes completed Unit sub-issues but never the feature tracking issue.
+task under a Unit is closed it closes that Unit sub-issue; a feature-parented
+task from a collapsed single-task Unit (ADR 0028) is a leaf with no Unit to
+close. When a feature's spec, architecture, every Unit sub-issue, and every
+feature-parented task is closed it moves the feature to `sdd:done` and applies
+`needs-human` for a human's final review and close. It closes completed Unit
+sub-issues but never the feature tracking issue.
 
 ## Procedure
 
@@ -837,9 +839,13 @@ the issue tree (ADR 0005) for two completion transitions:
 
 - **A Unit is complete.** A Unit sub-issue is still open but every task
   sub-issue nested under it is closed. Close the Unit with an `update-issue`
-  safe-output that sets its status to closed.
+  safe-output that sets its status to closed. A feature-parented task from a
+  collapsed single-task Unit (ADR 0028) is a leaf with no Unit to close: it
+  triggers no Unit-close transition, and its own closure (on PR merge) needs
+  no sweep here.
 - **A feature is complete.** A feature tracking issue's spec sub-issue,
-  architecture sub-issue, and every Unit sub-issue is closed. Move the feature
+  architecture sub-issue, every Unit sub-issue, and every feature-parented
+  task sub-issue (ADR 0028) is closed. Move the feature
   to `sdd:done`: remove its `sdd:review` label (`remove-labels`) and add
   `sdd:done` (`add-labels`). Then apply `needs-human` (`add-labels`) and post
   exactly one comment stating that every unit is complete and a human should

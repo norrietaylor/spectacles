@@ -139,8 +139,23 @@ runs:
 
             // Walk Feature -> Unit -> task. List sub-issues of the tracking
             // issue (Units), then for each Unit list its sub-issues (tasks).
+            // A single-task Unit collapses to a feature-parented task (ADR
+            // 0028): such a task is a direct child of the tracking issue with
+            // no intervening Unit, so the walk admits it directly. A direct
+            // child is a task — not a Unit, spec, architecture, or spike
+            // sub-issue — when its body carries the `## Task` block (the repo's
+            // canonical task-body guard, distinct from a spike's `## Spike`
+            // block which also carries a model:* tier). Classifying by the body
+            // marker keeps the test tier-independent, so a task with a
+            // malformed model:* label is admitted here and reaches the
+            // invalid-tier refusal below rather than being silently treated as
+            // a Unit and dropped from open_task_count.
             // The REST sub-issues endpoint returns child issues. A page size
             // of 100 covers any realistic feature; this loops if needed.
+            const TASK_BLOCK = /^## Task\b/m;
+            function isTask(issue) {
+              return TASK_BLOCK.test(issue.body || '');
+            }
             async function listChildren(parentNumber) {
               const items = [];
               let page = 1;
@@ -163,7 +178,7 @@ runs:
               return items;
             }
 
-            const units = await listChildren(tracking);
+            const directChildren = await listChildren(tracking);
             const tasks = [];
             // Units whose every task child is closed while the Unit itself
             // is still open. The wrapper's lifecycle job closes these
@@ -173,10 +188,19 @@ runs:
             // manual closes. We ride the same tree walk that already groups
             // tasks per Unit, so the walk stays single-sourced.
             const closeableUnits = [];
-            for (const unit of units) {
-              const children = await listChildren(unit.number);
-              for (const child of children) {
+            for (const child of directChildren) {
+              // A feature-parented task (collapsed single-task Unit, ADR
+              // 0028) is a leaf task with no Unit to close: admit it to the
+              // task set directly and never nominate it for Unit closure.
+              if (isTask(child)) {
                 tasks.push(child);
+                continue;
+              }
+              // Otherwise this is a Unit (or a spec/architecture sub-issue):
+              // descend for its tasks.
+              const children = await listChildren(child.number);
+              for (const grandchild of children) {
+                tasks.push(grandchild);
               }
               // Fail-closed Unit-close test. Only nominate a Unit for
               // closure when:
@@ -185,7 +209,9 @@ runs:
               //   - it has at least one task child (never close a Unit
               //     mid-setup before its tasks are materialized — "all of
               //     zero children closed" is vacuously true but closing an
-              //     empty Unit is never intended),
+              //     empty Unit is never intended; this also excludes the
+              //     spec and architecture sub-issues, which have no task
+              //     children),
               //   - and EVERY child is confirmed closed. A child whose
               //     state we cannot read is not 'closed', so it fails this
               //     test and the Unit is left open: an unreadable sibling
@@ -193,10 +219,10 @@ runs:
               //     listChildren throwing propagates and fails the whole
               //     action, which is itself fail-closed (no close is
               //     emitted on a partial walk).
-              if (unit.state === 'open'
+              if (child.state === 'open'
                   && children.length > 0
                   && children.every((c) => c.state === 'closed')) {
-                closeableUnits.push(unit.number);
+                closeableUnits.push(child.number);
               }
             }
             core.setOutput('closeable_units', JSON.stringify(closeableUnits));

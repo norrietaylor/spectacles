@@ -106,25 +106,31 @@ The task graph is a set of linked sub-issues, not a pull request, so this
 boundary validates the sub-issues of the tracking issue.
 
 Resolve the **task sub-issues** before applying any gate below. The feature
-tracking issue is a tree with two levels of sub-issues (ADR 0005, ADR 0007):
-the tracking issue's direct sub-issues include a spec sub-issue, an
-architecture sub-issue, and one **Unit sub-issue per demoable unit**; each Unit
-sub-issue's own sub-issues are the **task sub-issues** that carry the
-structured body block (the `## Task` block with `repo:`, `spec:`,
-`requirements:`, `files in scope:`, `proof artifacts:`, `verification:`, and
-`depends on:` fields — see `.github/workflows/sdd-triage.md` step 6). All five
-gates below inspect those task sub-issues, that is, the **grandchildren** of
-the feature — Feature → Unit → task — not the Units themselves. A Unit
-sub-issue has no structured body block, no `repo:` field, and no `blocked by`
-lines; treating a Unit as a task would produce false-positive findings on
-every gate in this set. Walk the sub-issue list twice: once from the tracking
-issue to enumerate Units, and once from each Unit to enumerate its tasks.
+tracking issue is a tree of sub-issues (ADR 0005, ADR 0007): the tracking
+issue's direct sub-issues include a spec sub-issue, an architecture sub-issue,
+one **Unit sub-issue per demoable unit that groups ≥2 tasks**, and — when a
+Unit collapses to a single task (ADR 0028) — that one task **parented directly
+to the tracking issue**. Each Unit sub-issue's own sub-issues are the
+**task sub-issues** that carry the structured body block (the `## Task` block
+with `repo:`, `spec:`, `requirements:`, `files in scope:`, `proof artifacts:`,
+`verification:`, and `depends on:` fields — see
+`.github/workflows/sdd-triage.md` step 6). All five gates below inspect those
+task sub-issues, whether nested under a Unit — Feature → Unit → task — or
+parented directly to the feature — Feature → task — not the Units themselves.
+A task sub-issue carries the `## Task` block and exactly one `model:*` tier
+label; a Unit, spec, or architecture sub-issue has no structured body block,
+no `repo:` field, and no `blocked by` lines, and treating one as a task would
+produce false-positive findings on every gate in this set. Enumerate the task
+sub-issues by walking the tree: from the tracking issue, take each direct
+child that **is** a task (it carries the `## Task` block) as a feature-parented
+task, and descend into each Unit child to enumerate its task sub-issues.
 
 1. **Every spec R-ID covered by a task.** Every requirement ID in the feature's
-   spec maps to at least one **task sub-issue** (a grandchild of the feature,
-   the child of a Unit). A spec requirement that maps to no task is a Blocker.
-   The `requirements:` field of the structured body block lives on tasks, not
-   on Units.
+   spec maps to at least one **task sub-issue** — a task nested under a Unit
+   (a grandchild of the feature) or a feature-parented task from a collapsed
+   single-task Unit (a direct child, ADR 0028). A spec requirement that maps to
+   no task is a Blocker. The `requirements:` field of the structured body block
+   lives on tasks, not on Units.
 2. **Dependency edges are complete and acyclic.** This gate has two parts:
    - **2a. Latent-edge pass completed.** The plan's implied edges — an artifact
      a task's proof consumes that a sibling task produces — were enumerated and
