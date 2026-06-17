@@ -9,7 +9,7 @@ entirely through GitHub primitives you already use: opening an issue, applying
 a label, writing a comment, and reviewing and merging a pull request. There is
 no new tool to install and no separate task board.
 
-## The six agents
+## The agents
 
 | Agent | Turns | Into |
 |---|---|---|
@@ -19,6 +19,7 @@ no new tool to install and no separate task board.
 | `sdd-execute` | a ready task sub-issue, or a fast-path tracking issue on `/approve` | an implementation PR with proof artifacts |
 | `sdd-validate` | a phase-boundary artifact | advisory findings posted as a comment |
 | `sdd-review` | an implementation PR | code-review comments on correctness, security, and spec compliance |
+| `sdd-derive` | a pull request that shipped with no spec | a spec authored retrospectively from the code, delivered as a `spec/<slug>` documentation PR with a gap analysis (ADR 0027) |
 
 Lifecycle labels on the tracking issue: `sdd:spec`, `sdd:fastpath`,
 `sdd:fastpath-review`, `sdd:triage`, `sdd:ready`, `sdd:in-progress`,
@@ -220,6 +221,31 @@ flow: answer in a comment and either tighten the scope (the executor
 resumes) or comment `/spec` to bounce the issue into the full
 pipeline (`sdd:fastpath` becomes `sdd:spec`; the existing spec is the
 starting point of a fuller spec).
+
+## Retrospective specs
+
+The forward pipeline assumes a spec exists before code. Code explored directly
+on a feature branch — opened with no tracking issue — ships without one.
+`sdd-derive` (ADR 0027) is the reverse path: it reads a pull request and authors
+a spec from the implemented code.
+
+There are two ways in. When a pull request opens or updates without SDD lineage
+(no `sdd/` head branch, no `Closes` link) and its diff is over the
+`SDD_SPEC_MIN_UNIT` floor (default 400), a deterministic check posts one offer
+comment and a `needs-spec` marker. Comment `/derive-spec` on that pull request
+to take the offer; ignore it to defer. Separately, the `sdd-unspecced-scan`
+workflow runs weekly and upserts one roll-up issue listing every unspecced
+merged pull request; a maintainer comments `/derive-spec #12 #34` there to
+derive a set at once.
+
+Either way, `sdd-derive` opens a separate `spec/<slug>` documentation pull
+request adding the spec under `docs/specs/`, and comments the link on the source
+pull request. The derived spec carries a **Gap Analysis** section recording what
+the code did not do — implementation gaps, missing failure paths, weak
+acceptance criteria, and skipped demoable units. Those gaps stay in the spec for
+a human to triage; `sdd-derive` opens no follow-up issues. A derived spec's
+`tracking-issue` is blank, so `sdd-doc-status` leaves it at `planned` until a
+human links one.
 
 ## Planning hardening
 

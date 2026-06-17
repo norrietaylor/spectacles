@@ -7,6 +7,9 @@
 - name: needs-human
   color: b60205
   description: An agent handed off; a human must act, then clear this label.
+- name: needs-spec
+  color: fef2c0
+  description: Marker - a PR shipped without a spec; comment /derive-spec to author one (ADR 0027).
 - name: kind:bug
   color: d73a4a
   description: Something is not working.
