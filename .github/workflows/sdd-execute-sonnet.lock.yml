@@ -1,4 +1,4 @@
-# gh-aw-metadata: {"schema_version":"v4","frontmatter_hash":"e52c1492b8d02f794793ddaed2ac96864319c3ecc3427fd774b302bdd7d0689b","body_hash":"9fe28a3500bdf6db6f4174972ec2fff70c069822d6e00ace13b78041091e50b2","compiler_version":"v0.77.5","agent_id":"claude","agent_model":"claude-sonnet-4-6"}
+# gh-aw-metadata: {"schema_version":"v4","frontmatter_hash":"9c6b99cba39e928e0f0ccf9f6d5612aa31e8336fbd0b64e792cf52f54e5acf37","body_hash":"9fe28a3500bdf6db6f4174972ec2fff70c069822d6e00ace13b78041091e50b2","compiler_version":"v0.77.5","agent_id":"claude","agent_model":"claude-sonnet-4-6"}
 # gh-aw-manifest: {"version":1,"secrets":["APP_PRIVATE_KEY","CLAUDE_CODE_OAUTH_TOKEN","GH_AW_CI_TRIGGER_TOKEN","GH_AW_GITHUB_MCP_SERVER_TOKEN","GH_AW_GITHUB_TOKEN","GH_AW_OTEL_ENDPOINT","GITHUB_TOKEN"],"actions":[{"repo":"actions/checkout","sha":"de0fac2e4500dabe0009e67214ff5f5447ce83dd","version":"v6.0.2"},{"repo":"actions/create-github-app-token","sha":"bcd2ba49218906704ab6c1aa796996da409d3eb1","version":"v3.2.0"},{"repo":"actions/download-artifact","sha":"3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c","version":"v8.0.1"},{"repo":"actions/github-script","sha":"3a2844b7e9c422d3c10d287c895573f7108da1b3","version":"v9.0.0"},{"repo":"actions/setup-node","sha":"48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e","version":"v6.4.0"},{"repo":"actions/upload-artifact","sha":"043fb46d1a93c77aae656e7c1c64a875d1fc6a0a","version":"v7.0.1"},{"repo":"dtolnay/rust-toolchain","sha":"29eef336d9b2848a0b548edc03f92a220660cdb8","version":"29eef336d9b2848a0b548edc03f92a220660cdb8"},{"repo":"github/gh-aw-actions/setup","sha":"3ea13c02d765410340d533515cb31a7eef2baaf0","version":"v0.77.5"}],"containers":[{"image":"ghcr.io/github/gh-aw-firewall/agent:0.25.58"},{"image":"ghcr.io/github/gh-aw-firewall/api-proxy:0.25.58"},{"image":"ghcr.io/github/gh-aw-firewall/squid:0.25.58"},{"image":"ghcr.io/github/gh-aw-mcpg:v0.3.22"},{"image":"ghcr.io/github/github-mcp-server:v1.1.0"},{"image":"ghcr.io/github/serena-mcp-server:latest","digest":"sha256:bf343399e3725c45528f531a230f3a04521d4cdef29f9a5af6282ff0d3c393c5","pinned_image":"ghcr.io/github/serena-mcp-server:latest@sha256:bf343399e3725c45528f531a230f3a04521d4cdef29f9a5af6282ff0d3c393c5"},{"image":"mcr.microsoft.com/playwright/mcp:v0.0.75"},{"image":"node:lts-alpine","digest":"sha256:2bdb65ed1dab192432bc31c95f94155ca5ad7fc1392fb7eb7526ab682fa5bf14","pinned_image":"node:lts-alpine@sha256:2bdb65ed1dab192432bc31c95f94155ca5ad7fc1392fb7eb7526ab682fa5bf14"}]}
 #    ___                   _   _      
 #   / _ \                 | | (_)     
@@ -33,6 +33,7 @@
 #     - norrietaylor/spectacles/shared/sdd-mcp-serena.md@main
 #     - norrietaylor/spectacles/shared/sdd-node-cleanup.md@main
 #     - norrietaylor/spectacles/shared/sdd-proof-artifacts.md@main
+#     - norrietaylor/spectacles/shared/sdd-revise-pr-checkout.md@main
 #     - norrietaylor/spectacles/shared/sdd-rust-cleanup.md@main
 #
 # inlined-imports: true
@@ -250,24 +251,24 @@ jobs:
         run: |
           bash "${RUNNER_TEMP}/gh-aw/actions/create_prompt_first.sh"
           {
-          cat << 'GH_AW_PROMPT_91dd80f79c645b27_EOF'
+          cat << 'GH_AW_PROMPT_5c30300770480374_EOF'
           <system>
-          GH_AW_PROMPT_91dd80f79c645b27_EOF
+          GH_AW_PROMPT_5c30300770480374_EOF
           cat "${RUNNER_TEMP}/gh-aw/prompts/xpia.md"
           cat "${RUNNER_TEMP}/gh-aw/prompts/temp_folder_prompt.md"
           cat "${RUNNER_TEMP}/gh-aw/prompts/markdown.md"
           cat "${RUNNER_TEMP}/gh-aw/prompts/safe_outputs_prompt.md"
-          cat << 'GH_AW_PROMPT_91dd80f79c645b27_EOF'
+          cat << 'GH_AW_PROMPT_5c30300770480374_EOF'
           <safe-output-tools>
           Tools: add_comment, update_issue, create_pull_request, add_labels(max:2), remove_labels(max:2), push_to_pull_request_branch, missing_tool, missing_data, noop
-          GH_AW_PROMPT_91dd80f79c645b27_EOF
+          GH_AW_PROMPT_5c30300770480374_EOF
           cat "${RUNNER_TEMP}/gh-aw/prompts/safe_outputs_create_pull_request.md"
           cat "${RUNNER_TEMP}/gh-aw/prompts/safe_outputs_push_to_pr_branch.md"
-          cat << 'GH_AW_PROMPT_91dd80f79c645b27_EOF'
+          cat << 'GH_AW_PROMPT_5c30300770480374_EOF'
           </safe-output-tools>
-          GH_AW_PROMPT_91dd80f79c645b27_EOF
+          GH_AW_PROMPT_5c30300770480374_EOF
           cat "${RUNNER_TEMP}/gh-aw/prompts/mcp_cli_tools_prompt.md"
-          cat << 'GH_AW_PROMPT_91dd80f79c645b27_EOF'
+          cat << 'GH_AW_PROMPT_5c30300770480374_EOF'
           <github-context>
           The following GitHub context information is available for this workflow:
           {{#if github.actor}}
@@ -296,10 +297,11 @@ jobs:
           {{/if}}
           </github-context>
           
-          GH_AW_PROMPT_91dd80f79c645b27_EOF
+          GH_AW_PROMPT_5c30300770480374_EOF
           cat "${RUNNER_TEMP}/gh-aw/prompts/github_mcp_tools_with_safeoutputs_prompt.md"
-          cat << 'GH_AW_PROMPT_91dd80f79c645b27_EOF'
+          cat << 'GH_AW_PROMPT_5c30300770480374_EOF'
           </system>
+          
           # Core principles
           
           Every spectacles agent imports this fragment. These behavioral principles
@@ -1777,7 +1779,7 @@ jobs:
             moves to `sdd:done` and gains `needs-human`, and the tracking issue is not
             closed by the agent.
           
-          GH_AW_PROMPT_91dd80f79c645b27_EOF
+          GH_AW_PROMPT_5c30300770480374_EOF
           } > "$GH_AW_PROMPT"
       - name: Interpolate variables and render templates
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
@@ -1984,6 +1986,14 @@ jobs:
           GH_AW_SKILL_DIR: ".claude/skills"
         run: bash "${RUNNER_TEMP}/gh-aw/actions/restore_inline_skills.sh"
       - env:
+          AW_CONTEXT: ${{ inputs.aw_context }}
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_SERVER_URL: ${{ github.server_url }}
+        name: Check out the PR head branch for /revise
+        run: "set -uo pipefail\nskip() { echo \"pr-checkout: $1; skipping\" >&2; exit 0; }\ncommand -v gh >/dev/null 2>&1 || skip \"no gh\"\ncommand -v jq >/dev/null 2>&1 || skip \"no jq\"\nctx=\"${AW_CONTEXT:-}\"\nitem_type=\"$(printf '%s' \"$ctx\" | jq -r '.item_type // empty' 2>/dev/null || true)\"\nitem_number=\"$(printf '%s' \"$ctx\" | jq -r '.item_number // empty' 2>/dev/null || true)\"\n[ \"$item_type\" = \"pull_request\" ] || skip \"not a PR trigger (${item_type:-none})\"\n[ -n \"$item_number\" ] || skip \"no item number\"\nrepo=\"${GITHUB_REPOSITORY:-}\"\n[ -n \"$repo\" ] || skip \"no repo\"\nhead_ref=\"$(gh api \"repos/${repo}/pulls/${item_number}\" --jq '.head.ref' 2>/dev/null || true)\"\n[ -n \"$head_ref\" ] || skip \"could not resolve head ref for PR ${item_number}\"\n# Re-authenticate origin only for the fetch — the agent checkout stripped\n# credentials (persist-credentials: false). Strip the token afterward so\n# the agent container never reads it from .git/config.\nserver=\"${GITHUB_SERVER_URL#https://}\"\ntokenless=\"https://${server}/${repo}.git\"\ngit remote set-url origin \"https://x-access-token:${GH_TOKEN}@${server}/${repo}.git\"\nif ! git fetch --depth=1 origin \"$head_ref\"; then\n  git remote set-url origin \"$tokenless\"\n  skip \"fetch of ${head_ref} failed\"\nfi\ngit remote set-url origin \"$tokenless\"\ngit checkout -B \"$head_ref\" \"origin/${head_ref}\" || skip \"checkout of ${head_ref} failed\"\necho \"pr-checkout: on ${head_ref} @ $(git rev-parse --short HEAD 2>/dev/null || echo '?')\" >&2\n"
+        shell: bash
+      - env:
           RUST_ANALYZER_SHA256: 1f5b5dbd12109b9959c56092a0ca4222b834094b66fba2998422adf6c5a1b51c
           RUST_ANALYZER_TAG: "2026-05-25"
           SERENA_LANGUAGE_SERVERS: ${{ vars.SERENA_LANGUAGE_SERVERS }}
@@ -2003,9 +2013,9 @@ jobs:
           mkdir -p "${RUNNER_TEMP}/gh-aw/safeoutputs"
           mkdir -p /tmp/gh-aw/safeoutputs
           mkdir -p /tmp/gh-aw/mcp-logs/safeoutputs
-          cat > "${RUNNER_TEMP}/gh-aw/safeoutputs/config.json" << 'GH_AW_SAFE_OUTPUTS_CONFIG_9ec11b9d77d7eaa9_EOF'
+          cat > "${RUNNER_TEMP}/gh-aw/safeoutputs/config.json" << 'GH_AW_SAFE_OUTPUTS_CONFIG_c0ce2470fde1a056_EOF'
           {"add_comment":{"max":1},"add_labels":{"allowed":["sdd:in-progress","sdd:done","needs-human"],"max":2},"create_pull_request":{"draft":false,"max":1,"max_patch_files":100,"max_patch_size":1024,"protect_top_level_dot_folders":true,"protected_files":["bun.lockb","bunfig.toml","deno.json","deno.jsonc","deno.lock","global.json","NuGet.Config","Directory.Packages.props","mix.exs","mix.lock","go.mod","go.sum","stack.yaml","stack.yaml.lock","pom.xml","build.gradle","build.gradle.kts","settings.gradle","settings.gradle.kts","gradle.properties","requirements.txt","Pipfile","Pipfile.lock","setup.py","setup.cfg","Gemfile","Gemfile.lock","uv.lock","CODEOWNERS","DESIGN.md","README.md","CONTRIBUTING.md","CHANGELOG.md","SECURITY.md","CODE_OF_CONDUCT.md","CLAUDE.md","AGENTS.md"],"protected_files_policy":"fallback-to-issue"},"create_report_incomplete_issue":{},"missing_data":{},"missing_tool":{},"noop":{"max":1,"report-as-issue":"true"},"push_to_pull_request_branch":{"if_no_changes":"warn","max":1,"max_patch_size":1024,"protect_top_level_dot_folders":true,"protected_files":["bun.lockb","bunfig.toml","deno.json","deno.jsonc","deno.lock","global.json","NuGet.Config","Directory.Packages.props","mix.exs","mix.lock","go.mod","go.sum","stack.yaml","stack.yaml.lock","pom.xml","build.gradle","build.gradle.kts","settings.gradle","settings.gradle.kts","gradle.properties","requirements.txt","Pipfile","Pipfile.lock","setup.py","setup.cfg","Gemfile","Gemfile.lock","uv.lock","CODEOWNERS","DESIGN.md","README.md","CONTRIBUTING.md","CHANGELOG.md","SECURITY.md","CODE_OF_CONDUCT.md","CLAUDE.md","AGENTS.md"]},"remove_labels":{"allowed":["sdd:ready","sdd:review","sdd:fastpath","sdd:in-progress"],"max":2},"report_incomplete":{},"update_issue":{"allow_body":true,"allow_status":true,"max":1,"target":"*"}}
-          GH_AW_SAFE_OUTPUTS_CONFIG_9ec11b9d77d7eaa9_EOF
+          GH_AW_SAFE_OUTPUTS_CONFIG_c0ce2470fde1a056_EOF
       - name: Generate Safe Outputs Tools
         env:
           GH_AW_TOOLS_META_JSON: |
@@ -2356,7 +2366,7 @@ jobs:
           export MCP_GATEWAY_DOCKER_COMMAND='docker run -i --rm --network host --add-host host.docker.internal:127.0.0.1 --user '"${MCP_GATEWAY_UID}"':'"${MCP_GATEWAY_GID}"' --group-add '"${DOCKER_SOCK_GID}"' -v '"${DOCKER_SOCK_PATH}"':/var/run/docker.sock -e MCP_GATEWAY_PORT -e MCP_GATEWAY_DOMAIN -e MCP_GATEWAY_API_KEY -e MCP_GATEWAY_PAYLOAD_DIR -e MCP_GATEWAY_PAYLOAD_SIZE_THRESHOLD -e DOCKER_HOST=unix:///var/run/docker.sock -e DEBUG -e MCP_GATEWAY_LOG_DIR -e GH_AW_MCP_LOG_DIR -e GH_AW_SAFE_OUTPUTS -e GH_AW_SAFE_OUTPUTS_CONFIG_PATH -e GH_AW_SAFE_OUTPUTS_TOOLS_PATH -e GH_AW_ASSETS_BRANCH -e GH_AW_ASSETS_MAX_SIZE_KB -e GH_AW_ASSETS_ALLOWED_EXTS -e DEFAULT_BRANCH -e GITHUB_MCP_SERVER_TOKEN -e GITHUB_MCP_GUARD_MIN_INTEGRITY -e GITHUB_MCP_GUARD_REPOS -e GITHUB_REPOSITORY -e GITHUB_SERVER_URL -e GITHUB_SHA -e GITHUB_WORKSPACE -e GITHUB_TOKEN -e GITHUB_RUN_ID -e GITHUB_RUN_NUMBER -e GITHUB_RUN_ATTEMPT -e GITHUB_JOB -e GITHUB_ACTION -e GITHUB_EVENT_NAME -e GITHUB_EVENT_PATH -e GITHUB_ACTOR -e GITHUB_ACTOR_ID -e GITHUB_TRIGGERING_ACTOR -e GITHUB_WORKFLOW -e GITHUB_WORKFLOW_REF -e GITHUB_WORKFLOW_SHA -e GITHUB_REF -e GITHUB_REF_NAME -e GITHUB_REF_TYPE -e GITHUB_HEAD_REF -e GITHUB_BASE_REF -e GH_AW_SAFE_OUTPUTS_PORT -e GH_AW_SAFE_OUTPUTS_API_KEY -e GITHUB_AW_OTEL_TRACE_ID -e GITHUB_AW_OTEL_PARENT_SPAN_ID -e OTEL_EXPORTER_OTLP_HEADERS -v /tmp/gh-aw/mcp-payloads:/tmp/gh-aw/mcp-payloads:rw -v /opt:/opt:ro -v /tmp:/tmp:rw -v '"${GITHUB_WORKSPACE}"':'"${GITHUB_WORKSPACE}"':rw ghcr.io/github/gh-aw-mcpg:v0.3.22'
           
           GH_AW_NODE=$(which node 2>/dev/null || command -v node 2>/dev/null || echo node)
-          cat << GH_AW_MCP_CONFIG_d3ed27a5a829bb52_EOF | "$GH_AW_NODE" "${RUNNER_TEMP}/gh-aw/actions/start_mcp_gateway.cjs"
+          cat << GH_AW_MCP_CONFIG_62e9ea588eb31dd7_EOF | "$GH_AW_NODE" "${RUNNER_TEMP}/gh-aw/actions/start_mcp_gateway.cjs"
           {
             "mcpServers": {
               "github": {
@@ -2481,7 +2491,7 @@ jobs:
               }
             }
           }
-          GH_AW_MCP_CONFIG_d3ed27a5a829bb52_EOF
+          GH_AW_MCP_CONFIG_62e9ea588eb31dd7_EOF
       - name: Mount MCP servers as CLIs
         id: mount-mcp-clis
         continue-on-error: true
