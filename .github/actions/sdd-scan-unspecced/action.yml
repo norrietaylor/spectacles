@@ -1,0 +1,138 @@
+name: sdd-scan-unspecced
+description: >
+  Weekly scan for merged pull requests that shipped without a spec (ADR 0027).
+  Applies the same lineage + size predicate as sdd-route-derive to PRs merged
+  in the trailing window, then upserts one roll-up issue listing them with
+  instructions to comment /derive-spec #N ... to derive a set. Deterministic;
+  no engine.
+
+inputs:
+  github-token:
+    description: 'App-installation token with issues:write and pull-requests:read.'
+    required: true
+  min-unit:
+    description: >
+      Net-changed-line floor below which a merged PR is too small to list, from
+      the consumer's SDD_SPEC_MIN_UNIT variable. Blank falls back to 400.
+    required: false
+    default: ''
+  window-days:
+    description: 'Trailing window in days for the merged-PR scan. Blank -> 7.'
+    required: false
+    default: ''
+
+runs:
+  using: composite
+  steps:
+    - name: Scan merged PRs and upsert the roll-up issue
+      uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+      with:
+        github-token: ${{ inputs.github-token }}
+        script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const MARKER = '<!-- sdd-unspecced-scan -->';
+
+            const floorRaw = (process.env.SDD_DERIVE_MIN_UNIT || '').trim();
+            const floor = floorRaw === '' ? 400 : parseInt(floorRaw, 10);
+            const daysRaw = (process.env.SDD_DERIVE_SCAN_DAYS || '').trim();
+            const days = daysRaw === '' ? 7 : parseInt(daysRaw, 10);
+            const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+
+            // The same lineage predicate the per-PR offer uses: a non-sdd head
+            // branch and no Closes link means no forward-pipeline spec lineage.
+            const hasLineage = (headRef, body) =>
+              headRef.startsWith('sdd/')
+              || headRef.startsWith('spec/')
+              || headRef.startsWith('arch/')
+              || /\bcloses\s+#\d+/i.test(body || '');
+
+            // Walk recently-updated closed PRs and keep those merged inside the
+            // window. The list is sorted by `updated`, not `merged_at`, so a
+            // recently-touched but long-merged PR can appear early — filter
+            // each PR on its own merged_at rather than breaking on the first
+            // out-of-window one (which would drop later in-window merges).
+            const unspecced = [];
+            for (let page = 1; page <= 10; page += 1) {
+              const { data } = await github.rest.pulls.list({
+                owner, repo, state: 'closed', sort: 'updated',
+                direction: 'desc', per_page: 100, page });
+              if (!data.length) break;
+              for (const pr of data) {
+                if (!pr.merged_at) continue;
+                if (new Date(pr.merged_at) < cutoff) continue;
+                const headRef = (pr.head && pr.head.ref) || '';
+                const author = (pr.user && pr.user.login) || '';
+                if (hasLineage(headRef, pr.body)) continue;
+                if (author.endsWith('[bot]') || author === 'dependabot') continue;
+                // pulls.list omits additions/deletions; fetch the detail.
+                let full;
+                try {
+                  full = (await github.rest.pulls.get({
+                    owner, repo, pull_number: pr.number })).data;
+                } catch (err) {
+                  core.info('Could not fetch #' + pr.number + ': ' + err.message);
+                  continue;
+                }
+                const size = (full.additions || 0) + (full.deletions || 0);
+                if (size < floor) continue;
+                unspecced.push({ number: pr.number, title: pr.title, size });
+              }
+              if (data.length < 100) break;
+            }
+
+            core.info('Found ' + unspecced.length
+              + ' unspecced merged PR(s) in the last ' + days + ' day(s).');
+
+            // Locate an existing open roll-up issue by its body marker.
+            let existing = null;
+            try {
+              const { data } = await github.rest.search.issuesAndPullRequests({
+                q: `repo:${owner}/${repo} is:issue is:open "${MARKER}" in:body`,
+                per_page: 5 });
+              existing = (data.items || []).find(
+                (i) => !i.pull_request) || null;
+            } catch (err) {
+              core.info('Roll-up search failed: ' + err.message);
+            }
+
+            // Nothing to report: close the loop quietly and leave any existing
+            // roll-up untouched (it still lists older unaddressed PRs — an
+            // empty-window run must not overwrite that backlog).
+            if (!unspecced.length) {
+              core.info(existing
+                ? 'No unspecced PRs in the current window; leaving the existing '
+                  + 'roll-up #' + existing.number + ' unchanged.'
+                : 'No unspecced PRs and no existing roll-up; nothing to do.');
+              return;
+            }
+
+            const list = unspecced.map(
+              (p) => `- [ ] #${p.number} — ${p.title} (~${p.size} lines)`).join('\n');
+            const cmd = '`/derive-spec '
+              + unspecced.map((p) => '#' + p.number).join(' ') + '`';
+            const body = [
+              MARKER,
+              '## Unspecced merged pull requests',
+              '',
+              'These pull requests merged without an accompanying spec '
+                + '(no `sdd/` lineage, over the `SDD_SPEC_MIN_UNIT` floor). '
+                + 'Comment ' + cmd + ' on this issue to derive specs for a set '
+                + '— each opens a separate `spec/<slug>` documentation PR with a '
+                + 'gap analysis. See ADR 0027.',
+              '',
+              list,
+            ].join('\n');
+
+            if (existing) {
+              await github.rest.issues.update({
+                owner, repo, issue_number: existing.number, body });
+              core.info('Updated roll-up issue #' + existing.number + '.');
+            } else {
+              const { data } = await github.rest.issues.create({
+                owner, repo, title: 'Unspecced merged pull requests', body });
+              core.info('Created roll-up issue #' + data.number + '.');
+            }
+      env:
+        SDD_DERIVE_MIN_UNIT: ${{ inputs.min-unit }}
+        SDD_DERIVE_SCAN_DAYS: ${{ inputs.window-days }}

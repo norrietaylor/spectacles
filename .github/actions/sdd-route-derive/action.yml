@@ -1,0 +1,211 @@
+name: sdd-route-derive
+description: >
+  Route decision for sdd-derive (ADR 0027). On a pull_request event, decides
+  whether the PR is unspecced and large enough to offer a derived spec
+  (deterministic, size-gated, idempotent). On a /derive-spec comment, gates the
+  command on real repository write access and builds the run matrix: one cell
+  for a /derive-spec on a PR, one cell per #N on a /derive-spec listing PRs on
+  the weekly roll-up issue. Extracted per ADR 0015.
+
+inputs:
+  github-token:
+    description: 'Token for the REST calls in the route logic.'
+    required: false
+    default: ${{ github.token }}
+  min-unit:
+    description: >
+      Net-changed-line floor below which an unspecced PR is too small to offer
+      a derived spec, from the consumer's SDD_SPEC_MIN_UNIT variable. Blank
+      falls back to 400 (ADR 0026, ADR 0027).
+    required: false
+    default: ''
+
+outputs:
+  should_offer:
+    description: "'true' when the deterministic offer comment should be posted."
+    value: ${{ steps.decide.outputs.should_offer }}
+  offer_pr:
+    description: 'Pull-request number to post the offer on; empty otherwise.'
+    value: ${{ steps.decide.outputs.offer_pr }}
+  has_runs:
+    description: "'true' when the agent should run for at least one PR."
+    value: ${{ steps.decide.outputs.has_runs }}
+  run_matrix:
+    description: >
+      GitHub Actions matrix ({"include":[{pr, aw_context}, ...]}) for the
+      derive fan-out; empty when has_runs is false.
+    value: ${{ steps.decide.outputs.run_matrix }}
+
+runs:
+  using: composite
+  steps:
+    - name: Decide whether to offer or run, and build the run matrix
+      id: decide
+      uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+      with:
+        github-token: ${{ inputs.github-token }}
+        script: |
+            const event = context.eventName;
+            const payload = context.payload;
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+
+            const OFFER_MARKER = '<!-- sdd-derive:offer -->';
+            const floorRaw = (process.env.SDD_DERIVE_MIN_UNIT || '').trim();
+            const floor = floorRaw === '' ? 400 : parseInt(floorRaw, 10);
+
+            // Safe defaults; the branches below override what applies. An unset
+            // output reads as empty (falsy) in the wrapper's `if:` guards.
+            core.setOutput('should_offer', 'false');
+            core.setOutput('offer_pr', '');
+            core.setOutput('has_runs', 'false');
+            core.setOutput('run_matrix', '');
+
+            // Helper: build the per-PR aw_context the lock consumes.
+            const ctxFor = (n) =>
+              JSON.stringify({ item_type: 'pull_request', item_number: n });
+
+            // Helper: real repository write access for a comment author. The
+            // gate is the actor's push permission, not author_association —
+            // identical to sdd-route-spec.
+            async function canWrite(login) {
+              try {
+                const resp = await github.rest.repos
+                  .getCollaboratorPermissionLevel({ owner, repo, username: login });
+                const p = resp.data.role_name || resp.data.permission;
+                return p === 'write' || p === 'maintain' || p === 'admin';
+              } catch (err) {
+                core.info('Could not resolve repo permission for ' + login
+                  + ': ' + err.message);
+                return false;
+              }
+            }
+
+            // --- pull_request: size-gated, idempotent offer decision ---------
+            //
+            // Offer a derived spec when the PR was opened or synchronized and
+            // it lacks SDD lineage (the head ref is not an sdd-execute /
+            // spec / arch branch and the body opens no issue) and the diff is
+            // at or above the floor. A bot-authored or docs-only PR is skipped,
+            // and a prior offer comment makes the decision idempotent so a
+            // follow-up synchronize never re-offers.
+            if (event === 'pull_request'
+                && (payload.action === 'opened'
+                    || payload.action === 'synchronize')) {
+              const pr = payload.pull_request;
+              const headRef = (pr.head && pr.head.ref) || '';
+              const author = (pr.user && pr.user.login) || '';
+              const body = pr.body || '';
+
+              const hasLineage =
+                headRef.startsWith('sdd/')
+                || headRef.startsWith('spec/')
+                || headRef.startsWith('arch/')
+                || /\bcloses\s+#\d+/i.test(body);
+              const isBot = author.endsWith('[bot]') || author === 'dependabot';
+              const size = (pr.additions || 0) + (pr.deletions || 0);
+
+              let offer = !hasLineage && !isBot && size >= floor;
+
+              // A single pass over the changed files decides two suppressions:
+              // a docs-only diff (every file under docs/ or a markdown/text
+              // doc — a spec for docs is noise), and a PR that already carries
+              // a spec under docs/specs/** (lineage the head-ref/Closes checks
+              // miss when the spec ships on a non-spec branch).
+              if (offer) {
+                try {
+                  let docsOnly = true;
+                  let touchesSpecDocs = false;
+                  let any = false;
+                  for (let page = 1; ; page += 1) {
+                    const { data } = await github.rest.pulls.listFiles({
+                      owner, repo, pull_number: pr.number, per_page: 100, page });
+                    for (const f of data) {
+                      any = true;
+                      if (/^docs\/specs\//.test(f.filename)) touchesSpecDocs = true;
+                      if (!/^docs\//.test(f.filename)
+                          && !/\.(md|mdx|txt|rst)$/i.test(f.filename)) {
+                        docsOnly = false;
+                      }
+                    }
+                    if (data.length < 100) break;
+                  }
+                  if (touchesSpecDocs) {
+                    core.info('PR #' + pr.number
+                      + ' already touches docs/specs/**; no offer.');
+                    offer = false;
+                  }
+                  if (any && docsOnly) {
+                    core.info('PR #' + pr.number + ' is docs-only; no offer.');
+                    offer = false;
+                  }
+                } catch (err) {
+                  core.info('Could not list files for #' + pr.number + ': '
+                    + err.message);
+                }
+              }
+
+              // Idempotency: a prior offer comment suppresses a repeat.
+              if (offer) {
+                try {
+                  for (let page = 1; ; page += 1) {
+                    const { data } = await github.rest.issues.listComments({
+                      owner, repo, issue_number: pr.number,
+                      per_page: 100, page });
+                    if (data.some((c) => (c.body || '').includes(OFFER_MARKER))) {
+                      core.info('PR #' + pr.number
+                        + ' already has an offer comment; skipping.');
+                      offer = false;
+                      break;
+                    }
+                    if (data.length < 100) break;
+                  }
+                } catch (err) {
+                  core.info('Could not list comments for #' + pr.number + ': '
+                    + err.message);
+                }
+              }
+
+              core.setOutput('should_offer', offer ? 'true' : 'false');
+              core.setOutput('offer_pr', offer ? String(pr.number) : '');
+              return;
+            }
+
+            // --- issue_comment: /derive-spec command -------------------------
+            //
+            // /derive-spec on a PR derives that one PR. /derive-spec listing
+            // #N tokens on the weekly roll-up issue derives each listed PR
+            // through the fan-out matrix. Gated on the author's write access.
+            if (event === 'issue_comment' && payload.action === 'created') {
+              const body = (payload.comment.body || '').trim();
+              const firstWord = body.split(/\s+/)[0];
+              if (firstWord === '/derive-spec') {
+                const actor = payload.comment.user.login;
+                if (!(await canWrite(actor))) {
+                  core.info('/derive-spec from an author without write access;'
+                    + ' ignoring.');
+                } else if (payload.issue.pull_request) {
+                  // On a PR: derive this PR.
+                  const n = payload.issue.number;
+                  core.setOutput('has_runs', 'true');
+                  core.setOutput('run_matrix',
+                    JSON.stringify({ include: [{ pr: n, aw_context: ctxFor(n) }] }));
+                } else {
+                  // On the roll-up issue: derive each listed #N. De-dup and
+                  // cap the fan-out so a stray paste cannot spawn a runaway set.
+                  const nums = [...new Set(
+                    (body.match(/#(\d+)/g) || []).map((s) => parseInt(s.slice(1), 10)))]
+                    .slice(0, 20);
+                  if (nums.length) {
+                    core.setOutput('has_runs', 'true');
+                    core.setOutput('run_matrix', JSON.stringify({
+                      include: nums.map((n) => ({ pr: n, aw_context: ctxFor(n) })),
+                    }));
+                  } else {
+                    core.info('/derive-spec listed no #N pull requests; noop.');
+                  }
+                }
+              }
+            }
+      env:
+        SDD_DERIVE_MIN_UNIT: ${{ inputs.min-unit }}

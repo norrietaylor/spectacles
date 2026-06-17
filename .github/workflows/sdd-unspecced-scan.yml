@@ -1,0 +1,50 @@
+# Weekly scan for merged pull requests that shipped without a spec, upserting
+# one roll-up issue that lists them (ADR 0027). A maintainer then comments
+# /derive-spec #N ... on that issue to derive a set; the sdd-derive wrapper
+# fans the agent out.
+#
+# Deterministic, no engine: the scan is a lineage + size predicate over merged
+# PRs (the same predicate sdd-route-derive applies per-PR), so it lives here as
+# a plain workflow calling the sdd-scan-unspecced composite action.
+#
+# Why an App token: creating or updating the roll-up issue needs issues:write,
+# which this workflow's default GITHUB_TOKEN (contents: read) lacks. The minted
+# App-installation token carries it.
+name: sdd-unspecced-scan
+
+on:
+  schedule:
+    # Mondays 08:00 UTC. Weekly cadence: the roll-up is a digest, not a per-PR
+    # alert (that is the sdd-derive offer's job).
+    - cron: '0 8 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sdd-unspecced-scan
+  cancel-in-progress: false
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Mint App token
+        id: app-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3
+        with:
+          app-id: ${{ vars.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
+          permission-issues: write
+          permission-pull-requests: read
+      - name: Scan merged PRs and upsert the roll-up issue
+        uses: norrietaylor/spectacles/.github/actions/sdd-scan-unspecced@main
+        with:
+          github-token: ${{ steps.app-token.outputs.token }}
+          # Net-changed-line floor; unset falls back to 400 (ADR 0026, ADR 0027).
+          min-unit: ${{ vars.SDD_SPEC_MIN_UNIT }}
+          # Trailing scan window in days; unset falls back to 7.
+          window-days: ${{ vars.SDD_DERIVE_SCAN_DAYS }}
