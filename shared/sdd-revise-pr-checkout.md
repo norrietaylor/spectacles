@@ -29,7 +29,7 @@
 # so a resolution miss never blocks the run.
 #
 # Imported by the workflows that declare push-to-pull-request-branch
-# (sdd-triage-arch, sdd-execute-{haiku,sonnet,opus}, sdd-derive, sdd-review)
+# (sdd-triage-arch, sdd-execute-{haiku,sonnet,opus})
 # via the pinned-ref form `norrietaylor/spectacles/shared/sdd-revise-pr-checkout.md@<ref>`
 # (ADR 0002). Editing it requires `gh aw compile` to propagate into the inlined
 # locks; the lint workflow's drift gate enforces that.

@@ -53,7 +53,6 @@ secret-masking:
 inlined-imports: true
 strict: false
 imports:
-  - norrietaylor/spectacles/shared/sdd-revise-pr-checkout.md@main
   - norrietaylor/spectacles/shared/sdd-interaction.md@main
   - norrietaylor/spectacles/shared/sdd-mcp-serena.md@main
   - norrietaylor/spectacles/shared/repo-conventions.md@main
