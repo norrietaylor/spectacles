@@ -1,12 +1,14 @@
 name: sdd-cycle-detect
 description: >
   Deterministic DAG backstop for the sdd-triage tree. Walks the tracking
-  issue's Feature -> Unit -> task sub-issue tree, parses each open task's
-  `blocked by` lines with the shared parseBlockers helper, builds the edge map
-  over task numbers, and runs detectCycle. The agent's in-prompt cycle check
-  (ADR 0010) is the primary zero-create-on-cycle guarantee; this action is the
-  authoritative backstop that detects a cycle that slipped past the LLM. It
-  mutates no label and posts no comment — the wrapper job does that.
+  issue's Feature -> Unit -> task sub-issue tree — including a task parented
+  directly to the feature when its Unit collapsed to one task (ADR 0028) —
+  parses each open task's `blocked by` lines with the shared parseBlockers
+  helper, builds the edge map over task numbers, and runs detectCycle. The
+  agent's in-prompt cycle check (ADR 0010) is the primary zero-create-on-cycle
+  guarantee; this action is the authoritative backstop that detects a cycle
+  that slipped past the LLM. It mutates no label and posts no comment — the
+  wrapper job does that.
 
 inputs:
   tracking-issue:
@@ -55,6 +57,20 @@ runs:
             // Walk Feature -> Unit -> task exactly like sdd-dispatch-compute's
             // listChildren: list the tracking issue's sub-issues (Units), then
             // each Unit's sub-issues (tasks). Paginate at 100.
+            //
+            // A single-task Unit collapses to a feature-parented task (ADR
+            // 0028): such a task is a direct child of the tracking issue with
+            // no intervening Unit. A direct child is a task — not a Unit, spec,
+            // or architecture sub-issue — when it carries exactly one model:*
+            // tier label (the same disambiguator the dispatch matrix uses);
+            // only tasks carry a model:* tier.
+            const SUPPORTED_TIERS = new Set([
+              'model:haiku', 'model:sonnet', 'model:opus']);
+            function isTask(issue) {
+              const names = (issue.labels || []).map((l) => l.name || l);
+              const tiers = names.filter((l) => SUPPORTED_TIERS.has(l));
+              return tiers.length === 1;
+            }
             async function listChildren(parentNumber) {
               const items = [];
               let page = 1;
@@ -77,12 +93,21 @@ runs:
               return items;
             }
 
-            const units = await listChildren(tracking);
+            const directChildren = await listChildren(tracking);
             const tasks = [];
-            for (const unit of units) {
-              const children = await listChildren(unit.number);
-              for (const child of children) {
+            for (const child of directChildren) {
+              // A feature-parented task (collapsed single-task Unit, ADR
+              // 0028) is a leaf task, not a grouping Unit: take it directly
+              // and do not descend.
+              if (isTask(child)) {
                 tasks.push(child);
+                continue;
+              }
+              // Otherwise this is a Unit (or a spec/architecture sub-issue,
+              // which carries no task children): descend for its tasks.
+              const grandchildren = await listChildren(child.number);
+              for (const grandchild of grandchildren) {
+                tasks.push(grandchild);
               }
             }
 

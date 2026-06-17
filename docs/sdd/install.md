@@ -67,8 +67,9 @@ install aborts.
   keyword from auto-closing the feature tracking issue, and adds the
   `Closes #<sub-issue>` link to the deliverable sub-issue (ADR 0005, ADR 0006);
 - the `sdd-triage-dedupe-tasks` utility workflow, which closes a phase-C
-  task sub-issue when an earlier-numbered sibling under the same Unit
-  already carries the same title — the deterministic backstop for the
+  task sub-issue when an earlier-numbered sibling under the same parent
+  (its Unit, or the tracking issue itself when a single-task Unit collapsed —
+  ADR 0028) already carries the same title — the deterministic backstop for the
   prose-only "emit each task at most once" rule in `sdd-triage` phase C
   (ADR 0008);
 - the `sdd-triage-promote-ready` utility workflow, which applies `sdd:ready`

@@ -28,8 +28,11 @@ never carries `sdd:triage`, `sdd:ready`, or `sdd:review`.
 
 `sdd-triage` runs three phases under one workflow: architecture design, a
 plan-comment proposal on the tracking issue, and — on `/approve` — the
-creation of the Unit and task sub-issue tree (ADR 0010). Structure is only
-created after `/approve`: until then the plan is a proposal, not a tree.
+creation of the Unit and task sub-issue tree (ADR 0010). A demoable unit that
+groups two or more tasks becomes a Unit sub-issue; a unit that holds a single
+task collapses to a task parented directly to the feature (Feature → task), so
+no Unit sub-issue is created for it (ADR 0028). Structure is only created after
+`/approve`: until then the plan is a proposal, not a tree.
 
 `sdd-dispatch` is the cascade orchestrator. On `/dispatch` it computes the
 ready set from the dependency graph and fans out to `sdd-execute` variants
@@ -110,7 +113,7 @@ flowchart TD
     end
 
     subgraph s_ready [Tracking issue state: sdd:ready]
-        a_tasks[sdd-triage phase C: creates Unit sub-issues and<br/>task sub-issues; labels unblocked tasks sdd:ready]:::agent
+        a_tasks[sdd-triage phase C: creates Unit sub-issues for multi-task units<br/>and task sub-issues, collapsing a single-task unit to a feature-parented task;<br/>labels unblocked tasks sdd:ready]:::agent
         a_cycle[sdd-cycle-detect: deterministic DAG backstop<br/>parks needs-human on a cycle the LLM missed]:::agent
     end
 
@@ -251,7 +254,9 @@ implied edge is added to the plan and materialized verbatim by phase C. The
 agent also checks the implied dependency graph for cycles before it posts. As a
 deterministic backstop for a cycle the LLM misses, the `sdd-triage` wrapper runs
 an `sdd-cycle-detect` composite-action job **after** phase-C materialization: it
-walks the Feature → Unit → task sub-issues, and if it finds a real cycle (or a
+walks the Feature → Unit → task sub-issues — including a task parented directly
+to the feature when its Unit collapsed to one task (ADR 0028) — and if it finds
+a real cycle (or a
 `blocked by` reference it cannot resolve in the tree) it parks the tracking issue
 at `needs-human` with a comment naming the cycle. The agent's in-prompt check is
 the primary guarantee; this job is the authoritative backstop.
