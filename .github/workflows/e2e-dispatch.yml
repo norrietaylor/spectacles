@@ -1,0 +1,345 @@
+name: e2e-dispatch
+
+# End-to-end pipeline test: drive a synthetic feature through the full SDD
+# lifecycle on a dedicated staging repo, assert the terminal state, and report
+# duration and a coarse cost estimate. See docs/sdd/e2e.md and issue #89.
+#
+# This is a plain GitHub Actions workflow, NOT a gh-aw source: it orchestrates
+# the run with deterministic `gh` calls and a Python assert script, and never
+# invokes an agent itself. The agents run on the STAGING repo, dispatched by
+# the SDD wrappers that quick-setup installs there, pinned to the spectacles
+# ref under test.
+#
+# Provisioning is by ref, not by lock push: the staging wrappers call the
+# hosted locks via `uses: norrietaylor/spectacles/...@<ref>`. Re-pinning the
+# wrappers to the PR head SHA (which carries the PR's recompiled locks) makes
+# the staging run exercise the PR's code.
+
+on:
+  # /e2e [scenario] from a write-access author on a spectacles issue or PR.
+  issue_comment:
+    types: [created]
+  # Nightly at a low-traffic hour, default scenario.
+  schedule:
+    - cron: '0 7 * * *'
+  # Manual run with an explicit scenario.
+  workflow_dispatch:
+    inputs:
+      scenario:
+        description: Scenario fixture under tests/fixtures/e2e/
+        required: false
+        default: happy-path-feature
+
+permissions:
+  contents: read
+
+concurrency:
+  # Serialize per scenario; never cancel an in-flight E2E run.
+  group: e2e-dispatch-${{ github.event.inputs.scenario || 'happy-path-feature' }}
+  cancel-in-progress: false
+
+jobs:
+  e2e:
+    # Token-strict match on `/e2e` for comment events (enumerate boundary chars
+    # since Actions expressions have no regex); non-comment events always pass
+    # this job-level gate and are filtered inside the resolve step.
+    if: |
+      github.event_name != 'issue_comment'
+      || github.event.comment.body == '/e2e'
+      || startsWith(github.event.comment.body, '/e2e ')
+      || startsWith(github.event.comment.body, '/e2e\n')
+      || startsWith(github.event.comment.body, '/e2e\r\n')
+      || startsWith(github.event.comment.body, '/e2e\t')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: read
+      pull-requests: read
+    steps:
+      - name: Check out spectacles (fixtures + scripts)
+        uses: actions/checkout@v4
+
+      - name: Resolve inputs and gate
+        id: gate
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT_NAME: ${{ github.event_name }}
+          COMMENT_BODY: ${{ github.event.comment.body }}
+          COMMENT_AUTHOR: ${{ github.event.comment.user.login }}
+          DISPATCH_SCENARIO: ${{ github.event.inputs.scenario }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          IS_PR: ${{ github.event.issue.pull_request != null }}
+          REPO: ${{ github.repository }}
+          E2E_DISABLED: ${{ vars.SPECTACLES_E2E_DISABLED }}
+          STAGING_REPO: ${{ vars.SPECTACLES_E2E_STAGING_REPO }}
+        run: |
+          set -euo pipefail
+
+          emit() { echo "$1=$2" >> "$GITHUB_OUTPUT"; }
+          stop() { emit should_run false; echo "e2e-dispatch: $1"; exit 0; }
+
+          # Off switch: silences the nightly without a workflow edit.
+          case "${E2E_DISABLED:-}" in
+            1|true|TRUE|True) stop "SPECTACLES_E2E_DISABLED is set; skipping." ;;
+          esac
+
+          if [ -z "${STAGING_REPO:-}" ]; then
+            stop "SPECTACLES_E2E_STAGING_REPO is unset; nothing to target."
+          fi
+
+          # Resolve the scenario and the spectacles ref under test.
+          scenario="happy-path-feature"
+          spectacles_ref="main"
+          origin_issue=""
+
+          if [ "$EVENT_NAME" = "issue_comment" ]; then
+            # Write-access gate: accept write|maintain|admin only.
+            perm="$(gh api "repos/$REPO/collaborators/$COMMENT_AUTHOR/permission" \
+              --jq '.permission' 2>/dev/null || echo none)"
+            case "$perm" in
+              write|maintain|admin) : ;;
+              *) stop "author $COMMENT_AUTHOR lacks write access (perm=$perm)." ;;
+            esac
+
+            # /e2e [scenario] — second token is the optional scenario.
+            arg="$(printf '%s' "$COMMENT_BODY" | awk 'NR==1{print $2}')"
+            [ -n "$arg" ] && scenario="$arg"
+            origin_issue="$ISSUE_NUMBER"
+
+            if [ "$IS_PR" = "true" ]; then
+              spectacles_ref="$(gh api "repos/$REPO/pulls/$ISSUE_NUMBER" --jq '.head.sha')"
+            fi
+          elif [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            [ -n "${DISPATCH_SCENARIO:-}" ] && scenario="$DISPATCH_SCENARIO"
+          fi
+          # schedule: defaults stand (happy-path-feature on main).
+
+          fixture_dir="tests/fixtures/e2e/$scenario"
+          if [ ! -f "$fixture_dir/issue.md" ] || [ ! -f "$fixture_dir/expectations.yml" ]; then
+            stop "scenario '$scenario' has no fixture at $fixture_dir."
+          fi
+
+          emit should_run true
+          emit scenario "$scenario"
+          emit spectacles_ref "$spectacles_ref"
+          emit origin_issue "$origin_issue"
+          emit staging_repo "$STAGING_REPO"
+          echo "e2e-dispatch: scenario=$scenario ref=$spectacles_ref staging=$STAGING_REPO"
+
+      - name: Layer-0 gate — require green checks on the PR head
+        if: ${{ steps.gate.outputs.should_run == 'true' && steps.gate.outputs.spectacles_ref != 'main' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ steps.gate.outputs.spectacles_ref }}
+        run: |
+          set -euo pipefail
+          # The cheap Layer-0 checks (lint.yml jobs) must be green before the
+          # expensive Layer-1 E2E run provisions staging. A failing or pending
+          # required check fails fast here.
+          failing="$(gh api "repos/$REPO/commits/$SHA/check-runs" \
+            --jq '[.check_runs[] | select(.conclusion=="failure" or .conclusion=="cancelled" or .conclusion=="timed_out")] | length')"
+          if [ "$failing" -gt 0 ]; then
+            echo "e2e-dispatch: $failing Layer-0 check(s) not green on $SHA; refusing to run." >&2
+            exit 1
+          fi
+
+      - name: Mint App token (spectacles + staging)
+        id: app-token
+        if: ${{ steps.gate.outputs.should_run == 'true' }}
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3
+        with:
+          app-id: ${{ vars.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          # Cover both the spectacles repo (post the summary comment) and the
+          # staging repo (provision, seed, poll). Names are bare repo names.
+          repositories: |
+            ${{ github.event.repository.name }}
+            ${{ steps.gate.outputs.staging_repo }}
+          permission-contents: write
+          permission-issues: write
+          permission-pull-requests: write
+          permission-actions: read
+          permission-administration: write
+
+      - name: Provision staging (pin wrappers to the ref under test)
+        if: ${{ steps.gate.outputs.should_run == 'true' }}
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          STAGING: ${{ steps.gate.outputs.staging_repo }}
+          REF: ${{ steps.gate.outputs.spectacles_ref }}
+        run: |
+          set -euo pipefail
+          bash scripts/quick-setup.sh --target-repo "$STAGING" --suite sdd --ref "$REF" --direct
+
+      - name: Reset staging (close stale E2E issues)
+        if: ${{ steps.gate.outputs.should_run == 'true' }}
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          STAGING: ${{ steps.gate.outputs.staging_repo }}
+        run: |
+          set -euo pipefail
+          # Close any open tracking issue from a prior run so this run starts
+          # from a clean slate. Idempotent; a fresh staging repo closes nothing.
+          gh issue list --repo "$STAGING" --state open --label e2e:seed --json number \
+            --jq '.[].number' | while read -r n; do
+            [ -n "$n" ] && gh issue close "$n" --repo "$STAGING" --comment "Superseded by a new E2E run."
+          done
+
+      - name: Seed the synthetic tracking issue
+        id: seed
+        if: ${{ steps.gate.outputs.should_run == 'true' }}
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          STAGING: ${{ steps.gate.outputs.staging_repo }}
+          SCENARIO: ${{ steps.gate.outputs.scenario }}
+        run: |
+          set -euo pipefail
+          pip install --quiet pyyaml
+          fixture="tests/fixtures/e2e/$SCENARIO"
+
+          # Seed time bounds the cost/PR queries to this run's activity.
+          echo "since=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
+
+          # The feature issue template applies its labels only in the web UI;
+          # gh issue create does not, so pass the fixture's seed_labels plus an
+          # e2e:seed marker explicitly.
+          labels="$(python -c "import yaml,sys; print(','.join(yaml.safe_load(open(sys.argv[1])).get('seed_labels',[])))" "$fixture/expectations.yml")"
+          # Ensure the marker label exists, then create the issue.
+          gh label create e2e:seed --repo "$STAGING" --color ededed \
+            --description "Synthetic E2E tracking issue (issue #89)." --force >/dev/null 2>&1 || true
+
+          url="$(gh issue create --repo "$STAGING" \
+            --title "feature: e2e $SCENARIO" \
+            --body-file "$fixture/issue.md" \
+            --label "e2e:seed${labels:+,$labels}")"
+          number="${url##*/}"
+          echo "issue=$number" >> "$GITHUB_OUTPUT"
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+          echo "e2e-dispatch: seeded $url"
+
+      - name: Poll lifecycle to terminal state
+        id: poll
+        if: ${{ steps.gate.outputs.should_run == 'true' }}
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          STAGING: ${{ steps.gate.outputs.staging_repo }}
+          ISSUE: ${{ steps.seed.outputs.issue }}
+          TIMEOUT_MIN: ${{ vars.SPECTACLES_E2E_TIMEOUT_MIN || '30' }}
+        run: |
+          set -euo pipefail
+          deadline=$(( SECONDS + TIMEOUT_MIN * 60 ))
+          state="(none)"
+          while [ "$SECONDS" -lt "$deadline" ]; do
+            labels="$(gh issue view "$ISSUE" --repo "$STAGING" --json labels --jq '.labels[].name')"
+            # Terminal on sdd:done (success) or needs-human (escalation halt).
+            if echo "$labels" | grep -qx "sdd:done"; then state="sdd:done"; break; fi
+            if echo "$labels" | grep -qx "needs-human"; then state="needs-human"; break; fi
+            sleep 30
+          done
+          [ "$SECONDS" -ge "$deadline" ] && [ "$state" = "(none)" ] && state="timeout"
+          echo "final_state=$state" >> "$GITHUB_OUTPUT"
+          echo "e2e-dispatch: final state = $state"
+
+      - name: Assert terminal state
+        id: assert
+        if: ${{ steps.gate.outputs.should_run == 'true' }}
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          STAGING: ${{ steps.gate.outputs.staging_repo }}
+          ISSUE: ${{ steps.seed.outputs.issue }}
+          SCENARIO: ${{ steps.gate.outputs.scenario }}
+          SINCE: ${{ steps.seed.outputs.since }}
+        run: |
+          set -euo pipefail
+          pip install --quiet pyyaml
+          python scripts/e2e-assert.py \
+            --repo "$STAGING" --issue "$ISSUE" \
+            --expect "tests/fixtures/e2e/$SCENARIO/expectations.yml" \
+            --since "$SINCE" | tee assert-output.txt
+
+      - name: Estimate cost
+        id: cost
+        if: ${{ steps.gate.outputs.should_run == 'true' }}
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          STAGING: ${{ steps.gate.outputs.staging_repo }}
+          SINCE: ${{ steps.seed.outputs.since }}
+        run: |
+          set -euo pipefail
+          # Coarse estimate: count staging Actions runs started since the seed
+          # and sum their wall-clock minutes. Token cost is a fixed per-run
+          # constant until a real usage source is wired (issue #89 follow-up).
+          runs="$(gh api "repos/$STAGING/actions/runs?created=>$SINCE&per_page=100" \
+            --jq '[.workflow_runs[] | {s:.run_started_at, u:.updated_at}]')"
+          minutes="$(python -c "
+          import json,sys,datetime
+          def p(t): return datetime.datetime.fromisoformat(t.replace('Z','+00:00'))
+          rs=json.loads(sys.argv[1])
+          m=sum((p(r['u'])-p(r['s'])).total_seconds() for r in rs if r['s'])/60
+          print(f'{m:.1f}')" "$runs")"
+          echo "actions_minutes=$minutes" >> "$GITHUB_OUTPUT"
+          echo "token_estimate=~\$5 (coarse per-scenario constant)" >> "$GITHUB_OUTPUT"
+
+      - name: Report summary
+        if: ${{ steps.gate.outputs.should_run == 'true' }}
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          REPO: ${{ github.repository }}
+          STAGING: ${{ steps.gate.outputs.staging_repo }}
+          SCENARIO: ${{ steps.gate.outputs.scenario }}
+          ORIGIN_ISSUE: ${{ steps.gate.outputs.origin_issue }}
+          STAGING_ISSUE_URL: ${{ steps.seed.outputs.url }}
+          FINAL_STATE: ${{ steps.poll.outputs.final_state }}
+          ASSERT_OUTCOME: ${{ steps.assert.outcome }}
+          ACTIONS_MINUTES: ${{ steps.cost.outputs.actions_minutes }}
+          TOKEN_ESTIMATE: ${{ steps.cost.outputs.token_estimate }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          verdict="✅ pass"
+          [ "$ASSERT_OUTCOME" != "success" ] && verdict="❌ fail"
+
+          {
+            echo "### E2E \`$SCENARIO\` — $verdict"
+            echo
+            echo "- Staging tracking issue: $STAGING_ISSUE_URL"
+            echo "- Final lifecycle state: \`$FINAL_STATE\`"
+            echo "- Assertions: $ASSERT_OUTCOME"
+            echo "- Cost: ${ACTIONS_MINUTES} Actions minutes on staging; tokens $TOKEN_ESTIMATE"
+            echo "- Dispatcher run: $RUN_URL"
+            if [ -f assert-output.txt ]; then
+              echo
+              echo '```'
+              cat assert-output.txt
+              echo '```'
+            fi
+          } > summary.md
+
+          cat summary.md >> "$GITHUB_STEP_SUMMARY"
+
+          if [ -n "${ORIGIN_ISSUE:-}" ]; then
+            # Comment back on the originating spectacles issue/PR.
+            gh issue comment "$ORIGIN_ISSUE" --repo "$REPO" --body-file summary.md
+          else
+            # Schedule/dispatch: open a dated nightly result issue.
+            gh issue create --repo "$REPO" \
+              --title "e2e nightly: $SCENARIO $(date -u +%Y-%m-%d)" \
+              --body-file summary.md >/dev/null
+          fi
+
+      - name: Tag staging for post-mortem on failure
+        if: ${{ steps.gate.outputs.should_run == 'true' && steps.assert.outcome != 'success' }}
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          STAGING: ${{ steps.gate.outputs.staging_repo }}
+          ISSUE: ${{ steps.seed.outputs.issue }}
+        run: |
+          set -euo pipefail
+          gh label create e2e:failed --repo "$STAGING" --color b60205 \
+            --description "E2E assertions failed; left for post-mortem." --force >/dev/null 2>&1 || true
+          gh issue edit "$ISSUE" --repo "$STAGING" --add-label e2e:failed
+          echo "::error::E2E scenario assertions failed; staging issue left open for post-mortem."
+          exit 1
