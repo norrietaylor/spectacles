@@ -1,0 +1,94 @@
+name: sdd-ack-reaction
+description: >
+  Deterministic emoji acknowledgment on a human-triggered comment. In `ack`
+  mode it adds a 👀 reaction at routing time and returns the reaction id; in
+  `terminal` mode it clears that ack reaction and adds the run's outcome
+  reaction (🚀 ran / 😕 noop / 👎 failed). All API calls are best-effort and
+  never fail the step — feedback must never block a run. The reaction is posted
+  with whatever token the caller passes; the wrappers mint the App token so the
+  reaction shows as the pipeline's bot identity (issue #294).
+
+inputs:
+  github-token:
+    description: Token to react with. Wrappers pass a minted App token.
+    required: true
+  mode:
+    description: "`ack` (add 👀, output its id) or `terminal` (clear ack, add outcome)."
+    required: true
+  comment-id:
+    description: >
+      Numeric id of the triggering comment. Empty for a non-comment trigger
+      (label/dispatch/check_suite) — the action no-ops in that case.
+    required: false
+    default: ""
+  comment-type:
+    description: "`issue` (issue_comment, incl. on a PR) or `review` (pull_request_review_comment)."
+    required: false
+    default: issue
+  outcome:
+    description: "terminal only: `ran` → 🚀, `noop` → 😕, `failed` → 👎."
+    required: false
+    default: ran
+  ack-reaction-id:
+    description: "terminal only: id of the 👀 reaction to clear (from the ack step)."
+    required: false
+    default: ""
+
+outputs:
+  reaction-id:
+    description: "ack mode: the created 👀 reaction's id, for the terminal step to clear."
+    value: ${{ steps.react.outputs.reaction-id }}
+
+runs:
+  using: composite
+  steps:
+    - name: React
+      id: react
+      uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+      env:
+        MODE: ${{ inputs.mode }}
+        COMMENT_ID: ${{ inputs.comment-id }}
+        COMMENT_TYPE: ${{ inputs.comment-type }}
+        OUTCOME: ${{ inputs.outcome }}
+        ACK_REACTION_ID: ${{ inputs.ack-reaction-id }}
+      with:
+        github-token: ${{ inputs.github-token }}
+        script: |
+          const { owner, repo } = context.repo;
+          const mode = process.env.MODE;
+          const commentId = parseInt(process.env.COMMENT_ID || '', 10);
+          const commentType = process.env.COMMENT_TYPE === 'review' ? 'review' : 'issue';
+          if (!Number.isInteger(commentId)) {
+            core.info('sdd-ack-reaction: no comment id; nothing to react to');
+            return;
+          }
+          // issue_comment reactions live under issues/comments even when the
+          // comment is on a PR; pull_request_review_comment reactions live
+          // under pulls/comments.
+          const base = commentType === 'review'
+            ? `/repos/${owner}/${repo}/pulls/comments/${commentId}/reactions`
+            : `/repos/${owner}/${repo}/issues/comments/${commentId}/reactions`;
+          try {
+            if (mode === 'ack') {
+              const r = await github.request(`POST ${base}`, { content: 'eyes' });
+              core.setOutput('reaction-id', String(r.data.id));
+              core.info(`sdd-ack-reaction: added 👀 (id ${r.data.id}) to ${commentType} comment ${commentId}`);
+              return;
+            }
+            // terminal: clear the ack first, then post the outcome.
+            const ackId = (process.env.ACK_REACTION_ID || '').trim();
+            if (ackId) {
+              try {
+                await github.request(`DELETE ${base}/${ackId}`);
+                core.info(`sdd-ack-reaction: cleared ack reaction ${ackId}`);
+              } catch (e) {
+                core.info(`sdd-ack-reaction: clear of ${ackId} failed (best-effort): ${e.message}`);
+              }
+            }
+            const map = { ran: 'rocket', noop: 'confused', failed: '-1' };
+            const content = map[process.env.OUTCOME] || 'rocket';
+            await github.request(`POST ${base}`, { content });
+            core.info(`sdd-ack-reaction: added ${content} (outcome=${process.env.OUTCOME}) to ${commentType} comment ${commentId}`);
+          } catch (e) {
+            core.info(`sdd-ack-reaction: reaction best-effort failed: ${e.message}`);
+          }
