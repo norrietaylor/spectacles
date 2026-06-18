@@ -141,7 +141,11 @@ jobs:
       contents: read
       discussions: write
       issues: write
-      pull-requests: read
+      # write (not read): the called sdd-triage-{plan,materialize} lock's gh-aw
+      # safe_outputs/conclusion jobs request pull-requests: write, and a reusable
+      # callee may not request a permission beyond the caller job's grant — so
+      # read here startup_fails the entire workflow. See issue #295.
+      pull-requests: write
 
   # materialize: commit the Unit/task tree and advance to sdd:ready (/approve).
   # No MCP, so no DISTILLERY_OAUTH_TOKEN.
@@ -163,7 +167,11 @@ jobs:
       contents: read
       discussions: write
       issues: write
-      pull-requests: read
+      # write (not read): the called sdd-triage-{plan,materialize} lock's gh-aw
+      # safe_outputs/conclusion jobs request pull-requests: write, and a reusable
+      # callee may not request a permission beyond the caller job's grant — so
+      # read here startup_fails the entire workflow. See issue #295.
+      pull-requests: write
 
   # Deterministic DAG backstop for phase C (ADR 0010, issue #229).
   #
