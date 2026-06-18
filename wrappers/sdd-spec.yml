@@ -216,7 +216,7 @@ jobs:
     # to a reusable workflow in a different owner than the caller.
     secrets:
       APP_PRIVATE_KEY: ${{ secrets.APP_PRIVATE_KEY }}
-      COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
+      CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
       # OTLP collector URL (write-only ingest key embedded). Mapped explicitly so
       # the reusable lock's observability.otlp endpoint resolves; unset is fine
       # (if-missing: warn). See ADR 0020.
@@ -235,7 +235,7 @@ jobs:
   # Agent-failure hand-off (fixes #122, #123).
   #
   # When the sdd-spec reusable workflow fails before producing safe-outputs
-  # (e.g. the "Execute GitHub Copilot CLI" step crashes, or any other infra
+  # (e.g. the "Execute Claude Code CLI" step crashes, or any other infra
   # failure the gh-aw conclusion job does not classify), the agent has posted
   # nothing: no comment, no needs-human. The failure is invisible to the
   # reporter and the work stalls with no auto-retry (#122, #123). This job
