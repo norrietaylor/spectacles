@@ -58,9 +58,9 @@ install aborts.
 
 `--suite sdd` installs, onto the target repository:
 
-- the nine thin wrappers — the eight `sdd-*` agents (`sdd-spec`,
+- the ten thin wrappers — the nine `sdd-*` agents (`sdd-spec`,
   `sdd-triage`, `sdd-dispatch`, the three `sdd-execute` model-tier
-  variants, `sdd-validate`, `sdd-review`) and `distillery-sync`. Each
+  variants, `sdd-validate`, `sdd-review`, `sdd-derive`) and `distillery-sync`. Each
   wrapper calls a reusable workflow hosted in the spectacles repository;
   no `.lock.yml` is copied onto the consumer (see `workflows/README.md`
   and ADR 0004);
@@ -325,8 +325,8 @@ The contract:
 
 ## Workflows installed
 
-`--suite sdd` writes fifteen workflow files to the consumer's
-`.github/workflows/`. Nine are agent wrappers; six are utility workflows.
+`--suite sdd` writes seventeen workflow files to the consumer's
+`.github/workflows/`. Ten are agent wrappers; seven are utility workflows.
 None carries a `.lock.yml` — every wrapper calls a hosted reusable workflow by
 pinned ref (ADR 0004).
 
@@ -340,6 +340,7 @@ pinned ref (ADR 0004).
 | `sdd-execute-opus` | `workflow_dispatch`, `issue_comment`, `issues`, `pull_request` | High-complexity tier. |
 | `sdd-validate` | `pull_request`, `issues` | Posts advisory findings at each phase boundary. |
 | `sdd-review` | `pull_request` | Posts code-review comments on the implementation PR. |
+| `sdd-derive` | `pull_request` (`opened`, `synchronize`), `issue_comment` | On `/derive-spec`: authors a spec retrospectively from an unspecced PR and opens a `spec/<slug>` docs PR with a Gap Analysis; the deterministic route/offer jobs size-gate an unspecced PR and post one offer (ADR 0027). |
 | `distillery-sync` | `push` (merged `docs/specs/**`, `decisions/**`), `schedule` (daily), `workflow_dispatch` | Ingests specs, architecture records, ADRs, issues, and PRs into the Distillery store, keyed deterministically by file path so re-runs update in place. Writes `supersedes`/`citation` provenance relations. The first run against an empty store backfills pre-existing docs. The only Distillery writer. |
 | `sdd-pr-sanitize` | `pull_request` | Neutralizes a stray issue-closing keyword in a spec/architecture PR body and adds `Closes #<sub-issue>` (ADR 0005, ADR 0006). |
 | `sdd-triage-dedupe-tasks` | `issues` | Closes a duplicate phase-C task sub-issue (ADR 0008). |
@@ -347,6 +348,7 @@ pinned ref (ADR 0004).
 | `sdd-monitor` | `workflow_run`, `pull_request`, `schedule` (`*/10`) | Backstop that nudges an armed-but-idle `sdd:dispatched` tracker with `/dispatch`, and nudges then escalates a CodeRabbit review stall on an open `sdd/` PR (issue #257). Disabled unless `SDD_MONITOR=1` (see `sdd-monitor.md`). |
 | `sdd-spike-actuator` | `issues` (`opened`, `labeled`) | Deterministic actuator for the spike wave: posts `/execute` on a `kind:spike` sub-issue under a triage tracking issue so `sdd-execute` runs the spike (issue #229). |
 | `sdd-spike-reentry` | `issues` (`closed`, `unlabeled`) | Deterministic re-entry: when a `kind:spike` child closes (or its `needs-human` is cleared) and zero open spikes remain, re-enters `sdd-triage` phase B (issue #229). |
+| `sdd-status` | `issues`, `issue_comment`, `pull_request`, `workflow_run` | Deterministic self-updating status surface: maintains one sentinel status comment per tracking issue and answers `/status`. Default-on; opt out with `SDD_STATUS=0` (ADR 0023, issue #254). |
 
 ## Labels installed
 
@@ -451,11 +453,11 @@ Run these after the installer PR is merged (default mode), or right after the
 install in `--direct` mode. Before running a feature through the pipeline,
 confirm the install resolved its dependencies:
 
-1. **Workflows present.** Confirm the nine wrappers — the eight `sdd-*`
-   wrappers (including `sdd-dispatch.yml`) and `distillery-sync.yml` — and
+1. **Workflows present.** Confirm the ten wrappers — the nine `sdd-*`
+   wrappers (including `sdd-dispatch.yml` and `sdd-derive.yml`) and `distillery-sync.yml` — and
    the `sdd-pr-sanitize.yml`, `sdd-triage-dedupe-tasks.yml`,
    `sdd-triage-promote-ready.yml`, `sdd-monitor.yml`, `sdd-spike-actuator.yml`,
-   and `sdd-spike-reentry.yml` utility workflows
+   `sdd-spike-reentry.yml`, and `sdd-status.yml` utility workflows
    appear under `.github/workflows/` on the target repository. The
    `.lock.yml` reusable workflows are hosted in the spectacles repository
    and are not copied onto the consumer.

@@ -27,8 +27,8 @@ engine: claude
 # API call). Per-phase scoping (issue #271 item A) is the structural cure that
 # keeps per-call context small; this cap stays as the coarse backstop against a
 # pathological loop. Biased low: a truncated arch run is recoverable (resume
-# re-triggers), a rail-death is not. copilot does not support per-turn max-turns,
-# so the invocation cap is the available lever.
+# re-triggers), a rail-death is not. The claude engine exposes no per-turn
+# max-turns control here, so the invocation cap is the available lever.
 max-runs: 25
 # Agent-firewall egress allow-list. `defaults` is gh-aw's baseline host set;
 # `*.run.app` lets the agent export OTLP spans to the observability collector on

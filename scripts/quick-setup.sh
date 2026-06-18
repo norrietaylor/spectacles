@@ -9,8 +9,8 @@
 # cross-repo with
 # `uses: norrietaylor/spectacles/.github/workflows/<agent>.lock.yml@<ref>`.
 #
-# --suite sdd therefore installs, onto the target repo: the nine thin
-# wrappers (the eight sdd-* agents and distillery-sync), the
+# --suite sdd therefore installs, onto the target repo: the ten thin
+# wrappers (the nine sdd-* agents and distillery-sync), the
 # sdd-pr-sanitize, sdd-triage-dedupe-tasks, and sdd-triage-promote-ready
 # utility workflows, the sdd:* and model:* labels, and the issue
 # templates. No .lock.yml, no agent .md source, and no .github/aw/imports
@@ -32,8 +32,8 @@ Usage: quick-setup.sh --target-repo <owner>/<name> [--suite sdd] [--ref <ref>] [
 
 Options:
   --target-repo  Repository to install into (required).
-  --suite sdd    Install the full SDD agent suite: the nine thin agent
-                 wrappers (the eight sdd-* agents and distillery-sync), the
+  --suite sdd    Install the full SDD agent suite: the ten thin agent
+                 wrappers (the nine sdd-* agents and distillery-sync), the
                  sdd-pr-sanitize, sdd-triage-dedupe-tasks, and
                  sdd-triage-promote-ready utility workflows, the sdd:*
                  and model:* labels, and the issue templates. Without
@@ -187,9 +187,9 @@ if [ "$dry_run" -eq 1 ]; then
 fi
 
 # The hand-written workflows the --suite sdd install places on a consumer
-# repo. The first nine are the thin agent wrappers: each carries the real
+# repo. The first ten are the thin agent wrappers: each carries the real
 # event triggers and calls a hosted reusable workflow in the spectacles
-# repository (see ADR 0004 and workflows/README.md). The eight sdd-* agents
+# repository (see ADR 0004 and workflows/README.md). The nine sdd-* agents
 # are event-driven; distillery-sync is scheduled; sdd-execute ships in three
 # model-tier variants. sdd-dispatch is the cascade orchestrator added in
 # ADR 0011: /dispatch on a tracking issue arms event-driven matrix fan-out
@@ -223,6 +223,7 @@ wrappers=(
   "sdd-execute-opus"
   "sdd-validate"
   "sdd-review"
+  "sdd-derive"
   "distillery-sync"
   "sdd-pr-sanitize"
   "sdd-triage-dedupe-tasks"
