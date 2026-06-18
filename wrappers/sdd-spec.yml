@@ -82,6 +82,14 @@ jobs:
     permissions:
       contents: read
       issues: read
+      # pull-requests: read is required by the sdd-route-spec action: on a
+      # merged spec PR it calls pulls.listFiles + getContent (with this job's
+      # GITHUB_TOKEN) to read the spec file's `tracking-issue` frontmatter and
+      # decide approved_dispatch. Without it the call 403s ("Resource not
+      # accessible by integration"), the error is swallowed, approved_dispatch
+      # is never set, and the fast-path /approve implementation never
+      # dispatches. See issue #289.
+      pull-requests: read
     outputs:
       should_run: ${{ steps.decide.outputs.should_run }}
       aw_context: ${{ steps.decide.outputs.aw_context }}
