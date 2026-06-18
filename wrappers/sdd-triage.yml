@@ -110,7 +110,7 @@ jobs:
     # to a reusable workflow in a different owner than the caller.
     secrets:
       APP_PRIVATE_KEY: ${{ secrets.APP_PRIVATE_KEY }}
-      COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
+      CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
       # OTLP collector URL (write-only ingest key embedded). Mapped explicitly so
       # the reusable lock's observability.otlp endpoint resolves; unset is fine
       # (if-missing: warn). See ADR 0020.
@@ -134,7 +134,7 @@ jobs:
       min_task: ${{ vars.SDD_TRIAGE_MIN_TASK }}
     secrets:
       APP_PRIVATE_KEY: ${{ secrets.APP_PRIVATE_KEY }}
-      COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
+      CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
       GH_AW_OTEL_ENDPOINT: ${{ secrets.GH_AW_OTEL_ENDPOINT }}
     permissions:
       actions: read
@@ -156,7 +156,7 @@ jobs:
       min_task: ${{ vars.SDD_TRIAGE_MIN_TASK }}
     secrets:
       APP_PRIVATE_KEY: ${{ secrets.APP_PRIVATE_KEY }}
-      COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
+      CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
       GH_AW_OTEL_ENDPOINT: ${{ secrets.GH_AW_OTEL_ENDPOINT }}
     permissions:
       actions: read

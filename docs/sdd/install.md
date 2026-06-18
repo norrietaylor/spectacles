@@ -122,7 +122,7 @@ a manual set; the install does not fail.
 
 The installer provisions the workflow files, the labels, and — from its own
 environment — the Distillery configuration (see above). The operator still
-supplies the GitHub App identity, the Copilot engine token, and the leak-scan
+supplies the GitHub App identity, the Claude engine token, and the leak-scan
 denylist. None of these is hardcoded in any `sdd-*` source; they are read at
 run time from repository (or organization) variables and secrets.
 
@@ -157,8 +157,8 @@ toggles with the defaults shown.
 | `SDD_CODERABBIT_NUDGE_MAX` | `2` | operator (optional) | `@coderabbitai review` nudge comments `sdd-monitor` posts per head sha before it stops nudging and escalates the PR to `needs-human`. A new push (new head sha) resets the budget. |
 | `SDD_STATUS` | unset (on) | operator (optional) | Opt-out for the `sdd-status` surface — the only default-on workflow in the suite, safe to leave on because its sole write is editing one sentinel status comment per tracking issue (ADR 0023, issue [#254](https://github.com/norrietaylor/spectacles/issues/254)). Set to `0` to disable the wrapper's event-driven refreshes and the `/status` command; any other value (or unset) keeps it on. See `sdd-status.md`. |
 | `SDD_MCP_EXTRA` | unset (off) | operator (optional) | Opt-in toggle for bundled-but-disabled extra MCP servers, whole-token list (e.g. `playwright`, or `playwright,<other>`). Set it to `playwright` to let the `sdd-execute` agents drive a headless browser for browser-driven checks (issue #180). Off by default: a consumer that does not set it calls no browser tool and the browser container never starts. See "Optional browser automation (Playwright)" below for the trust boundary. |
-| `GH_AW_MODEL_AGENT_COPILOT` | `claude-sonnet-4.6` | operator (optional) | Overrides the Copilot model the agent step runs. Consumed by every agent lock except the `sdd-execute` tiers, which pin their model via the `model:*` task label. |
-| `GH_AW_MODEL_DETECTION_COPILOT` | `claude-sonnet-4.6` | operator (optional) | Overrides the Copilot model the gh-aw detection step runs. Consumed by the `sdd-spec`, `sdd-triage`, `sdd-dispatch`, `sdd-validate`, and `sdd-review` locks. |
+| `GH_AW_MODEL_AGENT_CLAUDE` | `claude-sonnet-4.6` | operator (optional) | Overrides the Claude model the agent step runs. Consumed by every agent lock except the `sdd-execute` tiers, which pin their model via the `model:*` task label. |
+| `GH_AW_MODEL_DETECTION_CLAUDE` | `claude-sonnet-4.6` | operator (optional) | Overrides the Claude model the gh-aw detection step runs. Consumed by the `sdd-spec`, `sdd-triage`, `sdd-dispatch`, `sdd-validate`, and `sdd-review` locks. |
 
 ### Secrets
 
@@ -173,7 +173,7 @@ run unchanged.
 
 | Secret | Set by | Purpose |
 |---|---|---|
-| `COPILOT_GITHUB_TOKEN` | operator | The token for the Copilot engine that runs the agents. Consumed by every agent lock. |
+| `CLAUDE_CODE_OAUTH_TOKEN` | operator | The token for the Claude engine that runs the agents. Consumed by every agent lock. |
 | `APP_PRIVATE_KEY` | operator | The private key (PEM) of the GitHub App that is the agents' write identity. Each agent run mints its own installation token from `APP_ID` and this key; nothing static is stored. The agents open PRs, create issues, and apply labels through that token. |
 | `DISTILLERY_OAUTH_TOKEN` | installer (from its environment) | The Distillery machine token — a pre-shared static bearer credential the workflows present to the Distillery MCP endpoint. Operator-issued; the installer sets it from `DISTILLERY_OAUTH_TOKEN` in its environment. See "The Distillery machine token" below. Despite the secret name, it is **not** a GitHub OAuth token. |
 | `GH_AW_OTEL_ENDPOINT` | operator (optional) | OTLP collector URL with a write-only ingest key embedded (headerless auth). When set, every agent exports spans — token usage, duration, outcomes — to it; the host must match the `*.run.app` firewall entry baked into the locks. Unset degrades to a warning (`if-missing: warn`), agents unaffected. The collector is write-only; a leaked key can push spans, not read them. See ADR 0020. |
