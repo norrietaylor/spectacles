@@ -31,10 +31,11 @@ Usage: e2e-setup-staging.sh --staging <owner>/<name> [--ref <ref>] [--dry-run]
 
 Required environment (for the non-dry-run path):
   STAGING_APP_PRIVATE_KEY   PEM private key for the suite's GitHub App.
-  ANTHROPIC_API_KEY         Model key the sdd-* agents authenticate with.
-  OTLP_*                    OTLP endpoint + headers per the ADR 0020 OTEL
-                            mandate (passed through to the agents' wrapper
-                            secret map). Optional if telemetry is disabled.
+  CLAUDE_CODE_OAUTH_TOKEN   Engine token the sdd-* agents authenticate with
+                            (engine: claude). This is the secret the compiled
+                            locks read.
+  GH_AW_OTEL_ENDPOINT       OTLP endpoint per the ADR 0020 OTEL mandate.
+                            Optional if telemetry is disabled.
 EOF
 }
 
@@ -117,18 +118,19 @@ set_secret() {
 }
 echo "e2e-setup-staging: setting secrets from the environment"
 set_secret APP_PRIVATE_KEY "${STAGING_APP_PRIVATE_KEY:-}"
-set_secret ANTHROPIC_API_KEY "${ANTHROPIC_API_KEY:-}"
+set_secret CLAUDE_CODE_OAUTH_TOKEN "${CLAUDE_CODE_OAUTH_TOKEN:-}"
+set_secret GH_AW_OTEL_ENDPOINT "${GH_AW_OTEL_ENDPOINT:-}"
 
 cat <<EOF
 
 e2e-setup-staging: done.
 
 Manual steps this script cannot perform:
-  1. Install the suite's GitHub App on $staging (Settings -> GitHub Apps).
-  2. Set APP_ID as a repository variable on $staging if it differs from the
-     org default:  gh variable set APP_ID --repo $staging --body <app-id>
-  3. Set the OTLP_* telemetry secrets per the ADR 0020 OTEL mandate if the
-     agents emit traces from this repo.
+  1. Install the suite's GitHub App on $staging (or install it on all repos).
+  2. Set APP_ID as a repository variable on $staging:
+       gh variable set APP_ID --repo $staging --body <app-id>
+  3. Set GH_AW_OTEL_ENDPOINT and any Distillery secrets per the ADR 0020 OTEL
+     mandate if the agents emit traces from this repo.
   4. On the spectacles repo, set the dispatcher's variables:
        SPECTACLES_E2E_STAGING_REPO = $staging
        (optional) SPECTACLES_E2E_TIMEOUT_MIN, SPECTACLES_E2E_DISABLED

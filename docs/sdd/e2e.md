@@ -32,14 +32,15 @@ the staging agents consume tokens.
 Provision the staging repo once with `scripts/e2e-setup-staging.sh`:
 
 ```bash
-STAGING_APP_PRIVATE_KEY=… ANTHROPIC_API_KEY=… \
+STAGING_APP_PRIVATE_KEY=… CLAUDE_CODE_OAUTH_TOKEN=… \
   scripts/e2e-setup-staging.sh --staging norrietaylor/spectacles-staging
 ```
 
 It clears branch protection on the staging default branch, installs the SDD
 suite, and sets repo variables/secrets. It then prints the manual steps it
-cannot perform (install the GitHub App on the staging repo; set `OTLP_*`
-telemetry secrets per ADR 0020).
+cannot perform (install the GitHub App on the staging repo; set
+`GH_AW_OTEL_ENDPOINT` per ADR 0020). The compiled locks use `engine: claude`,
+so the engine secret is `CLAUDE_CODE_OAUTH_TOKEN`.
 
 ## Configuration
 
