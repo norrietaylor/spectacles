@@ -234,3 +234,27 @@ jobs:
           components: rustfmt
       - name: Assert rustfmt normalizes an edition-2024 let-chain
         run: bash scripts/test-fmt-letchain.sh
+
+  # Assert every wrapper -> reusable-lock call honors the lock's
+  # `on.workflow_call` contract. GitHub binds a caller's `with:`/`secrets:`
+  # against the called reusable workflow's declared inputs/secrets at
+  # startup: passing an input/secret the lock does not declare, or omitting
+  # one the lock marks required, is a `startup_failure` the run never
+  # recovers from (issue #284). Neither `compile` (the lock is internally
+  # valid) nor `actionlint` (it does not resolve cross-repo reusable-workflow
+  # contracts) catches it. This job turns that dispatch-time failure into a
+  # red PR check. Independent of `compile`: it reads the wrappers and lock
+  # files directly.
+  wrapper-lock-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install PyYAML
+        run: pip install pyyaml
+      - name: Assert wrapper -> lock workflow_call contracts hold
+        run: python scripts/test-wrapper-lock-contract.py
