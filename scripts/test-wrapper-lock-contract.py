@@ -176,7 +176,43 @@ def lock_calls(wrapper_data: dict):
         secret_keys = (
             set(secrets_block) if isinstance(secrets_block, dict) else set()
         )
-        yield job_name, lock_name, with_keys, secret_keys
+        job_perms = job.get("permissions")
+        yield job_name, lock_name, with_keys, secret_keys, job_perms
+
+
+# Repository GITHUB_TOKEN permission scopes are ordered: a reusable callee's
+# jobs may not request a permission beyond what the CALLER job grants, or GitHub
+# rejects the run at load (`startup_failure`, before any `if:` gate). `write`
+# subsumes `read`. This is the class of issues #295 (sdd-triage) and #298
+# (sdd-spike-reentry, sdd-derive) — distinct from the #284 input/secret class.
+_PERM_RANK = {"none": 0, "read": 1, "write": 2}
+
+
+def _perm_level(value) -> int:
+    if value is None:
+        return 0
+    return _PERM_RANK.get(str(value).strip().lower(), 0)
+
+
+def lock_permission_ceiling(lock_path: Path) -> dict:
+    """Max permission level each scope reaches across all of a lock's jobs.
+
+    A caller job must grant at least this for every scope, since its
+    `permissions` cap every nested job in the called reusable workflow.
+    """
+    data = load_yaml(lock_path)
+    jobs = data.get("jobs") or {}
+    ceiling: dict = {}
+    if isinstance(jobs, dict):
+        for job in jobs.values():
+            if not isinstance(job, dict):
+                continue
+            perms = job.get("permissions")
+            if isinstance(perms, dict):
+                for scope, level in perms.items():
+                    if _perm_level(level) > _perm_level(ceiling.get(scope)):
+                        ceiling[scope] = level
+    return ceiling
 
 
 def main() -> int:
@@ -189,7 +225,12 @@ def main() -> int:
     for wrapper_path in sorted(WRAPPERS_DIR.glob("*.yml")):
         wrapper_data = load_yaml(wrapper_path)
         rel = wrapper_path.relative_to(REPO_ROOT)
-        for job_name, lock_name, with_keys, secret_keys in lock_calls(wrapper_data):
+        # A job without its own `permissions:` inherits the workflow-level
+        # block; fall back to it when checking the caller's grant.
+        workflow_perms = wrapper_data.get("permissions")
+        for job_name, lock_name, with_keys, secret_keys, job_perms in lock_calls(
+            wrapper_data
+        ):
             lock_path = WORKFLOWS_DIR / f"{lock_name}.lock.yml"
             if not lock_path.is_file():
                 # Out of scope: the lock is not resolvable in this repo
@@ -236,6 +277,21 @@ def main() -> int:
                     f"{rel} job '{job_name}' omits required secret `{key}` declared by "
                     f"{lock_name}.lock.yml `on.workflow_call.secrets`"
                 )
+
+            # Caller>=callee permission class (#295, #298): the caller job's
+            # `permissions` cap every nested job in the called reusable
+            # workflow. Granting a scope below what any nested job requests
+            # fails the whole workflow at load (startup_failure, before `if:`).
+            effective = job_perms if isinstance(job_perms, dict) else workflow_perms
+            effective = effective if isinstance(effective, dict) else {}
+            for scope, need in sorted(lock_permission_ceiling(lock_path).items()):
+                if _perm_level(need) > _perm_level(effective.get(scope)):
+                    failures.append(
+                        f"{rel} job '{job_name}' grants `{scope}: "
+                        f"{effective.get(scope, 'unset')}` but {lock_name}.lock.yml's "
+                        f"nested jobs request `{scope}: {need}` — a reusable callee "
+                        f"may not exceed the caller (startup_failure, #298 class)"
+                    )
 
     if failures:
         print("Wrapper -> lock contract: FAIL")
