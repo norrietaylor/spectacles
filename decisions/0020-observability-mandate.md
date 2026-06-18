@@ -109,5 +109,5 @@ endpoint secret reaches the lock only if each wrapper maps it.
   edit reach consumers without a recompile.
 - ADR 0019 — the auto-recompile that regenerates the locks carrying the OTLP
   inlining once the sources merge.
-- `gominimal/min-aw` — the in-repo OTLP precedent (write path) this adapts to the
+- A consumer's in-repo OTLP precedent (write path) — this adapts that to the
   cross-owner reusable-workflow model.

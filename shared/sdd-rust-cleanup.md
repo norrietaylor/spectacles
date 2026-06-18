@@ -4,7 +4,7 @@
 # run `cargo fmt`/`clippy`/`update` to self-verify; the safe-output patch carries
 # rustfmt-dirty, clippy-dirty code and a stale Cargo.lock. Any consumer CI that
 # runs `cargo fetch --locked`, `fmt --check`, or `clippy -D warnings` rejects the
-# PR (first seen on gominimal/minspec-test#20, #26). These post-steps run on the
+# PR (first seen during a consumer pilot run, PRs #20 and #26). These post-steps run on the
 # host runner (outside the firewall sandbox, per gh-aw's post-steps contract),
 # detect a Rust edit (*.rs or Cargo.toml) in the agent's patch, install the Rust
 # toolchain (with rustfmt + clippy components) on the host, then in a single

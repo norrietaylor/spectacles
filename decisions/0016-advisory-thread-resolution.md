@@ -32,7 +32,7 @@ permanent deadlock:
    nothing resolves the threads. Native auto-merge waits forever. The cascade
    stalls on the first implementation PR.
 
-Observed on `gominimal/minspec-test` PR #49: `mergeable: MERGEABLE`,
+Observed on a consumer pilot run (PR #49): `mergeable: MERGEABLE`,
 `reviewDecision: APPROVED`, required checks `cargo-deny`/`verify`/`miri` all
 SUCCESS, auto-merge armed — yet `mergeStateStatus: BLOCKED` on two unresolved
 `sdd-review` threads, indefinitely.

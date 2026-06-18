@@ -23,12 +23,14 @@ permissions:
 # Pinned to Haiku. distillery-sync is a mechanical sync — `git diff`, file
 # reads, `distillery_store`/`distillery_update`, and one server-side
 # `distillery_gh_sync` call — with no open-ended reasoning, so Haiku is
-# sufficient and far cheaper than the default. Pinning the model here also
-# overrides a consumer's `GH_AW_DEFAULT_MODEL_COPILOT` variable: in
-# gominimal/minimal that var resolves the copilot engine to opus-4.6, and a
-# full-glob backfill on opus-4.6 exceeded the gh-aw firewall's 25M
-# effective-token per-run cap and failed every scheduled run. The commit-delta
-# document set (step 3) and Haiku together keep a run well under that ceiling.
+# sufficient and far cheaper than the default. The compiled lock hard-codes
+# this model (`ANTHROPIC_MODEL` is the literal `claude-haiku-4-5`, not a
+# `vars.GH_AW_MODEL_AGENT_CLAUDE` expression), so a consumer that raises the
+# default Claude model to a costlier one (e.g. opus) cannot steer this workflow
+# back up: a full-glob backfill on a larger model would exceed the gh-aw
+# firewall's 25M effective-token per-run cap and fail every scheduled run. The
+# commit-delta document set (step 3) and Haiku together keep a run well under
+# that ceiling.
 engine:
   id: claude
   model: claude-haiku-4-5
@@ -406,8 +408,8 @@ brittle and is not used to decide create-vs-update here. Look the key up with
   reports "dispatched; result unconfirmed (client timeout)" with the store-probe
   result, never `0 ingested`.
 - The compiled lock pins the engine model to `claude-haiku-4.5`
-  (`GH_AW_INFO_MODEL` / `COPILOT_MODEL` are the literal string, not a
-  `vars.GH_AW_*_MODEL_COPILOT` expression), so a consumer's default-model
+  (`GH_AW_INFO_MODEL` / `ANTHROPIC_MODEL` are the literal string, not a
+  `vars.GH_AW_MODEL_AGENT_CLAUDE` expression), so a consumer's default-model
   variable cannot raise this agent back to a costlier model.
 - A run after a prior successful run reads the `distillery-sync-cursor` marker,
   computes `git diff --name-only <cursor>..HEAD`, and processes only the
