@@ -274,3 +274,68 @@ jobs:
         with:
           github-token: ${{ steps.app.outputs.token }}
           aw-context: ${{ needs.route.outputs.aw_context }}
+
+  # Deterministic command acknowledgment (issue #294). Adds a 👀 reaction to the
+  # triggering comment as soon as the route job decides to act, before the agent
+  # starts, so the human sees the command was received. Gated on a comment being
+  # present, so label/PR/dispatch triggers (no comment) never react. Reacts as
+  # the App so the 👀 matches the pipeline's bot identity. Best-effort: the
+  # sdd-ack-reaction action never fails the step.
+  ack:
+    needs: route
+    if: ${{ (needs.route.outputs.should_run == 'true' || needs.route.outputs.fastpath_approve == 'true') && github.event.comment.id }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      reaction_id: ${{ steps.ack.outputs.reaction-id }}
+    steps:
+      - name: Mint App token
+        id: app
+        uses: actions/create-github-app-token@v3
+        with:
+          app-id: ${{ vars.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
+          permission-issues: write
+          permission-pull-requests: write
+      - name: Ack the command with 👀
+        id: ack
+        uses: norrietaylor/spectacles/.github/actions/sdd-ack-reaction@main
+        with:
+          github-token: ${{ steps.app.outputs.token }}
+          mode: ack
+          comment-id: ${{ github.event.comment.id }}
+          comment-type: ${{ github.event_name == 'pull_request_review_comment' && 'review' || 'issue' }}
+
+  # Terminal reaction (issue #294). Clears the 👀 and adds the run's outcome
+  # (🚀 ran / 😕 noop / 👎 failed), derived deterministically from the job
+  # results above — never from the agent. Runs always() so a failed run still
+  # replaces the ack.
+  ack-terminal:
+    needs: [route, ack, sdd-spec, fastpath-approve]
+    if: ${{ always() && (needs.route.outputs.should_run == 'true' || needs.route.outputs.fastpath_approve == 'true') && github.event.comment.id }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Mint App token
+        id: app
+        uses: actions/create-github-app-token@v3
+        with:
+          app-id: ${{ vars.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
+          permission-issues: write
+          permission-pull-requests: write
+      - name: Replace 👀 with the run outcome
+        uses: norrietaylor/spectacles/.github/actions/sdd-ack-reaction@main
+        with:
+          github-token: ${{ steps.app.outputs.token }}
+          mode: terminal
+          comment-id: ${{ github.event.comment.id }}
+          comment-type: ${{ github.event_name == 'pull_request_review_comment' && 'review' || 'issue' }}
+          ack-reaction-id: ${{ needs.ack.outputs.reaction_id }}
+          outcome: ${{ (needs.sdd-spec.result == 'failure' || needs['fastpath-approve'].result == 'failure') && 'failed' || 'ran' }}
