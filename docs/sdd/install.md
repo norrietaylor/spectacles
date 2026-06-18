@@ -20,7 +20,9 @@ values the operator supplies.
 - A clone of the spectacles repository, from which `scripts/quick-setup.sh`
   runs.
 - The operator infrastructure described under "Required configuration" below:
-  a GitHub App, a reachable Distillery MCP endpoint, and the engine token.
+  a GitHub App and the engine token. A reachable Distillery MCP endpoint is
+  optional — without it the agents run with retrieval disabled (issue
+  [#285](https://github.com/norrietaylor/spectacles/issues/285)).
 
 ## Install command
 
@@ -131,12 +133,12 @@ run time from repository (or organization) variables and secrets.
 Set with `gh variable set <NAME> --repo <owner>/<name> --body <value>`.
 
 The table lists every repository (or organization) variable the suite reads.
-The first four are required for the agents to run; the rest are optional
-toggles with the defaults shown.
+`DISTILLERY_PROJECT` and `APP_ID` are required for the agents to run; the rest
+are optional toggles with the defaults shown.
 
 | Variable | Default when unset | Set by | Purpose |
 |---|---|---|---|
-| `DISTILLERY_MCP_URL` | — (required) | installer (from its environment) | The Distillery HTTP MCP endpoint the agents query for retrieval and memory. |
+| `DISTILLERY_MCP_URL` | non-routable placeholder (Distillery disabled) | installer (from its environment) | The Distillery HTTP MCP endpoint the agents query for retrieval and memory. When unset the installer writes a non-routable placeholder so the MCP gateway still starts and the agents degrade gracefully — the retrieval pass is skipped (issue [#285](https://github.com/norrietaylor/spectacles/issues/285)). Set a real endpoint to enable Distillery. |
 | `DISTILLERY_PROJECT` | — (required) | installer (target repo name) | The Distillery project slug for this repository. All queries are scoped to it so a shared store cannot surface unrelated content. |
 | `DISTILLERY_DOC_GLOBS` | unset (built-in defaults) | operator (optional) | Comma/newline-separated globs that replace `distillery-sync`'s default document set — the SDD artifacts (`docs/specs/**`, `decisions/**`) plus common project docs (`README*`, `docs/**`, `ARCHITECTURE.md`, per-crate `README.md` files in a Cargo workspace). Set it when documentation lives outside those roots (PR [#248](https://github.com/norrietaylor/spectacles/pull/248)). Blank entries are ignored; unset keeps the defaults. |
 | `SERENA_LANGUAGE_SERVERS` | Serena text-level fallback | installer (auto-detect) | The Serena language server set for this repository's stack. The installer auto-detects and sets this when the stack is recognised; set it by hand otherwise, or leave it unset to run Serena in text-level fallback. |

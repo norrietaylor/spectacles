@@ -64,7 +64,10 @@ script when set:
   DISTILLERY_MCP_URL=https://host/mcp DISTILLERY_OAUTH_TOKEN=<token> \
     quick-setup.sh --target-repo <owner>/<name> --suite sdd
 
-Either one absent is not an error — the installer reports what to set by hand.
+Neither is required. An absent DISTILLERY_MCP_URL falls back to a non-routable
+placeholder so the agents degrade gracefully (the retrieval pass is skipped)
+instead of failing the MCP gateway at startup; an absent DISTILLERY_OAUTH_TOKEN
+is reported for a manual set. Set both to enable Distillery retrieval.
 USAGE
 }
 
@@ -479,12 +482,26 @@ detect_serena_language_server() {
   echo "quick-setup: set variable SERENA_LANGUAGE_SERVERS=$server"
 }
 
+# A non-routable placeholder Distillery endpoint, used when the operator
+# supplies no DISTILLERY_MCP_URL. The agents compile the MCP server's url as
+# `${{ vars.DISTILLERY_MCP_URL }}`, which the MCP gateway validates against
+# `^https?://.+` before it starts; an *empty* value fails that check and kills
+# the agent job at gateway startup, before the agent runs. Setting this
+# placeholder keeps the variable a valid URL, so the gateway starts, the first
+# Distillery query then fails unreachable, and the agent applies the fragment's
+# documented outage rule (skip the retrieval pass and note the omission) — a
+# soft degrade instead of a hard failure. `.invalid` is reserved by RFC 6761
+# and never resolves. An operator who later sets a real DISTILLERY_MCP_URL
+# overrides it. See issue #285.
+DISTILLERY_MCP_URL_PLACEHOLDER="https://distillery.disabled.invalid/"
+
 # Provision the target repo's Distillery configuration. DISTILLERY_PROJECT is
 # always the target repository's name. DISTILLERY_MCP_URL and the
 # DISTILLERY_OAUTH_TOKEN secret are operator-supplied: they are read from this
-# script's own environment so the token never appears in argv. When either is
-# absent the install does not fail — it reports what to set by hand, matching
-# the graceful-degradation style of the Serena step.
+# script's own environment so the token never appears in argv. The OAuth token
+# is optional and the install reports it for a manual set when absent; the MCP
+# URL falls back to a non-routable placeholder (above) so the agents degrade
+# gracefully rather than failing the MCP gateway at startup.
 provision_distillery_config() {
   local project="${target_repo##*/}"
   if [ "$dry_run" -eq 1 ]; then
@@ -494,16 +511,17 @@ provision_distillery_config() {
     echo "quick-setup: set variable DISTILLERY_PROJECT=$project"
   fi
 
-  if [ -n "${DISTILLERY_MCP_URL:-}" ]; then
-    if [ "$dry_run" -eq 1 ]; then
-      echo "quick-setup: would set variable DISTILLERY_MCP_URL (from environment)"
-    else
-      gh variable set DISTILLERY_MCP_URL --repo "$target_repo" --body "$DISTILLERY_MCP_URL"
-      echo "quick-setup: set variable DISTILLERY_MCP_URL"
-    fi
+  local mcp_url="${DISTILLERY_MCP_URL:-}"
+  local mcp_url_source="environment"
+  if [ -z "$mcp_url" ]; then
+    mcp_url="$DISTILLERY_MCP_URL_PLACEHOLDER"
+    mcp_url_source="placeholder (unconfigured; agents degrade gracefully)"
+  fi
+  if [ "$dry_run" -eq 1 ]; then
+    echo "quick-setup: would set variable DISTILLERY_MCP_URL ($mcp_url_source)"
   else
-    echo "quick-setup: DISTILLERY_MCP_URL not in environment — set it by hand:"
-    echo "             gh variable set DISTILLERY_MCP_URL --repo $target_repo --body <url>"
+    gh variable set DISTILLERY_MCP_URL --repo "$target_repo" --body "$mcp_url"
+    echo "quick-setup: set variable DISTILLERY_MCP_URL ($mcp_url_source)"
   fi
 
   if [ -n "${DISTILLERY_OAUTH_TOKEN:-}" ]; then
