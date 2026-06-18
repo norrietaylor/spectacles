@@ -338,4 +338,4 @@ jobs:
           comment-id: ${{ github.event.comment.id }}
           comment-type: ${{ github.event_name == 'pull_request_review_comment' && 'review' || 'issue' }}
           ack-reaction-id: ${{ needs.ack.outputs.reaction_id }}
-          outcome: ${{ (needs.sdd-spec.result == 'failure' || needs['fastpath-approve'].result == 'failure') && 'failed' || 'ran' }}
+          outcome: ${{ (needs.sdd-spec.result == 'failure' || needs.sdd-spec.result == 'cancelled' || needs['fastpath-approve'].result == 'failure' || needs['fastpath-approve'].result == 'cancelled') && 'failed' || 'ran' }}

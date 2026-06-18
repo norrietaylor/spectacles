@@ -671,7 +671,7 @@ jobs:
   # results above — never from the agent. Runs always() so a failed run still
   # replaces the ack.
   ack-terminal:
-    needs: [route, ack, dispatch, noop-comment, fastpath-noop-comment]
+    needs: [route, ack, compute, lifecycle, dispatch, noop-comment, fastpath-noop-comment]
     if: ${{ always() && (needs.route.outputs.should_run == 'true') && github.event.comment.id }}
     runs-on: ubuntu-latest
     permissions:
@@ -695,4 +695,4 @@ jobs:
           comment-id: ${{ github.event.comment.id }}
           comment-type: ${{ github.event_name == 'pull_request_review_comment' && 'review' || 'issue' }}
           ack-reaction-id: ${{ needs.ack.outputs.reaction_id }}
-          outcome: ${{ needs.dispatch.result == 'failure' && 'failed' || (needs.dispatch.result == 'success' && 'ran' || 'noop') }}
+          outcome: ${{ (needs.compute.result == 'failure' || needs.compute.result == 'cancelled' || needs.lifecycle.result == 'failure' || needs.lifecycle.result == 'cancelled' || needs.dispatch.result == 'failure' || needs.dispatch.result == 'cancelled') && 'failed' || (needs.dispatch.result == 'success' && 'ran' || 'noop') }}

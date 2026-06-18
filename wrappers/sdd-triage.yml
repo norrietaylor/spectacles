@@ -307,7 +307,7 @@ jobs:
   # results above — never from the agent. Runs always() so a failed run still
   # replaces the ack.
   ack-terminal:
-    needs: [route, ack, arch, plan, materialize]
+    needs: [route, ack, arch, plan, materialize, cycle-detect]
     if: ${{ always() && (needs.route.outputs.should_run == 'true') && github.event.comment.id }}
     runs-on: ubuntu-latest
     permissions:
@@ -331,4 +331,4 @@ jobs:
           comment-id: ${{ github.event.comment.id }}
           comment-type: ${{ github.event_name == 'pull_request_review_comment' && 'review' || 'issue' }}
           ack-reaction-id: ${{ needs.ack.outputs.reaction_id }}
-          outcome: ${{ (needs.arch.result == 'failure' || needs.plan.result == 'failure' || needs.materialize.result == 'failure') && 'failed' || 'ran' }}
+          outcome: ${{ (needs.arch.result == 'failure' || needs.arch.result == 'cancelled' || needs.plan.result == 'failure' || needs.plan.result == 'cancelled' || needs.materialize.result == 'failure' || needs.materialize.result == 'cancelled' || needs['cycle-detect'].result == 'failure' || needs['cycle-detect'].result == 'cancelled') && 'failed' || 'ran' }}
