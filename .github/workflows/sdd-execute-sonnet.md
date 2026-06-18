@@ -652,6 +652,56 @@ evidence-rigor standard. The task keeps its `sdd:in-progress` label; `needs-huma
 from re-selection until a human clears it (situation 4 above). Shipping
 unverified code that fails the consumer's first CI run is never acceptable.
 
+**Merged-change revert guard (issue #287).** A regenerated or symbol-rewritten
+file can silently revert a hunk that landed on `origin/main` after this branch
+diverged: the file is rewritten from a stale base, the merged change is dropped,
+and the bug that change fixed is reintroduced under a clean-looking diff. The
+consumer's CI need not catch it — a reverted hunk can stay green — so it reaches
+review as a plausible change. Diff against `origin/main`, not only the branch
+base. Before opening **or** updating the pull request, run:
+
+```bash
+# Establish full-enough history to find the divergence point, then compare
+# every file this PR touches against origin/main.
+git fetch --no-tags --unshallow origin 2>/dev/null \
+  || git fetch --no-tags --deepen=500 origin 2>/dev/null \
+  || git fetch --no-tags origin main
+base="$(git merge-base HEAD origin/main 2>/dev/null || true)"
+changed="$( { [ -n "$base" ] && git diff --name-only "$base" HEAD; \
+              git diff --name-only HEAD; git diff --name-only --cached; } \
+            | sort -u )"
+stale=""
+if [ -z "$base" ]; then
+  echo "revert-guard: no merge-base with origin/main (shallow history); inconclusive"
+elif git merge-base --is-ancestor origin/main HEAD; then
+  echo "revert-guard: branch already contains origin/main; clean"
+else
+  # Branch is behind origin/main. A file you changed that origin/main ALSO
+  # advanced since the divergence point is a silent-revert candidate: your
+  # rewrite was based on a tree that predates main's version of that file.
+  for f in $changed; do
+    [ -e "$f" ] || continue
+    if ! git diff --quiet "$base" origin/main -- "$f"; then stale="$stale $f"; fi
+  done
+  [ -n "$stale" ] && printf 'revert-guard: REVERT-RISK:%s\n' "$stale" \
+                   || echo "revert-guard: clean"
+fi
+```
+
+When the guard reports `REVERT-RISK`, the branch is rewriting files that
+`origin/main` has independently advanced — opening the PR as-is would revert
+merged work. Do **not** open or update the pull request. Rebase the branch onto
+`origin/main` (`git rebase origin/main`) so the merged hunks are present,
+re-apply the task's change on top, then re-run the full Pre-PR CI gate and this
+guard until it reports `clean`. If the rebase conflicts in a way you cannot
+resolve within the task's file scope, hand off: apply `needs-human` to the task
+sub-issue — or, on the fast-path `/approve` flow, to the tracking issue — and
+post exactly one comment naming each `REVERT-RISK` file, the `origin/main`
+commit it would revert, and the conflict, per the imported evidence-rigor
+standard. An `inconclusive` verdict (shallow history blocked the merge-base) is
+not a pass to ignore: note it in the run log so a reviewer knows the guard could
+not run, and prefer a rebase onto `origin/main` before opening the PR.
+
 When the implementation is complete and every proof artifact passes, open
 exactly one pull request via the `create-pull-request` safe-output. The pull
 request is not a draft. Its title is `<type>(<scope>): <task title>`, where
@@ -720,7 +770,10 @@ pull request's **existing branch** with the `push-to-pull-request-branch`
 safe-output. Before that push, rerun the same discovered Pre-PR CI gate against
 the updated tree and require it green, with the identical hard-failure handling
 — the gate guards every PR open **and** update, so an update path must not push
-an unverified tree. Do not emit `create-pull-request` on this path: that safe-output
+an unverified tree. Re-run the merged-change revert guard from step 6 here
+too: the `/revise` path checks the pull request head out from a base that may
+trail `origin/main`, the most common silent-revert case (issue #287). Do not
+emit `create-pull-request` on this path: that safe-output
 always opens a fresh branch and a fresh pull request, which would leave two
 pull requests racing to close the same task. `create-pull-request` belongs to
 step 6, the initial implementation pull request, alone. The pull request
