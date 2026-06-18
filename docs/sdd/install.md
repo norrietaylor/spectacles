@@ -187,10 +187,18 @@ The agents write through a configurable GitHub App, not a personal access
 token and not a hardcoded bot. Provision it once:
 
 1. Create a GitHub App with these repository permissions: `contents: write`,
-   `discussions: write`, `issues: write`, and `pull-requests: write`. The
-   agents' `safe-outputs` mint an installation token scoped to exactly this
-   set; a narrower grant fails the mint with "the permissions requested are
-   not granted to this installation."
+   `discussions: write`, `issues: write`, `pull-requests: write`,
+   `administration: read`, and `actions: write`. The agents' `safe-outputs`
+   mint an installation token scoped to a subset of these
+   (`contents`/`discussions`/`issues`/`pull-requests: write` plus
+   `administration: read`); a mint that requests a permission the installation
+   lacks fails with "the permissions requested are not granted to this
+   installation." `administration: read` lets the agents read repository
+   settings (branch protection, default branch) before writing. `actions:
+   write` is required by the fast-path (`/agile`/`/fastpath` → `/approve`):
+   merging the spec PR dispatches the single-PR implementation via
+   `workflow_dispatch`, which needs that scope. (The full cascade path posts
+   `/execute` comments instead and does not require it — ADR 0014.)
 2. Install the App on the target repository. When the App's permissions
    change later, the installation must approve the update before the next run
    can mint a token.
