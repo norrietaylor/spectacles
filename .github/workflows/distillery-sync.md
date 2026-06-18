@@ -23,12 +23,14 @@ permissions:
 # Pinned to Haiku. distillery-sync is a mechanical sync — `git diff`, file
 # reads, `distillery_store`/`distillery_update`, and one server-side
 # `distillery_gh_sync` call — with no open-ended reasoning, so Haiku is
-# sufficient and far cheaper than the default. Pinning the model here also
-# overrides a consumer's `GH_AW_MODEL_AGENT_CLAUDE` variable: a consumer that
-# raises the default Claude model to a costlier one (e.g. opus) would otherwise
-# run a full-glob backfill that exceeds the gh-aw firewall's 25M
-# effective-token per-run cap and fails every scheduled run. The commit-delta
-# document set (step 3) and Haiku together keep a run well under that ceiling.
+# sufficient and far cheaper than the default. The compiled lock hard-codes
+# this model (`ANTHROPIC_MODEL` is the literal `claude-haiku-4-5`, not a
+# `vars.GH_AW_MODEL_AGENT_CLAUDE` expression), so a consumer that raises the
+# default Claude model to a costlier one (e.g. opus) cannot steer this workflow
+# back up: a full-glob backfill on a larger model would exceed the gh-aw
+# firewall's 25M effective-token per-run cap and fail every scheduled run. The
+# commit-delta document set (step 3) and Haiku together keep a run well under
+# that ceiling.
 engine:
   id: claude
   model: claude-haiku-4-5
