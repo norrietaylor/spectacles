@@ -85,6 +85,18 @@ runs:
             // revise path (issue #203) overrides it so the two remediation
             // loops carry independent retry budgets.
             let reviseMarker = '<!-- sdd-execute:auto-revise -->';
+            // Head sha the revise will run against, captured by the auto-revise
+            // paths (review and failed-check). The post-tier-gate block uses it
+            // as a cooperative concurrency claim keyed on the PR head: with the
+            // wrapper's cancel-in-progress now scoped to issue-keyed runs only
+            // (so PR-attached runs never cancel and never render as red checks),
+            // two near-simultaneous failed-check suites for the SAME head_sha
+            // would each spawn a revise. The sha-keyed claim makes the second
+            // defer instead — preserving the single-revise collapse that
+            // cancel-in-progress used to provide (issues #227, #228) without the
+            // cancellation. Empty when the trigger carries no resolvable head
+            // sha; the claim is then skipped (no dedup, never a wrong run).
+            let reviseHeadSha = '';
 
             // Collect the unresolved review-comment threads on a pull
             // request as directive lines ('- <path>: <body>'). Resolved
@@ -420,6 +432,7 @@ runs:
                     run = true;
                     reviewAutoRevise = true;
                     reviewPrNumber = prNumber;
+                    reviseHeadSha = (pr.head && pr.head.sha) || '';
                     ctx = {
                       trigger: 'revise',
                       item_type: 'pull_request',
@@ -689,6 +702,7 @@ runs:
                     reviewAutoRevise = true;
                     reviewPrNumber = prNumber;
                     reviseMarker = '<!-- sdd-execute:auto-revise-check -->';
+                    reviseHeadSha = suiteSha;
                     ctx = {
                       trigger: 'revise',
                       item_type: 'pull_request',
@@ -981,6 +995,17 @@ runs:
             // defaults to 3.
             if (run && reviewAutoRevise && reviewPrNumber) {
               const MARKER = reviseMarker;
+              // Cooperative concurrency claim keyed on the PR head sha. With
+              // cancel-in-progress scoped to issue-keyed runs (the wrapper),
+              // two failed-check suites for the same head no longer collapse by
+              // cancellation; this claim collapses them instead — the first run
+              // posts the claim and proceeds, a later run that sees it defers
+              // (issues #227, #228). Distinct prefix from MARKER so it never
+              // inflates the cap count. Empty CLAIM (no resolvable head sha)
+              // skips the claim entirely.
+              const CLAIM = reviseHeadSha
+                ? ('<!-- sdd-execute:revise-claim sha=' + reviseHeadSha + ' -->')
+                : '';
               const parsedMaxIters = parseInt(
                 process.env.SDD_MAX_REVIEW_ITERATIONS || '3', 10);
               // Guard a non-numeric repo variable: a NaN cap would make
@@ -991,6 +1016,7 @@ runs:
                 ? parsedMaxIters
                 : 3;
               let priorIters = 0;
+              let claimSeen = false;
               let page = 1;
               try {
                 for (;;) {
@@ -1002,8 +1028,12 @@ runs:
                     page,
                   });
                   for (const c of data) {
-                    if ((c.body || '').includes(MARKER)) {
+                    const body = c.body || '';
+                    if (body.includes(MARKER)) {
                       priorIters += 1;
+                    }
+                    if (CLAIM && body.includes(CLAIM)) {
+                      claimSeen = true;
                     }
                   }
                   if (data.length < 100) {
@@ -1015,7 +1045,16 @@ runs:
                 core.info('Could not list comments on PR #' + reviewPrNumber
                   + ' for iteration count: ' + err.message);
               }
-              if (priorIters >= maxIters) {
+              if (CLAIM && claimSeen) {
+                // Another run already claimed this head sha's revise; defer to
+                // it rather than running a duplicate. Exit success (no-op), not
+                // cancelled, so the PR shows no red check.
+                core.info('A revise for PR #' + reviewPrNumber
+                  + ' head ' + reviseHeadSha + ' is already claimed by another'
+                  + ' run; deferring.');
+                run = false;
+                ctx = {};
+              } else if (priorIters >= maxIters) {
                 core.info('Auto-revise cap (' + maxIters + ') reached on PR #'
                   + reviewPrNumber + '; applying needs-human.');
                 try {
@@ -1032,8 +1071,23 @@ runs:
                 run = false;
                 ctx = {};
               } else {
-                // Post the hidden iteration marker so the next review counts
-                // this cycle toward the cap.
+                // Claim this head sha so a concurrent suite defers, then post
+                // the hidden iteration marker so the next review counts this
+                // cycle toward the cap.
+                if (CLAIM) {
+                  try {
+                    await github.rest.issues.createComment({
+                      owner: context.repo.owner,
+                      repo: context.repo.repo,
+                      issue_number: reviewPrNumber,
+                      body: CLAIM + '\nRevise claim for head ' + reviseHeadSha
+                        + '.',
+                    });
+                  } catch (err) {
+                    core.info('Could not post revise claim on PR #'
+                      + reviewPrNumber + ': ' + err.message);
+                  }
+                }
                 try {
                   await github.rest.issues.createComment({
                     owner: context.repo.owner,
