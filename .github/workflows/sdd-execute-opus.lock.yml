@@ -1,4 +1,4 @@
-# gh-aw-metadata: {"schema_version":"v4","frontmatter_hash":"7430f25f27f37df48c994b83689905819689ae67734a7e82e3aa3db05a64dbfd","body_hash":"ef241c55233199a31dff6dfeecfaf4d88f05b19fb14a3f152da5d49b573bbfb5","compiler_version":"v0.77.5","agent_id":"claude","agent_model":"claude-opus-4-8"}
+# gh-aw-metadata: {"schema_version":"v4","frontmatter_hash":"37aab3ab820df757b86a99d241481234bb69133d4cb7e74b3c3d0f5263877b75","body_hash":"2be05073112c6875afe1a85fd9b776456cafcd85aeeb5c530358ddfcae99a481","compiler_version":"v0.77.5","agent_id":"claude","agent_model":"claude-opus-4-8"}
 # gh-aw-manifest: {"version":1,"secrets":["APP_PRIVATE_KEY","CLAUDE_CODE_OAUTH_TOKEN","GH_AW_CI_TRIGGER_TOKEN","GH_AW_GITHUB_MCP_SERVER_TOKEN","GH_AW_GITHUB_TOKEN","GH_AW_OTEL_ENDPOINT","GITHUB_TOKEN"],"actions":[{"repo":"actions/checkout","sha":"de0fac2e4500dabe0009e67214ff5f5447ce83dd","version":"v6.0.2"},{"repo":"actions/create-github-app-token","sha":"bcd2ba49218906704ab6c1aa796996da409d3eb1","version":"v3.2.0"},{"repo":"actions/download-artifact","sha":"3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c","version":"v8.0.1"},{"repo":"actions/github-script","sha":"3a2844b7e9c422d3c10d287c895573f7108da1b3","version":"v9.0.0"},{"repo":"actions/setup-node","sha":"48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e","version":"v6.4.0"},{"repo":"actions/upload-artifact","sha":"043fb46d1a93c77aae656e7c1c64a875d1fc6a0a","version":"v7.0.1"},{"repo":"dtolnay/rust-toolchain","sha":"29eef336d9b2848a0b548edc03f92a220660cdb8","version":"29eef336d9b2848a0b548edc03f92a220660cdb8"},{"repo":"github/gh-aw-actions/setup","sha":"3ea13c02d765410340d533515cb31a7eef2baaf0","version":"v0.77.5"}],"containers":[{"image":"ghcr.io/github/gh-aw-firewall/agent:0.25.58"},{"image":"ghcr.io/github/gh-aw-firewall/api-proxy:0.25.58"},{"image":"ghcr.io/github/gh-aw-firewall/squid:0.25.58"},{"image":"ghcr.io/github/gh-aw-mcpg:v0.3.22"},{"image":"ghcr.io/github/github-mcp-server:v1.1.0"},{"image":"ghcr.io/github/serena-mcp-server:latest","digest":"sha256:bf343399e3725c45528f531a230f3a04521d4cdef29f9a5af6282ff0d3c393c5","pinned_image":"ghcr.io/github/serena-mcp-server:latest@sha256:bf343399e3725c45528f531a230f3a04521d4cdef29f9a5af6282ff0d3c393c5"},{"image":"mcr.microsoft.com/playwright/mcp:v0.0.75"},{"image":"node:lts-alpine","digest":"sha256:2bdb65ed1dab192432bc31c95f94155ca5ad7fc1392fb7eb7526ab682fa5bf14","pinned_image":"node:lts-alpine@sha256:2bdb65ed1dab192432bc31c95f94155ca5ad7fc1392fb7eb7526ab682fa5bf14"}]}
 #    ___                   _   _      
 #   / _ \                 | | (_)     
@@ -251,24 +251,24 @@ jobs:
         run: |
           bash "${RUNNER_TEMP}/gh-aw/actions/create_prompt_first.sh"
           {
-          cat << 'GH_AW_PROMPT_460591190ee968c6_EOF'
+          cat << 'GH_AW_PROMPT_bfac17d2880c46e7_EOF'
           <system>
-          GH_AW_PROMPT_460591190ee968c6_EOF
+          GH_AW_PROMPT_bfac17d2880c46e7_EOF
           cat "${RUNNER_TEMP}/gh-aw/prompts/xpia.md"
           cat "${RUNNER_TEMP}/gh-aw/prompts/temp_folder_prompt.md"
           cat "${RUNNER_TEMP}/gh-aw/prompts/markdown.md"
           cat "${RUNNER_TEMP}/gh-aw/prompts/safe_outputs_prompt.md"
-          cat << 'GH_AW_PROMPT_460591190ee968c6_EOF'
+          cat << 'GH_AW_PROMPT_bfac17d2880c46e7_EOF'
           <safe-output-tools>
           Tools: add_comment, update_issue, create_pull_request, add_labels(max:2), remove_labels(max:2), push_to_pull_request_branch, missing_tool, missing_data, noop
-          GH_AW_PROMPT_460591190ee968c6_EOF
+          GH_AW_PROMPT_bfac17d2880c46e7_EOF
           cat "${RUNNER_TEMP}/gh-aw/prompts/safe_outputs_create_pull_request.md"
           cat "${RUNNER_TEMP}/gh-aw/prompts/safe_outputs_push_to_pr_branch.md"
-          cat << 'GH_AW_PROMPT_460591190ee968c6_EOF'
+          cat << 'GH_AW_PROMPT_bfac17d2880c46e7_EOF'
           </safe-output-tools>
-          GH_AW_PROMPT_460591190ee968c6_EOF
+          GH_AW_PROMPT_bfac17d2880c46e7_EOF
           cat "${RUNNER_TEMP}/gh-aw/prompts/mcp_cli_tools_prompt.md"
-          cat << 'GH_AW_PROMPT_460591190ee968c6_EOF'
+          cat << 'GH_AW_PROMPT_bfac17d2880c46e7_EOF'
           <github-context>
           The following GitHub context information is available for this workflow:
           {{#if github.actor}}
@@ -297,9 +297,9 @@ jobs:
           {{/if}}
           </github-context>
           
-          GH_AW_PROMPT_460591190ee968c6_EOF
+          GH_AW_PROMPT_bfac17d2880c46e7_EOF
           cat "${RUNNER_TEMP}/gh-aw/prompts/github_mcp_tools_with_safeoutputs_prompt.md"
-          cat << 'GH_AW_PROMPT_460591190ee968c6_EOF'
+          cat << 'GH_AW_PROMPT_bfac17d2880c46e7_EOF'
           </system>
           
           # Core principles
@@ -1519,6 +1519,72 @@ jobs:
           from re-selection until a human clears it (situation 4 above). Shipping
           unverified code that fails the consumer's first CI run is never acceptable.
           
+          **Merged-change revert guard (issue #287).** A regenerated or symbol-rewritten
+          file can silently revert a hunk that landed on `origin/main` after this branch
+          diverged: the file is rewritten from a stale base, the merged change is dropped,
+          and the bug that change fixed is reintroduced under a clean-looking diff. The
+          consumer's CI need not catch it — a reverted hunk can stay green — so it reaches
+          review as a plausible change. Diff against `origin/main`, not only the branch
+          base. Before opening **or** updating the pull request, run:
+          
+          ```bash
+          # Establish full-enough history to find the divergence point, then compare
+          # every path this PR touches against the base branch. DEFAULT_BRANCH is
+          # exported by the workflow; fall back to main when it is unset.
+          target_branch="${DEFAULT_BRANCH:-main}"
+          target_ref="origin/${target_branch}"
+          git fetch --no-tags --unshallow origin "+refs/heads/${target_branch}:refs/remotes/${target_ref}" 2>/dev/null \
+            || git fetch --no-tags --deepen=500 origin "+refs/heads/${target_branch}:refs/remotes/${target_ref}" 2>/dev/null \
+            || git fetch --no-tags origin "+refs/heads/${target_branch}:refs/remotes/${target_ref}"
+          base="$(git merge-base HEAD "$target_ref" 2>/dev/null || true)"
+          if [ -z "$base" ]; then
+            # Fail closed: history could not be deepened to the divergence point, so the
+            # guard cannot rule out a silent revert. Blocking, not a pass.
+            echo "revert-guard: INCONCLUSIVE: no merge-base with ${target_ref}; failing closed"
+          elif git merge-base --is-ancestor "$target_ref" HEAD; then
+            echo "revert-guard: branch already contains ${target_ref}; clean"
+          else
+            # Branch is behind the base branch. A path you touched that ${target_ref}
+            # ALSO advanced since the divergence point is a silent-revert candidate: your
+            # rewrite was based on a tree that predates the base branch's version. Parse
+            # null-separated so paths with whitespace survive, and check deleted paths
+            # too -- dropping a file the base branch advanced is itself a revert.
+            stale=()
+            while IFS= read -r -d '' f; do
+              [ -n "$f" ] || continue
+              if ! git diff --quiet "$base" "$target_ref" -- "$f"; then stale+=("$f"); fi
+            done < <(
+              {
+                git diff -z --name-only "$base" HEAD
+                git diff -z --name-only HEAD
+                git diff -z --name-only --cached
+              } | sort -zu
+            )
+            if [ "${#stale[@]}" -gt 0 ]; then
+              printf 'revert-guard: REVERT-RISK:\n'
+              printf '  %s\n' "${stale[@]}"
+            else
+              echo "revert-guard: clean"
+            fi
+          fi
+          ```
+          
+          When the guard reports `REVERT-RISK`, the branch is rewriting files that the
+          base branch has independently advanced — opening the PR as-is would revert
+          merged work. Do **not** open or update the pull request. Rebase the branch onto
+          the base branch (`git rebase "origin/${DEFAULT_BRANCH:-main}"`) so the merged
+          hunks are present, re-apply the task's change on top, then re-run the full
+          Pre-PR CI gate and this guard until it reports `clean`. If the rebase conflicts
+          in a way you cannot resolve within the task's file scope, hand off: apply
+          `needs-human` to the task sub-issue — or, on the fast-path `/approve` flow, to
+          the tracking issue — and post exactly one comment naming each `REVERT-RISK`
+          file, the base-branch commit it would revert, and the conflict, per the imported
+          evidence-rigor standard. An `INCONCLUSIVE` verdict (history could not be deepened
+          to the merge-base) is **blocking, not a pass**: the guard could not rule out a
+          silent revert, so do not open or update the PR — deepen history further and
+          re-run, or hand off with `needs-human` if the divergence point still cannot be
+          found.
+          
           When the implementation is complete and every proof artifact passes, open
           exactly one pull request via the `create-pull-request` safe-output. The pull
           request is not a draft. Its title is `<type>(<scope>): <task title>`, where
@@ -1587,7 +1653,15 @@ jobs:
           safe-output. Before that push, rerun the same discovered Pre-PR CI gate against
           the updated tree and require it green, with the identical hard-failure handling
           — the gate guards every PR open **and** update, so an update path must not push
-          an unverified tree. Do not emit `create-pull-request` on this path: that safe-output
+          an unverified tree. Re-run the merged-change revert guard from step 6 here
+          too: the `/revise` path checks the pull request head out from a base that may
+          trail the base branch, the most common silent-revert case (issue #287). On this
+          already-open-PR path, resolve a `REVERT-RISK` or `INCONCLUSIVE` verdict with a
+          non-rewriting merge of the base branch into the PR branch
+          (`git merge "origin/${DEFAULT_BRANCH:-main}"`), never a rebase — the suite never
+          force-pushes an open PR branch; hand off with `needs-human` if the merge
+          conflict cannot be resolved within the task's file scope. Do not
+          emit `create-pull-request` on this path: that safe-output
           always opens a fresh branch and a fresh pull request, which would leave two
           pull requests racing to close the same task. `create-pull-request` belongs to
           step 6, the initial implementation pull request, alone. The pull request
@@ -1779,7 +1853,7 @@ jobs:
             moves to `sdd:done` and gains `needs-human`, and the tracking issue is not
             closed by the agent.
           
-          GH_AW_PROMPT_460591190ee968c6_EOF
+          GH_AW_PROMPT_bfac17d2880c46e7_EOF
           } > "$GH_AW_PROMPT"
       - name: Interpolate variables and render templates
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
@@ -2013,9 +2087,9 @@ jobs:
           mkdir -p "${RUNNER_TEMP}/gh-aw/safeoutputs"
           mkdir -p /tmp/gh-aw/safeoutputs
           mkdir -p /tmp/gh-aw/mcp-logs/safeoutputs
-          cat > "${RUNNER_TEMP}/gh-aw/safeoutputs/config.json" << 'GH_AW_SAFE_OUTPUTS_CONFIG_8575e5e5e306edd4_EOF'
+          cat > "${RUNNER_TEMP}/gh-aw/safeoutputs/config.json" << 'GH_AW_SAFE_OUTPUTS_CONFIG_55b50166416e6864_EOF'
           {"add_comment":{"max":1},"add_labels":{"allowed":["sdd:in-progress","sdd:done","needs-human"],"max":2},"create_pull_request":{"draft":false,"max":1,"max_patch_files":100,"max_patch_size":1024,"protect_top_level_dot_folders":true,"protected_files":["bun.lockb","bunfig.toml","deno.json","deno.jsonc","deno.lock","global.json","NuGet.Config","Directory.Packages.props","mix.exs","mix.lock","go.mod","go.sum","stack.yaml","stack.yaml.lock","pom.xml","build.gradle","build.gradle.kts","settings.gradle","settings.gradle.kts","gradle.properties","requirements.txt","Pipfile","Pipfile.lock","setup.py","setup.cfg","Gemfile","Gemfile.lock","uv.lock","CODEOWNERS","DESIGN.md","README.md","CONTRIBUTING.md","CHANGELOG.md","SECURITY.md","CODE_OF_CONDUCT.md","CLAUDE.md","AGENTS.md"],"protected_files_policy":"fallback-to-issue"},"create_report_incomplete_issue":{},"missing_data":{},"missing_tool":{},"noop":{"max":1,"report-as-issue":"true"},"push_to_pull_request_branch":{"if_no_changes":"warn","max":1,"max_patch_size":1024,"protect_top_level_dot_folders":true,"protected_files":["bun.lockb","bunfig.toml","deno.json","deno.jsonc","deno.lock","global.json","NuGet.Config","Directory.Packages.props","mix.exs","mix.lock","go.mod","go.sum","stack.yaml","stack.yaml.lock","pom.xml","build.gradle","build.gradle.kts","settings.gradle","settings.gradle.kts","gradle.properties","requirements.txt","Pipfile","Pipfile.lock","setup.py","setup.cfg","Gemfile","Gemfile.lock","uv.lock","CODEOWNERS","DESIGN.md","README.md","CONTRIBUTING.md","CHANGELOG.md","SECURITY.md","CODE_OF_CONDUCT.md","CLAUDE.md","AGENTS.md"]},"remove_labels":{"allowed":["sdd:ready","sdd:review","sdd:fastpath","sdd:in-progress"],"max":2},"report_incomplete":{},"update_issue":{"allow_body":true,"allow_status":true,"max":1,"target":"*"}}
-          GH_AW_SAFE_OUTPUTS_CONFIG_8575e5e5e306edd4_EOF
+          GH_AW_SAFE_OUTPUTS_CONFIG_55b50166416e6864_EOF
       - name: Generate Safe Outputs Tools
         env:
           GH_AW_TOOLS_META_JSON: |
@@ -2366,7 +2440,7 @@ jobs:
           export MCP_GATEWAY_DOCKER_COMMAND='docker run -i --rm --network host --add-host host.docker.internal:127.0.0.1 --user '"${MCP_GATEWAY_UID}"':'"${MCP_GATEWAY_GID}"' --group-add '"${DOCKER_SOCK_GID}"' -v '"${DOCKER_SOCK_PATH}"':/var/run/docker.sock -e MCP_GATEWAY_PORT -e MCP_GATEWAY_DOMAIN -e MCP_GATEWAY_API_KEY -e MCP_GATEWAY_PAYLOAD_DIR -e MCP_GATEWAY_PAYLOAD_SIZE_THRESHOLD -e DOCKER_HOST=unix:///var/run/docker.sock -e DEBUG -e MCP_GATEWAY_LOG_DIR -e GH_AW_MCP_LOG_DIR -e GH_AW_SAFE_OUTPUTS -e GH_AW_SAFE_OUTPUTS_CONFIG_PATH -e GH_AW_SAFE_OUTPUTS_TOOLS_PATH -e GH_AW_ASSETS_BRANCH -e GH_AW_ASSETS_MAX_SIZE_KB -e GH_AW_ASSETS_ALLOWED_EXTS -e DEFAULT_BRANCH -e GITHUB_MCP_SERVER_TOKEN -e GITHUB_MCP_GUARD_MIN_INTEGRITY -e GITHUB_MCP_GUARD_REPOS -e GITHUB_REPOSITORY -e GITHUB_SERVER_URL -e GITHUB_SHA -e GITHUB_WORKSPACE -e GITHUB_TOKEN -e GITHUB_RUN_ID -e GITHUB_RUN_NUMBER -e GITHUB_RUN_ATTEMPT -e GITHUB_JOB -e GITHUB_ACTION -e GITHUB_EVENT_NAME -e GITHUB_EVENT_PATH -e GITHUB_ACTOR -e GITHUB_ACTOR_ID -e GITHUB_TRIGGERING_ACTOR -e GITHUB_WORKFLOW -e GITHUB_WORKFLOW_REF -e GITHUB_WORKFLOW_SHA -e GITHUB_REF -e GITHUB_REF_NAME -e GITHUB_REF_TYPE -e GITHUB_HEAD_REF -e GITHUB_BASE_REF -e GH_AW_SAFE_OUTPUTS_PORT -e GH_AW_SAFE_OUTPUTS_API_KEY -e GITHUB_AW_OTEL_TRACE_ID -e GITHUB_AW_OTEL_PARENT_SPAN_ID -e OTEL_EXPORTER_OTLP_HEADERS -v /tmp/gh-aw/mcp-payloads:/tmp/gh-aw/mcp-payloads:rw -v /opt:/opt:ro -v /tmp:/tmp:rw -v '"${GITHUB_WORKSPACE}"':'"${GITHUB_WORKSPACE}"':rw ghcr.io/github/gh-aw-mcpg:v0.3.22'
           
           GH_AW_NODE=$(which node 2>/dev/null || command -v node 2>/dev/null || echo node)
-          cat << GH_AW_MCP_CONFIG_0d1124cf60586310_EOF | "$GH_AW_NODE" "${RUNNER_TEMP}/gh-aw/actions/start_mcp_gateway.cjs"
+          cat << GH_AW_MCP_CONFIG_11e7ab2c063328bd_EOF | "$GH_AW_NODE" "${RUNNER_TEMP}/gh-aw/actions/start_mcp_gateway.cjs"
           {
             "mcpServers": {
               "github": {
@@ -2491,7 +2565,7 @@ jobs:
               }
             }
           }
-          GH_AW_MCP_CONFIG_0d1124cf60586310_EOF
+          GH_AW_MCP_CONFIG_11e7ab2c063328bd_EOF
       - name: Mount MCP servers as CLIs
         id: mount-mcp-clis
         continue-on-error: true

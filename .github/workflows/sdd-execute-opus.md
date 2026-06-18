@@ -652,6 +652,72 @@ evidence-rigor standard. The task keeps its `sdd:in-progress` label; `needs-huma
 from re-selection until a human clears it (situation 4 above). Shipping
 unverified code that fails the consumer's first CI run is never acceptable.
 
+**Merged-change revert guard (issue #287).** A regenerated or symbol-rewritten
+file can silently revert a hunk that landed on `origin/main` after this branch
+diverged: the file is rewritten from a stale base, the merged change is dropped,
+and the bug that change fixed is reintroduced under a clean-looking diff. The
+consumer's CI need not catch it — a reverted hunk can stay green — so it reaches
+review as a plausible change. Diff against `origin/main`, not only the branch
+base. Before opening **or** updating the pull request, run:
+
+```bash
+# Establish full-enough history to find the divergence point, then compare
+# every path this PR touches against the base branch. DEFAULT_BRANCH is
+# exported by the workflow; fall back to main when it is unset.
+target_branch="${DEFAULT_BRANCH:-main}"
+target_ref="origin/${target_branch}"
+git fetch --no-tags --unshallow origin "+refs/heads/${target_branch}:refs/remotes/${target_ref}" 2>/dev/null \
+  || git fetch --no-tags --deepen=500 origin "+refs/heads/${target_branch}:refs/remotes/${target_ref}" 2>/dev/null \
+  || git fetch --no-tags origin "+refs/heads/${target_branch}:refs/remotes/${target_ref}"
+base="$(git merge-base HEAD "$target_ref" 2>/dev/null || true)"
+if [ -z "$base" ]; then
+  # Fail closed: history could not be deepened to the divergence point, so the
+  # guard cannot rule out a silent revert. Blocking, not a pass.
+  echo "revert-guard: INCONCLUSIVE: no merge-base with ${target_ref}; failing closed"
+elif git merge-base --is-ancestor "$target_ref" HEAD; then
+  echo "revert-guard: branch already contains ${target_ref}; clean"
+else
+  # Branch is behind the base branch. A path you touched that ${target_ref}
+  # ALSO advanced since the divergence point is a silent-revert candidate: your
+  # rewrite was based on a tree that predates the base branch's version. Parse
+  # null-separated so paths with whitespace survive, and check deleted paths
+  # too -- dropping a file the base branch advanced is itself a revert.
+  stale=()
+  while IFS= read -r -d '' f; do
+    [ -n "$f" ] || continue
+    if ! git diff --quiet "$base" "$target_ref" -- "$f"; then stale+=("$f"); fi
+  done < <(
+    {
+      git diff -z --name-only "$base" HEAD
+      git diff -z --name-only HEAD
+      git diff -z --name-only --cached
+    } | sort -zu
+  )
+  if [ "${#stale[@]}" -gt 0 ]; then
+    printf 'revert-guard: REVERT-RISK:\n'
+    printf '  %s\n' "${stale[@]}"
+  else
+    echo "revert-guard: clean"
+  fi
+fi
+```
+
+When the guard reports `REVERT-RISK`, the branch is rewriting files that the
+base branch has independently advanced — opening the PR as-is would revert
+merged work. Do **not** open or update the pull request. Rebase the branch onto
+the base branch (`git rebase "origin/${DEFAULT_BRANCH:-main}"`) so the merged
+hunks are present, re-apply the task's change on top, then re-run the full
+Pre-PR CI gate and this guard until it reports `clean`. If the rebase conflicts
+in a way you cannot resolve within the task's file scope, hand off: apply
+`needs-human` to the task sub-issue — or, on the fast-path `/approve` flow, to
+the tracking issue — and post exactly one comment naming each `REVERT-RISK`
+file, the base-branch commit it would revert, and the conflict, per the imported
+evidence-rigor standard. An `INCONCLUSIVE` verdict (history could not be deepened
+to the merge-base) is **blocking, not a pass**: the guard could not rule out a
+silent revert, so do not open or update the PR — deepen history further and
+re-run, or hand off with `needs-human` if the divergence point still cannot be
+found.
+
 When the implementation is complete and every proof artifact passes, open
 exactly one pull request via the `create-pull-request` safe-output. The pull
 request is not a draft. Its title is `<type>(<scope>): <task title>`, where
@@ -720,7 +786,15 @@ pull request's **existing branch** with the `push-to-pull-request-branch`
 safe-output. Before that push, rerun the same discovered Pre-PR CI gate against
 the updated tree and require it green, with the identical hard-failure handling
 — the gate guards every PR open **and** update, so an update path must not push
-an unverified tree. Do not emit `create-pull-request` on this path: that safe-output
+an unverified tree. Re-run the merged-change revert guard from step 6 here
+too: the `/revise` path checks the pull request head out from a base that may
+trail the base branch, the most common silent-revert case (issue #287). On this
+already-open-PR path, resolve a `REVERT-RISK` or `INCONCLUSIVE` verdict with a
+non-rewriting merge of the base branch into the PR branch
+(`git merge "origin/${DEFAULT_BRANCH:-main}"`), never a rebase — the suite never
+force-pushes an open PR branch; hand off with `needs-human` if the merge
+conflict cannot be resolved within the task's file scope. Do not
+emit `create-pull-request` on this path: that safe-output
 always opens a fresh branch and a fresh pull request, which would leave two
 pull requests racing to close the same task. `create-pull-request` belongs to
 step 6, the initial implementation pull request, alone. The pull request
