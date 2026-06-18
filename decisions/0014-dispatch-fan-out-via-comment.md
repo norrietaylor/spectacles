@@ -13,8 +13,7 @@ another workflow run, and ADR 0004 already establishes the App-minted
 token as the cross-agent write seam.
 
 The 2026-05-21 walk of `e2e-plan-dispatch-stress.md` against
-`gominimal/spectacles-test` (tracker
-[#131](https://github.com/gominimal/spectacles-test/issues/131)) found
+a consumer pilot run (tracked in that consumer's private repo) found
 that `createWorkflowDispatch` returned `403 Resource not accessible by
 integration` on every fan-out cell (issue #121). The App token's
 installation permissions did not include `actions: write`, the scope

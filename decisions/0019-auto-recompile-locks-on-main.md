@@ -49,7 +49,7 @@ and forced a manual recompile PR
    a bypass actor and is rejected.
 3. **This widens ADR 0003's App scope to include this repository.** ADR 0003
    provisioned the App on consumer repos only; the build App `spectacles-bot`
-   (app-id 3958001, distinct from any consumer's `gominimal-aw-bot`) is now also
+   (app-id 3958001, distinct from any consumer's own automation bot) is now also
    installed on `norrietaylor/spectacles` for this one build purpose.
 
 ## Reasoning
