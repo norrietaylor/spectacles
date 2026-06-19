@@ -306,6 +306,14 @@ runs:
             // itself closing is not a task closure and is ignored too.
             if (event === 'issues' && payload.action === 'closed') {
               const closedIssue = payload.issue;
+              // A task closure is identified by the closed issue carrying
+              // the repo's canonical `## Task` body block (mirrors
+              // sdd-dispatch-compute's isTask guard). A Unit is a
+              // parent-of-tasks whose body has no `## Task` block, so this
+              // guard keeps a genuine Unit closure from arming the cascade
+              // via the collapsed single-task (ADR 0028) one-hop path below.
+              const TASK_BLOCK = /^## Task\b/m;
+              const closedIsTask = TASK_BLOCK.test(closedIssue.body || '');
               // GitHub does not populate the child->parent pointer for
               // native sub-issues on either the `issues.closed` webhook
               // payload OR on a re-fetch via REST `GET /issues/{n}`
@@ -516,13 +524,22 @@ runs:
                   walked = gqlWalked;
                 }
               } else if (gqlWalked > 0) {
-                // GraphQL produced a partial walk (e.g. one hop) and
-                // stopped at a parentless ancestor, which means the
-                // closed issue is a Unit or the tracker itself, not a
-                // task. Record the depth so the diagnostic below
-                // reflects the GraphQL result rather than implying a
-                // missing parent.
+                // GraphQL produced a partial walk that stopped at a
+                // parentless ancestor. Two shapes terminate this way:
+                //   - a collapsed single-task feature (ADR 0028): the
+                //     closed task is a DIRECT child of the tracking issue
+                //     (one hop), so the ancestor reached is the top-level
+                //     tracker. Arm the cascade when the closed issue is a
+                //     genuine task (carries `## Task`).
+                //   - a Unit or the tracker itself closing: not a task
+                //     closure. The closed issue carries no `## Task` block,
+                //     so closedIsTask is false and we decline.
+                // Record the true hop depth either way so the diagnostic
+                // below reflects the GraphQL result.
                 walked = gqlWalked;
+                if (gqlStoppedBy === 'none' && closedIsTask) {
+                  tracker = gqlTracker;
+                }
               } else {
                 // GraphQL returned no parent for the closed issue.
                 // Fall back to scanning armed trackers' sub-issue trees.
@@ -541,7 +558,7 @@ runs:
                 }
               }
 
-              if (tracker && walked === 2) {
+              if (tracker && (walked === 1 || walked === 2)) {
                 const hasDispatched = (tracker.labels || []).some(
                   (l) => (typeof l === 'string' ? l : l.name)
                     === 'sdd:dispatched');
