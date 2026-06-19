@@ -19,6 +19,12 @@ on:
         type: string
         required: false
         default: ''
+  # roles: all — this agent is activated by an upstream agent's output (the
+  # App-authored sdd:triage label, the merged architecture PR, the /approve
+  # comment), not only by humans. The default roles gate (admin/maintainer/
+  # write) cancels a bot-triggered run at pre_activation; the wrapper's
+  # sdd-route-triage job is the real actor gate. See ADR 0004.
+  roles: all
 permissions:
   contents: read
   issues: read
