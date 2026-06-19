@@ -340,7 +340,18 @@ runs:
               }
               return;
             }
-            const tier = tierMatch[1].toLowerCase();
+            let tier = tierMatch[1].toLowerCase();
+            // Floor the fast-path single-PR implementation at sonnet: the
+            // haiku sdd-execute variant no-ops on the situation-1a fast-path
+            // entry (B7 / issue #303), emitting zero safe outputs and no PR,
+            // whereas sonnet implements it reliably. Map a haiku plan tier up
+            // to sonnet for THIS dispatch only; full-path cascade tiering is
+            // unaffected (it never flows through this action).
+            if (tier === 'haiku') {
+              core.info('Fast-path implementation tier floored from haiku to'
+                + ' sonnet for #' + tracking + ' (B7 / issue #303).');
+              tier = 'sonnet';
+            }
 
             // Dispatch sdd-execute-{tier} with the fast-path entry context.
             // Dispatch *before* moving the lifecycle label so that a
