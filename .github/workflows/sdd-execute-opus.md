@@ -15,6 +15,10 @@ permissions:
   contents: read
   issues: read
   pull-requests: read
+# Wall-clock budget per run (gh-aw default is 20). Raised to 60 so the in-sandbox
+# cargo build/test pre-PR gate (step 6) plus a broad multi-file change fit in one
+# run before the agent job is killed.
+timeout-minutes: 60
 engine:
   id: claude
   model: claude-opus-4-8
