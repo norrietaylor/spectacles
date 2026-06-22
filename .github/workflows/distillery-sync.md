@@ -118,10 +118,24 @@ safe-outputs:
 
 # Distillery sync
 
-This agentic workflow keeps the Distillery knowledge store current for this
-repository. It runs when a spec or ADR merges to the default branch (its
-wrapper's `push` trigger on `docs/specs/**` and `decisions/**`), once per day on
-a schedule, and on manual dispatch.
+**You are an autonomous, non-interactive agent, and this prompt is your task —
+not a specification to review. Perform the Distillery sync defined below now.**
+There is no human in the loop on a scheduled, push, or dispatch run, so **never
+ask for clarification, never wait for further instructions, and never stop to
+confirm**: where anything is underspecified, act on the deterministic default
+this document gives. Begin at the Procedure (step 1) and work through it.
+
+Your run **must end by producing a safe output.** The normal terminal action is
+upserting the status issue (step 7), which every run performs — including a run
+that finds nothing to sync (it still records "no changes" and advances the
+cursor). Only if you genuinely cannot act at all do you call the `noop` safe
+output instead. **Never end a turn with no tool calls and no safe output** — an
+empty turn is the one outcome this workflow treats as a failure.
+
+This workflow keeps the Distillery knowledge store current for this repository.
+It runs when a spec or ADR merges to the default branch (its wrapper's `push`
+trigger on `docs/specs/**` and `decisions/**`), once per day on a schedule, and
+on manual dispatch.
 
 The Distillery MCP server attaches over HTTP transport, authenticated via
 OAuth. The endpoint and the OAuth credential are configuration, read from
