@@ -15,6 +15,14 @@ permissions:
   contents: read
   issues: read
   pull-requests: read
+# Per-ITEM concurrency (norrietaylor/spectacles#308). gh-aw's default lock group
+# `gh-aw-${{ github.workflow }}` is shared across every same-tier execute run, so
+# GitHub cancels a previously-pending run when a new same-tier run queues — a
+# re-triggered task can be silently cancelled at its activation job by unrelated
+# activity on a sibling task. Key the group on the resolved item number so
+# distinct tasks never collide; fall back to run_id when the context is absent.
+concurrency:
+  group: "gh-aw-${{ github.workflow }}-${{ fromJSON(inputs.aw_context).item_number || github.run_id }}"
 # Wall-clock budget per run (gh-aw default is 20). Raised to 60 so the in-sandbox
 # cargo build/test pre-PR gate (step 6) plus a broad multi-file change fit in one
 # run before the agent job is killed.
