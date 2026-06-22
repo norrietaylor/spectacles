@@ -114,6 +114,10 @@ safe-outputs:
   add-comment:
     target: "*"
     max: 1
+  # The prompt's terminal-action guard may call `noop` when the agent genuinely
+  # cannot act (e.g. the store is unreachable and even the status-issue upsert
+  # fails); declaring it keeps the safe-output allowlist contract satisfied.
+  noop:
 ---
 
 # Distillery sync
