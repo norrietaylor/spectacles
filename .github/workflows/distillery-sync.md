@@ -315,8 +315,8 @@ for documents.)
    - everything else (`README*`, `CLAUDE.md`, `CONTRIBUTING.md`, other `docs/**`,
      per-crate `README.md`) → `doc`
 
-   Resolve a `title`: the frontmatter `title` when present, else the first `# `
-   heading, else the basename. The workflow runs unattended in CI, so this is
+   Resolve a `title`: the frontmatter `title` when present, else the first
+   level-1 (`#`) heading, else the basename. The workflow runs unattended in CI, so this is
    deterministic — no human prompt.
 
    Then make a single **`distillery_ingest_doc`** call per file with:
