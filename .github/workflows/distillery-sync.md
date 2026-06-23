@@ -240,9 +240,13 @@ Document ingestion is **idempotent by content**: `distillery_ingest_doc` default
 its `external_id` to `sha256(text)`, so re-syncing a byte-identical file is a
 no-op (`dedup_action: "skipped"`) and changed content re-ingests cleanly — there
 is no fuzzy similarity match and no manual create-vs-update decision to make.
-Provenance is carried by `metadata.source` (the repository-relative file path),
-not a tag: a file that moves but keeps its content stays the same entry, and a
-file whose content changes re-ingests under the same `source`. The tool also
+Identity and dedup are decided **solely by the content hash** (the default
+`external_id = sha256(text)`). `metadata.source` (the repository-relative file
+path) is **provenance only, not an identity key**: it travels with the entry for
+traceability but never decides create-vs-skip. So the two invariants do not
+conflict — a renamed file with byte-identical content is the same entry (same
+hash, `source` updated to the new path); an edited file at the same path
+re-ingests (new hash). The tool also
 splits a long document into `chunk`-linked entries automatically. (The old
 `srcpath/<slug>` tag and `distillery_store`'s fuzzy cosine dedup are **not** used
 for documents.)
@@ -308,10 +312,11 @@ for documents.)
    - In both sets, apply the skip rules from *Document roots* (`TEMPLATE.md`,
      leading-`_` basenames).
 4. **Ingest each file.** For each file in the set, read its contents and
-   classify its `doctype` from the path (one of `adr|spec|decision|doc`,
+   classify its `doctype` from the path (one of `adr|spec|decision|feedback|doc`,
    defaulting to `doc`):
    - `docs/specs/**` → `spec`
    - `decisions/*.md` → `decision`; `adr/**`, `doc/adr/**`, `docs/adr/**` → `adr`
+   - `feedback/**`, `docs/feedback/**` → `feedback`
    - everything else (`README*`, `CLAUDE.md`, `CONTRIBUTING.md`, other `docs/**`,
      per-crate `README.md`) → `doc`
 
@@ -322,8 +327,8 @@ for documents.)
    Then make a single **`distillery_ingest_doc`** call per file with:
    - `project`: the resolved project slug (step 1)
    - `text`: the full file contents
-   - `source`: the repository-relative file path, un-canonicalized (the
-     provenance + idempotency anchor)
+   - `source`: the repository-relative file path, un-canonicalized (provenance
+     metadata — the path; **not** the dedup key, which is the content hash)
    - `title`: the resolved title
    - `doctype`: the value inferred above
 
