@@ -21,7 +21,7 @@ permissions:
   issues: read
   pull-requests: read
 # Pinned to Haiku. distillery-sync is a mechanical sync — `git diff`, file
-# reads, `distillery_store`/`distillery_update`, and one server-side
+# reads, one `distillery_ingest_doc` call per changed doc, and one server-side
 # `distillery_gh_sync` call — with no open-ended reasoning, so Haiku is
 # sufficient and far cheaper than the default. The compiled lock hard-codes
 # this model (`ANTHROPIC_MODEL` is the literal `claude-haiku-4-5`, not a
@@ -79,9 +79,7 @@ mcp-servers:
       Authorization: "Bearer ${{ secrets.DISTILLERY_OAUTH_TOKEN }}"
     allowed:
       - distillery_gh_sync
-      - distillery_find_similar
-      - distillery_store
-      - distillery_update
+      - distillery_ingest_doc
       - distillery_list
       - distillery_get
       - distillery_relations
@@ -178,9 +176,9 @@ and adds a run-summary comment, never opening a second issue (step 7). Both
 Distillery passes are idempotent: `distillery_gh_sync` is incremental on the
 GitHub side, and the document pass is made incremental two ways — by the
 **commit-delta cursor** that bounds each run to changed files (step 3), and by
-the per-file source-path key that makes a re-processed file update in place.
-`distillery_store` also runs a server-side similarity precheck and auto-skips a
-near-duplicate, so an overlapping glob set or a re-run never creates a duplicate
+`distillery_ingest_doc`'s content-hash `external_id`, which makes re-ingesting a
+byte-identical file a `dedup_action: "skipped"` no-op and re-ingests changed
+content under the same `source`, so an overlapping glob set or a re-run never creates a duplicate
 even before those guards apply.
 
 ## Project scoping
@@ -238,25 +236,16 @@ timestamps or `distillery_gh_sync` output.
 
 ## Deterministic per-file identity
 
-Each document maps to exactly one knowledge entry, keyed by a stable
-**source-path tag**: `srcpath/<slug>`. Distillery's tag validator requires every
-tag segment to match `[a-z0-9][a-z0-9-]*` (lowercase alphanumeric and hyphens
-only, no leading hyphen), so the file path is canonicalized to `<slug>` by this
-exact, deterministic algorithm — any run, any model, computes the same slug for
-the same path:
-
-1. Take the file's repository-relative path and **strip its extension**
-   (`.md`).
-2. **Lowercase** it.
-3. Replace every maximal run of characters outside `[a-z0-9]` (including `/`,
-   `_`, `.`, and spaces) with a **single** `-`.
-4. **Strip** any leading or trailing `-`.
-
-For example `docs/specs/01-spec-foo/01-spec-foo.md` becomes
-`srcpath/docs-specs-01-spec-foo-01-spec-foo`. The source-path tag is the dedup
-key, not a fuzzy content match: `distillery_find_similar` content similarity is
-brittle and is not used to decide create-vs-update here. Look the key up with
-`distillery_list` filtered by `project` and that one tag.
+Document ingestion is **idempotent by content**: `distillery_ingest_doc` defaults
+its `external_id` to `sha256(text)`, so re-syncing a byte-identical file is a
+no-op (`dedup_action: "skipped"`) and changed content re-ingests cleanly — there
+is no fuzzy similarity match and no manual create-vs-update decision to make.
+Provenance is carried by `metadata.source` (the repository-relative file path),
+not a tag: a file that moves but keeps its content stays the same entry, and a
+file whose content changes re-ingests under the same `source`. The tool also
+splits a long document into `chunk`-linked entries automatically. (The old
+`srcpath/<slug>` tag and `distillery_store`'s fuzzy cosine dedup are **not** used
+for documents.)
 
 ## Procedure
 
@@ -297,8 +286,8 @@ brittle and is not used to decide create-vs-update here. Look the key up with
    - **3a. Backfill set (cursor absent, or absent cursor *and* empty store).**
      This is the first run or a recovery after the status issue was lost.
      Enumerate the full document globs in the working tree. De-duplicate the
-     file list (a file matched by two globs is ingested once, by its source-path
-     key). Cap the count at 500 files; if more match, ingest the first 500 by
+     file list by path (a file matched by two globs is ingested once). Cap the
+     count at 500 files; if more match, ingest the first 500 by
      path order and **log every path skipped by the cap** — never truncate
      silently.
    - **3b. Incremental set (cursor present).** Compute the files changed since
@@ -318,44 +307,42 @@ brittle and is not used to decide create-vs-update here. Look the key up with
        not fall back to a full enumeration just because the delta is empty.
    - In both sets, apply the skip rules from *Document roots* (`TEMPLATE.md`,
      leading-`_` basenames).
-4. **Store, update, or skip each file.** For each file in the set, read its
-   contents, compute its source-path tag (the `srcpath/<slug>` canonicalization
-   above), classify its `doctype`
-   (`spec`/`architecture` for `docs/specs/**`, `adr` for `decisions/**`,
-   `doc` for a backfilled location), and read its frontmatter when present
-   (`id`, `title`, `status`, `supersedes`, `superseded-by`). The workflow runs
-   unattended in CI: it cannot prompt a human, so it acts deterministically.
-   Every tag segment must satisfy the validator's `[a-z0-9][a-z0-9-]*` rule, so
-   the project slug and any status value are lowercased and have non-alphanumeric
-   runs collapsed to a single `-` (the same canonicalization as the source-path
-   slug) before they appear in a tag.
-   - Look the entry up: `distillery_list(project=<slug>,
-     tags=["srcpath/<slug>"], output_mode="ids", include_archived=true)`.
-   - **No match → create.** Call `distillery_store` with the file contents,
-     the resolved project slug, `entry_type: reference`,
-     `source: documentation` (Distillery has no `spec`, `decision`, or
-     `document` entry type; a stored document is a `reference` entry), tags
-     `project/<slug>/<specs|architecture|decisions|imported>`,
-     `doctype/<spec|architecture|adr|doc>` (the `kind/` prefix is reserved by
-     Distillery, so document kind is carried under `doctype/`),
-     `state/<status>` (from frontmatter `status`, or for an ADR without
-     frontmatter the body `- Status:` value, lowercased and canonicalized; omit
-     when no status is declared), and `srcpath/<slug>`, and metadata
-     `{ title, doctype, lifecycle: <status>, source_path: <path>,
-     id: <frontmatter id> }` (metadata values are free-form and carry the
-     original, un-canonicalized path).
-   - **Match → compare and update.** `distillery_get` the entry. If its stored
-     content equals the file contents, **skip** (no write, no version churn).
-     Otherwise call `distillery_update` on that entry id with the new content,
-     refreshed tags (including an updated `state/<status>`), and refreshed
-     metadata. The entry's `version` bumps in place — the update history is the
-     provenance trail; no duplicate entry is created.
-5. **Write provenance relations.** After a file's entry is stored or updated,
-   capture lineage with `distillery_relations`:
+4. **Ingest each file.** For each file in the set, read its contents and
+   classify its `doctype` from the path (one of `adr|spec|decision|doc`,
+   defaulting to `doc`):
+   - `docs/specs/**` → `spec`
+   - `decisions/*.md` → `decision`; `adr/**`, `doc/adr/**`, `docs/adr/**` → `adr`
+   - everything else (`README*`, `CLAUDE.md`, `CONTRIBUTING.md`, other `docs/**`,
+     per-crate `README.md`) → `doc`
+
+   Resolve a `title`: the frontmatter `title` when present, else the first `# `
+   heading, else the basename. The workflow runs unattended in CI, so this is
+   deterministic — no human prompt.
+
+   Then make a single **`distillery_ingest_doc`** call per file with:
+   - `project`: the resolved project slug (step 1)
+   - `text`: the full file contents
+   - `source`: the repository-relative file path, un-canonicalized (the
+     provenance + idempotency anchor)
+   - `title`: the resolved title
+   - `doctype`: the value inferred above
+
+   Let `external_id` **default** to the content hash. One call subsumes the
+   create / update / skip decision: an unchanged file returns
+   `dedup_action: "skipped"` (no write, no version churn); changed content
+   re-ingests; a long document is split into `chunk`-linked entries. The tool
+   writes both a `doctype/<v>` tag and `metadata.doctype`, plus
+   `metadata.source` and `metadata.title`, so downstream retrieval can facet on
+   doctype and trace provenance. Do **not** call
+   `distillery_store`/`distillery_update`/`distillery_list` for a document —
+   `distillery_ingest_doc` replaces all three for the document pass.
+5. **Write provenance relations.** After a file is ingested (skip a file whose
+   ingest returned `dedup_action: "skipped"` only if its relations already
+   exist), capture lineage with `distillery_relations`:
    - **Supersession.** When the frontmatter declares `supersedes: <id>` (or, for
      an ADR without frontmatter, the body says `Status: Superseded by NNNN` /
      `Supersedes NNNN`), resolve the referenced document's entry — by its `id`
-     metadata or its `srcpath` tag — and add
+     or `source` metadata — and add
      `distillery_relations(action="add", from_id=<this entry>,
      to_id=<referenced entry>, relation_type="supersedes")`. Add the relation
      once; if it already exists, leave it.
@@ -368,7 +355,7 @@ brittle and is not used to decide create-vs-update here. Look the key up with
    incremental run; for an incremental run the cursor range (`<cursor>..HEAD`)
    and the changed-file count; whether the document globs were the default set
    or a configured `DISTILLERY_DOC_GLOBS` value; how many documents were
-   created, updated, or skipped; how many supersedes and citation relations were
+   ingested vs skipped (`dedup_action: "skipped"`); how many supersedes and citation relations were
    written; the resolved project slug; a UTC timestamp; and every path dropped
    by the backfill cap. Log it to the run, and reuse it as the status-issue
    payload in step 7.
@@ -416,7 +403,7 @@ brittle and is not used to decide create-vs-update here. Look the key up with
 - `gh aw compile` compiles this workflow with the Distillery MCP server
   declared and reports zero errors.
 - A run logs both mechanisms. The document pass logs a non-zero count of
-  documents created, updated, or skipped. The `distillery_gh_sync` pass logs
+  documents ingested vs skipped (`dedup_action`). The `distillery_gh_sync` pass logs
   either a count of issues and pull requests ingested or refreshed, **or**, when
   the call hit a client timeout, "dispatched; result unconfirmed" qualified by
   the store probe — an unconfirmed timeout over a server-side success is not a
@@ -439,9 +426,9 @@ brittle and is not used to decide create-vs-update here. Look the key up with
 - With `DISTILLERY_DOC_GLOBS` set, the document set is drawn from the configured
   globs (verified by ingesting a file matched only by a configured glob, e.g. a
   Rust crate `README.md`); with it unset, the default set applies. An
-  overlapping or re-run glob set creates no duplicate: the `srcpath/<slug>` key
-  hits and `distillery_store`'s server-side near-duplicate auto-skip is the
-  backstop.
+  overlapping or re-run glob set creates no duplicate: `distillery_ingest_doc`'s
+  content-hash `external_id` returns `dedup_action: "skipped"` for a
+  byte-identical re-ingest.
 - A second run does **not** open a new status issue: it updates the existing
   `[distillery-sync] Status` issue and adds one comment. Only the first run (or
   one after the prior status issue was deleted) emits a `create-issue`.
