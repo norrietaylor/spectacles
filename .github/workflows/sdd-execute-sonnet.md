@@ -23,10 +23,11 @@ permissions:
 # distinct tasks never collide; fall back to run_id when the context is absent.
 concurrency:
   group: "gh-aw-${{ github.workflow }}-${{ fromJSON(inputs.aw_context).item_number || github.run_id }}"
-# Wall-clock budget per run (gh-aw default is 20). Raised to 60 so the in-sandbox
+# Wall-clock budget per run (gh-aw default is 20). Raised to 90 so the in-sandbox
 # cargo build/test pre-PR gate (step 6) plus a broad multi-file change fit in one
-# run before the agent job is killed.
-timeout-minutes: 60
+# run before the agent job is killed; 60 proved too tight for the larger
+# multi-crate tasks (policy enforcement, hostname registry), which timed out.
+timeout-minutes: 90
 engine:
   id: claude
   model: claude-sonnet-4-6
@@ -576,9 +577,19 @@ consumer's own CI plus the all-checks auto-revise loop backstop whatever a
 mistaken run lets through. Humans author and review the script.
 
 For a **Rust** consumer this is at minimum `cargo fmt --all -- --check`,
-`cargo build`, `cargo clippy --all-targets -- -D warnings`, and `cargo test`;
-the `network.allowed` block above admits `index.crates.io` and
-`static.crates.io` so cargo can resolve and fetch dependencies in-sandbox.
+`cargo build --locked`, `cargo clippy --locked --all-targets -- -D warnings`,
+and `cargo test --locked`; the `network.allowed` block above admits
+`index.crates.io` and `static.crates.io` so cargo can resolve and fetch
+dependencies in-sandbox. Pass `--locked` so the gate fails on a stale
+`Cargo.lock` exactly as the consumer's CI does — without it cargo silently
+rewrites the lock in-memory and the drift surfaces only as a `--locked` exit
+101 on consumer CI after the PR is already open (issue #318). When this task
+changed any `Cargo.toml` — a dependency add/bump or a `workspace = true`
+promotion — regenerate the lock (`cargo generate-lockfile`, or a non-`--locked`
+`cargo build` to update it) and **commit the updated `Cargo.lock`** in the PR,
+mirroring the Node per-root frozen-lockfile rule below: a manifest edit
+invalidates its lock entry, so a PR that edits `Cargo.toml` without the matching
+`Cargo.lock` change fails the consumer's `--locked` build.
 
 For a **Node** consumer, detect the package manager from the lockfile present
 (`pnpm-lock.yaml` → pnpm, `yarn.lock` → yarn, `package-lock.json` /
