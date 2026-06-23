@@ -1,4 +1,4 @@
-# gh-aw-metadata: {"schema_version":"v4","frontmatter_hash":"12ccf206daa7ea67ed61ebae1f4c5f797bbe3fb56f3d337eba435241a52ae245","body_hash":"1a4ff0f9b670c4505b6432f352729e064fc168d77e1d11823bf8c0c67971a963","compiler_version":"v0.77.5","agent_id":"claude","agent_model":"claude-haiku-4-5"}
+# gh-aw-metadata: {"schema_version":"v4","frontmatter_hash":"fb515c21c48e4babf98caeb2f48db51b1f1d3cf444f3fb8be0ae06078097c9cc","body_hash":"b1103ab89647bb22ca998e2473ea92d08e09a0cb1ec09a5fa62d079ff0fc76bd","compiler_version":"v0.77.5","agent_id":"claude","agent_model":"claude-haiku-4-5"}
 # gh-aw-manifest: {"version":1,"secrets":["APP_PRIVATE_KEY","CLAUDE_CODE_OAUTH_TOKEN","DISTILLERY_OAUTH_TOKEN","GH_AW_GITHUB_MCP_SERVER_TOKEN","GH_AW_GITHUB_TOKEN","GH_AW_OTEL_ENDPOINT","GITHUB_TOKEN"],"actions":[{"repo":"actions/checkout","sha":"de0fac2e4500dabe0009e67214ff5f5447ce83dd","version":"v6.0.2"},{"repo":"actions/create-github-app-token","sha":"bcd2ba49218906704ab6c1aa796996da409d3eb1","version":"v3.2.0"},{"repo":"actions/download-artifact","sha":"3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c","version":"v8.0.1"},{"repo":"actions/github-script","sha":"3a2844b7e9c422d3c10d287c895573f7108da1b3","version":"v9.0.0"},{"repo":"actions/setup-node","sha":"48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e","version":"v6.4.0"},{"repo":"actions/upload-artifact","sha":"043fb46d1a93c77aae656e7c1c64a875d1fc6a0a","version":"v7.0.1"},{"repo":"github/gh-aw-actions/setup","sha":"3ea13c02d765410340d533515cb31a7eef2baaf0","version":"v0.77.5"}],"containers":[{"image":"ghcr.io/github/gh-aw-firewall/agent:0.25.58"},{"image":"ghcr.io/github/gh-aw-firewall/api-proxy:0.25.58"},{"image":"ghcr.io/github/gh-aw-firewall/squid:0.25.58"},{"image":"ghcr.io/github/gh-aw-mcpg:v0.3.22"},{"image":"ghcr.io/github/github-mcp-server:v1.1.0"},{"image":"node:lts-alpine","digest":"sha256:2bdb65ed1dab192432bc31c95f94155ca5ad7fc1392fb7eb7526ab682fa5bf14","pinned_image":"node:lts-alpine@sha256:2bdb65ed1dab192432bc31c95f94155ca5ad7fc1392fb7eb7526ab682fa5bf14"}]}
 #    ___                   _   _      
 #   / _ \                 | | (_)     
@@ -240,20 +240,20 @@ jobs:
         run: |
           bash "${RUNNER_TEMP}/gh-aw/actions/create_prompt_first.sh"
           {
-          cat << 'GH_AW_PROMPT_5fc95bda97a155f1_EOF'
+          cat << 'GH_AW_PROMPT_d2f8ba7f6fcf103b_EOF'
           <system>
-          GH_AW_PROMPT_5fc95bda97a155f1_EOF
+          GH_AW_PROMPT_d2f8ba7f6fcf103b_EOF
           cat "${RUNNER_TEMP}/gh-aw/prompts/xpia.md"
           cat "${RUNNER_TEMP}/gh-aw/prompts/temp_folder_prompt.md"
           cat "${RUNNER_TEMP}/gh-aw/prompts/markdown.md"
           cat "${RUNNER_TEMP}/gh-aw/prompts/safe_outputs_prompt.md"
-          cat << 'GH_AW_PROMPT_5fc95bda97a155f1_EOF'
+          cat << 'GH_AW_PROMPT_d2f8ba7f6fcf103b_EOF'
           <safe-output-tools>
           Tools: add_comment, create_issue, update_issue, missing_tool, missing_data, noop
           </safe-output-tools>
-          GH_AW_PROMPT_5fc95bda97a155f1_EOF
+          GH_AW_PROMPT_d2f8ba7f6fcf103b_EOF
           cat "${RUNNER_TEMP}/gh-aw/prompts/mcp_cli_tools_prompt.md"
-          cat << 'GH_AW_PROMPT_5fc95bda97a155f1_EOF'
+          cat << 'GH_AW_PROMPT_d2f8ba7f6fcf103b_EOF'
           <github-context>
           The following GitHub context information is available for this workflow:
           {{#if github.actor}}
@@ -282,9 +282,9 @@ jobs:
           {{/if}}
           </github-context>
           
-          GH_AW_PROMPT_5fc95bda97a155f1_EOF
+          GH_AW_PROMPT_d2f8ba7f6fcf103b_EOF
           cat "${RUNNER_TEMP}/gh-aw/prompts/github_mcp_tools_with_safeoutputs_prompt.md"
-          cat << 'GH_AW_PROMPT_5fc95bda97a155f1_EOF'
+          cat << 'GH_AW_PROMPT_d2f8ba7f6fcf103b_EOF'
           </system>
           # Distillery sync
           
@@ -344,9 +344,9 @@ jobs:
           Distillery passes are idempotent: `distillery_gh_sync` is incremental on the
           GitHub side, and the document pass is made incremental two ways — by the
           **commit-delta cursor** that bounds each run to changed files (step 3), and by
-          the per-file source-path key that makes a re-processed file update in place.
-          `distillery_store` also runs a server-side similarity precheck and auto-skips a
-          near-duplicate, so an overlapping glob set or a re-run never creates a duplicate
+          `distillery_ingest_doc`'s content-hash `external_id`, which makes re-ingesting a
+          byte-identical file a `dedup_action: "skipped"` no-op and re-ingests changed
+          content under the same `source`, so an overlapping glob set or a re-run never creates a duplicate
           even before those guards apply.
           
           ## Project scoping
@@ -404,25 +404,20 @@ jobs:
           
           ## Deterministic per-file identity
           
-          Each document maps to exactly one knowledge entry, keyed by a stable
-          **source-path tag**: `srcpath/<slug>`. Distillery's tag validator requires every
-          tag segment to match `[a-z0-9][a-z0-9-]*` (lowercase alphanumeric and hyphens
-          only, no leading hyphen), so the file path is canonicalized to `<slug>` by this
-          exact, deterministic algorithm — any run, any model, computes the same slug for
-          the same path:
-          
-          1. Take the file's repository-relative path and **strip its extension**
-             (`.md`).
-          2. **Lowercase** it.
-          3. Replace every maximal run of characters outside `[a-z0-9]` (including `/`,
-             `_`, `.`, and spaces) with a **single** `-`.
-          4. **Strip** any leading or trailing `-`.
-          
-          For example `docs/specs/01-spec-foo/01-spec-foo.md` becomes
-          `srcpath/docs-specs-01-spec-foo-01-spec-foo`. The source-path tag is the dedup
-          key, not a fuzzy content match: `distillery_find_similar` content similarity is
-          brittle and is not used to decide create-vs-update here. Look the key up with
-          `distillery_list` filtered by `project` and that one tag.
+          Document ingestion is **idempotent by content**: `distillery_ingest_doc` defaults
+          its `external_id` to `sha256(text)`, so re-syncing a byte-identical file is a
+          no-op (`dedup_action: "skipped"`) and changed content re-ingests cleanly — there
+          is no fuzzy similarity match and no manual create-vs-update decision to make.
+          Identity and dedup are decided **solely by the content hash** (the default
+          `external_id = sha256(text)`). `metadata.source` (the repository-relative file
+          path) is **provenance only, not an identity key**: it travels with the entry for
+          traceability but never decides create-vs-skip. So the two invariants do not
+          conflict — a renamed file with byte-identical content is the same entry (same
+          hash, `source` updated to the new path); an edited file at the same path
+          re-ingests (new hash). The tool also
+          splits a long document into `chunk`-linked entries automatically. (The old
+          `srcpath/<slug>` tag and `distillery_store`'s fuzzy cosine dedup are **not** used
+          for documents.)
           
           ## Procedure
           
@@ -463,8 +458,8 @@ jobs:
              - **3a. Backfill set (cursor absent, or absent cursor *and* empty store).**
                This is the first run or a recovery after the status issue was lost.
                Enumerate the full document globs in the working tree. De-duplicate the
-               file list (a file matched by two globs is ingested once, by its source-path
-               key). Cap the count at 500 files; if more match, ingest the first 500 by
+               file list by path (a file matched by two globs is ingested once). Cap the
+               count at 500 files; if more match, ingest the first 500 by
                path order and **log every path skipped by the cap** — never truncate
                silently.
              - **3b. Incremental set (cursor present).** Compute the files changed since
@@ -484,44 +479,43 @@ jobs:
                  not fall back to a full enumeration just because the delta is empty.
              - In both sets, apply the skip rules from *Document roots* (`TEMPLATE.md`,
                leading-`_` basenames).
-          4. **Store, update, or skip each file.** For each file in the set, read its
-             contents, compute its source-path tag (the `srcpath/<slug>` canonicalization
-             above), classify its `doctype`
-             (`spec`/`architecture` for `docs/specs/**`, `adr` for `decisions/**`,
-             `doc` for a backfilled location), and read its frontmatter when present
-             (`id`, `title`, `status`, `supersedes`, `superseded-by`). The workflow runs
-             unattended in CI: it cannot prompt a human, so it acts deterministically.
-             Every tag segment must satisfy the validator's `[a-z0-9][a-z0-9-]*` rule, so
-             the project slug and any status value are lowercased and have non-alphanumeric
-             runs collapsed to a single `-` (the same canonicalization as the source-path
-             slug) before they appear in a tag.
-             - Look the entry up: `distillery_list(project=<slug>,
-               tags=["srcpath/<slug>"], output_mode="ids", include_archived=true)`.
-             - **No match → create.** Call `distillery_store` with the file contents,
-               the resolved project slug, `entry_type: reference`,
-               `source: documentation` (Distillery has no `spec`, `decision`, or
-               `document` entry type; a stored document is a `reference` entry), tags
-               `project/<slug>/<specs|architecture|decisions|imported>`,
-               `doctype/<spec|architecture|adr|doc>` (the `kind/` prefix is reserved by
-               Distillery, so document kind is carried under `doctype/`),
-               `state/<status>` (from frontmatter `status`, or for an ADR without
-               frontmatter the body `- Status:` value, lowercased and canonicalized; omit
-               when no status is declared), and `srcpath/<slug>`, and metadata
-               `{ title, doctype, lifecycle: <status>, source_path: <path>,
-               id: <frontmatter id> }` (metadata values are free-form and carry the
-               original, un-canonicalized path).
-             - **Match → compare and update.** `distillery_get` the entry. If its stored
-               content equals the file contents, **skip** (no write, no version churn).
-               Otherwise call `distillery_update` on that entry id with the new content,
-               refreshed tags (including an updated `state/<status>`), and refreshed
-               metadata. The entry's `version` bumps in place — the update history is the
-               provenance trail; no duplicate entry is created.
-          5. **Write provenance relations.** After a file's entry is stored or updated,
-             capture lineage with `distillery_relations`:
+          4. **Ingest each file.** For each file in the set, read its contents and
+             classify its `doctype` from the path (one of `adr|spec|decision|feedback|doc`,
+             defaulting to `doc`):
+             - `docs/specs/**` → `spec`
+             - `decisions/*.md` → `decision`; `adr/**`, `doc/adr/**`, `docs/adr/**` → `adr`
+             - `feedback/**`, `docs/feedback/**` → `feedback`
+             - everything else (`README*`, `CLAUDE.md`, `CONTRIBUTING.md`, other `docs/**`,
+               per-crate `README.md`) → `doc`
+          
+             Resolve a `title`: the frontmatter `title` when present, else the first
+             level-1 (`#`) heading, else the basename. The workflow runs unattended in CI, so this is
+             deterministic — no human prompt.
+          
+             Then make a single **`distillery_ingest_doc`** call per file with:
+             - `project`: the resolved project slug (step 1)
+             - `text`: the full file contents
+             - `source`: the repository-relative file path, un-canonicalized (provenance
+               metadata — the path; **not** the dedup key, which is the content hash)
+             - `title`: the resolved title
+             - `doctype`: the value inferred above
+          
+             Let `external_id` **default** to the content hash. One call subsumes the
+             create / update / skip decision: an unchanged file returns
+             `dedup_action: "skipped"` (no write, no version churn); changed content
+             re-ingests; a long document is split into `chunk`-linked entries. The tool
+             writes both a `doctype/<v>` tag and `metadata.doctype`, plus
+             `metadata.source` and `metadata.title`, so downstream retrieval can facet on
+             doctype and trace provenance. Do **not** call
+             `distillery_store`/`distillery_update`/`distillery_list` for a document —
+             `distillery_ingest_doc` replaces all three for the document pass.
+          5. **Write provenance relations.** After a file is ingested (skip a file whose
+             ingest returned `dedup_action: "skipped"` only if its relations already
+             exist), capture lineage with `distillery_relations`:
              - **Supersession.** When the frontmatter declares `supersedes: <id>` (or, for
                an ADR without frontmatter, the body says `Status: Superseded by NNNN` /
                `Supersedes NNNN`), resolve the referenced document's entry — by its `id`
-               metadata or its `srcpath` tag — and add
+               or `source` metadata — and add
                `distillery_relations(action="add", from_id=<this entry>,
                to_id=<referenced entry>, relation_type="supersedes")`. Add the relation
                once; if it already exists, leave it.
@@ -534,7 +528,7 @@ jobs:
              incremental run; for an incremental run the cursor range (`<cursor>..HEAD`)
              and the changed-file count; whether the document globs were the default set
              or a configured `DISTILLERY_DOC_GLOBS` value; how many documents were
-             created, updated, or skipped; how many supersedes and citation relations were
+             ingested vs skipped (`dedup_action: "skipped"`); how many supersedes and citation relations were
              written; the resolved project slug; a UTC timestamp; and every path dropped
              by the backfill cap. Log it to the run, and reuse it as the status-issue
              payload in step 7.
@@ -582,7 +576,7 @@ jobs:
           - `gh aw compile` compiles this workflow with the Distillery MCP server
             declared and reports zero errors.
           - A run logs both mechanisms. The document pass logs a non-zero count of
-            documents created, updated, or skipped. The `distillery_gh_sync` pass logs
+            documents ingested vs skipped (`dedup_action`). The `distillery_gh_sync` pass logs
             either a count of issues and pull requests ingested or refreshed, **or**, when
             the call hit a client timeout, "dispatched; result unconfirmed" qualified by
             the store probe — an unconfirmed timeout over a server-side success is not a
@@ -605,9 +599,9 @@ jobs:
           - With `DISTILLERY_DOC_GLOBS` set, the document set is drawn from the configured
             globs (verified by ingesting a file matched only by a configured glob, e.g. a
             Rust crate `README.md`); with it unset, the default set applies. An
-            overlapping or re-run glob set creates no duplicate: the `srcpath/<slug>` key
-            hits and `distillery_store`'s server-side near-duplicate auto-skip is the
-            backstop.
+            overlapping or re-run glob set creates no duplicate: `distillery_ingest_doc`'s
+            content-hash `external_id` returns `dedup_action: "skipped"` for a
+            byte-identical re-ingest.
           - A second run does **not** open a new status issue: it updates the existing
             `[distillery-sync] Status` issue and adds one comment. Only the first run (or
             one after the prior status issue was deleted) emits a `create-issue`.
@@ -618,7 +612,7 @@ jobs:
             `distillery_relations(action="get", entry_id=<new ADR entry>)` shows a
             `supersedes` edge to the prior ADR's entry.
           
-          GH_AW_PROMPT_5fc95bda97a155f1_EOF
+          GH_AW_PROMPT_d2f8ba7f6fcf103b_EOF
           } > "$GH_AW_PROMPT"
       - name: Interpolate variables and render templates
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
@@ -836,9 +830,9 @@ jobs:
           mkdir -p "${RUNNER_TEMP}/gh-aw/safeoutputs"
           mkdir -p /tmp/gh-aw/safeoutputs
           mkdir -p /tmp/gh-aw/mcp-logs/safeoutputs
-          cat > "${RUNNER_TEMP}/gh-aw/safeoutputs/config.json" << 'GH_AW_SAFE_OUTPUTS_CONFIG_ffd3bff4a232c699_EOF'
+          cat > "${RUNNER_TEMP}/gh-aw/safeoutputs/config.json" << 'GH_AW_SAFE_OUTPUTS_CONFIG_07fef486072a0929_EOF'
           {"add_comment":{"max":1,"target":"*"},"create_issue":{"max":1},"create_report_incomplete_issue":{},"missing_data":{},"missing_tool":{},"noop":{"max":1,"report-as-issue":"true"},"report_incomplete":{},"update_issue":{"allow_body":true,"allow_title":true,"max":1,"target":"*"}}
-          GH_AW_SAFE_OUTPUTS_CONFIG_ffd3bff4a232c699_EOF
+          GH_AW_SAFE_OUTPUTS_CONFIG_07fef486072a0929_EOF
       - name: Generate Safe Outputs Tools
         env:
           GH_AW_TOOLS_META_JSON: |
@@ -1124,7 +1118,7 @@ jobs:
           export MCP_GATEWAY_DOCKER_COMMAND='docker run -i --rm --network host --add-host host.docker.internal:127.0.0.1 --user '"${MCP_GATEWAY_UID}"':'"${MCP_GATEWAY_GID}"' --group-add '"${DOCKER_SOCK_GID}"' -v '"${DOCKER_SOCK_PATH}"':/var/run/docker.sock -e MCP_GATEWAY_PORT -e MCP_GATEWAY_DOMAIN -e MCP_GATEWAY_API_KEY -e MCP_GATEWAY_PAYLOAD_DIR -e MCP_GATEWAY_PAYLOAD_SIZE_THRESHOLD -e DOCKER_HOST=unix:///var/run/docker.sock -e DEBUG -e MCP_GATEWAY_LOG_DIR -e GH_AW_MCP_LOG_DIR -e GH_AW_SAFE_OUTPUTS -e GH_AW_SAFE_OUTPUTS_CONFIG_PATH -e GH_AW_SAFE_OUTPUTS_TOOLS_PATH -e GH_AW_ASSETS_BRANCH -e GH_AW_ASSETS_MAX_SIZE_KB -e GH_AW_ASSETS_ALLOWED_EXTS -e DEFAULT_BRANCH -e GITHUB_MCP_SERVER_TOKEN -e GITHUB_MCP_GUARD_MIN_INTEGRITY -e GITHUB_MCP_GUARD_REPOS -e GITHUB_REPOSITORY -e GITHUB_SERVER_URL -e GITHUB_SHA -e GITHUB_WORKSPACE -e GITHUB_TOKEN -e GITHUB_RUN_ID -e GITHUB_RUN_NUMBER -e GITHUB_RUN_ATTEMPT -e GITHUB_JOB -e GITHUB_ACTION -e GITHUB_EVENT_NAME -e GITHUB_EVENT_PATH -e GITHUB_ACTOR -e GITHUB_ACTOR_ID -e GITHUB_TRIGGERING_ACTOR -e GITHUB_WORKFLOW -e GITHUB_WORKFLOW_REF -e GITHUB_WORKFLOW_SHA -e GITHUB_REF -e GITHUB_REF_NAME -e GITHUB_REF_TYPE -e GITHUB_HEAD_REF -e GITHUB_BASE_REF -e GH_AW_SAFE_OUTPUTS_PORT -e GH_AW_SAFE_OUTPUTS_API_KEY -e GITHUB_AW_OTEL_TRACE_ID -e GITHUB_AW_OTEL_PARENT_SPAN_ID -e OTEL_EXPORTER_OTLP_HEADERS -e DISTILLERY_OAUTH_TOKEN -v /tmp/gh-aw/mcp-payloads:/tmp/gh-aw/mcp-payloads:rw -v /opt:/opt:ro -v /tmp:/tmp:rw -v '"${GITHUB_WORKSPACE}"':'"${GITHUB_WORKSPACE}"':rw ghcr.io/github/gh-aw-mcpg:v0.3.22'
           
           GH_AW_NODE=$(which node 2>/dev/null || command -v node 2>/dev/null || echo node)
-          cat << GH_AW_MCP_CONFIG_3f30e1f5fb95ceb3_EOF | "$GH_AW_NODE" "${RUNNER_TEMP}/gh-aw/actions/start_mcp_gateway.cjs"
+          cat << GH_AW_MCP_CONFIG_20bcd018832bc55d_EOF | "$GH_AW_NODE" "${RUNNER_TEMP}/gh-aw/actions/start_mcp_gateway.cjs"
           {
             "mcpServers": {
               "distillery": {
@@ -1135,9 +1129,7 @@ jobs:
                 },
                 "tools": [
                   "distillery_gh_sync",
-                  "distillery_find_similar",
-                  "distillery_store",
-                  "distillery_update",
+                  "distillery_ingest_doc",
                   "distillery_list",
                   "distillery_get",
                   "distillery_relations"
@@ -1195,7 +1187,7 @@ jobs:
               }
             }
           }
-          GH_AW_MCP_CONFIG_3f30e1f5fb95ceb3_EOF
+          GH_AW_MCP_CONFIG_20bcd018832bc55d_EOF
       - name: Mount MCP servers as CLIs
         id: mount-mcp-clis
         continue-on-error: true
@@ -1243,13 +1235,11 @@ jobs:
         # - Write
         # - Write(/tmp/*)
         # - Write(/tmp/gh-aw/agent/*)
-        # - mcp__distillery__distillery_find_similar
         # - mcp__distillery__distillery_get
         # - mcp__distillery__distillery_gh_sync
+        # - mcp__distillery__distillery_ingest_doc
         # - mcp__distillery__distillery_list
         # - mcp__distillery__distillery_relations
-        # - mcp__distillery__distillery_store
-        # - mcp__distillery__distillery_update
         # - mcp__github__download_workflow_run_artifact
         # - mcp__github__get_code_scanning_alert
         # - mcp__github__get_commit
@@ -1327,7 +1317,7 @@ jobs:
           fi
           # shellcheck disable=SC1003
           sudo -E awf --config "${RUNNER_TEMP}/gh-aw/awf-config.json" --container-workdir "${GITHUB_WORKSPACE}" --mount "${RUNNER_TEMP}/gh-aw:${RUNNER_TEMP}/gh-aw:ro" --mount "${RUNNER_TEMP}/gh-aw:/host${RUNNER_TEMP}/gh-aw:ro" ${GH_AW_TOOL_CACHE_MOUNT:+--mount "$GH_AW_TOOL_CACHE_MOUNT"} ${GH_AW_DOCKER_HOST_PATH_PREFIX_ARGS} --tty --env-all --exclude-env DISTILLERY_OAUTH_TOKEN --exclude-env GITHUB_MCP_SERVER_TOKEN --exclude-env MCP_GATEWAY_API_KEY --log-level info --proxy-logs-dir /tmp/gh-aw/sandbox/firewall/logs --audit-dir /tmp/gh-aw/sandbox/firewall/audit --enable-host-access --allow-host-ports 80,443,8080 --skip-pull \
-            -- /bin/bash -c 'set +o histexpand; export PATH="${RUNNER_TEMP}/gh-aw/mcp-cli/bin:$PATH" && GH_AW_TOOL_CACHE="${RUNNER_TOOL_CACHE:-/opt/hostedtoolcache}"; export PATH="$(find "$GH_AW_TOOL_CACHE" /opt/hostedtoolcache /home/runner/work/_tool -maxdepth 5 -type d -name bin 2>/dev/null | tr '\''\n'\'' '\'':'\'')$PATH"; [ -n "$GOROOT" ] && export PATH="$GOROOT/bin:$PATH" || true && GH_AW_NODE_EXEC="${GH_AW_NODE_BIN:-}"; if [ -z "$GH_AW_NODE_EXEC" ] || [ ! -x "$GH_AW_NODE_EXEC" ]; then GH_AW_NODE_EXEC="$(command -v node 2>/dev/null || true)"; fi; if [ -z "$GH_AW_NODE_EXEC" ]; then echo "node runtime missing on this runner — check runtimes.node in workflow YAML" >&2; exit 127; fi; "$GH_AW_NODE_EXEC" ${RUNNER_TEMP}/gh-aw/actions/claude_harness.cjs claude --print --no-chrome --allowed-tools '\''Bash,BashOutput,Edit,Edit(/tmp/*),Edit(/tmp/gh-aw/agent/*),ExitPlanMode,Glob,Grep,KillBash,LS,MultiEdit,MultiEdit(/tmp/*),MultiEdit(/tmp/gh-aw/agent/*),NotebookEdit,NotebookRead,Read,Read(/tmp/*),Read(/tmp/gh-aw/agent/*),Task,TodoWrite,Write,Write(/tmp/*),Write(/tmp/gh-aw/agent/*),mcp__distillery__distillery_find_similar,mcp__distillery__distillery_get,mcp__distillery__distillery_gh_sync,mcp__distillery__distillery_list,mcp__distillery__distillery_relations,mcp__distillery__distillery_store,mcp__distillery__distillery_update,mcp__github__download_workflow_run_artifact,mcp__github__get_code_scanning_alert,mcp__github__get_commit,mcp__github__get_dependabot_alert,mcp__github__get_discussion,mcp__github__get_discussion_comments,mcp__github__get_file_contents,mcp__github__get_job_logs,mcp__github__get_label,mcp__github__get_latest_release,mcp__github__get_me,mcp__github__get_notification_details,mcp__github__get_pull_request,mcp__github__get_pull_request_comments,mcp__github__get_pull_request_diff,mcp__github__get_pull_request_files,mcp__github__get_pull_request_review_comments,mcp__github__get_pull_request_reviews,mcp__github__get_pull_request_status,mcp__github__get_release_by_tag,mcp__github__get_secret_scanning_alert,mcp__github__get_tag,mcp__github__get_workflow_run,mcp__github__get_workflow_run_logs,mcp__github__get_workflow_run_usage,mcp__github__issue_read,mcp__github__list_branches,mcp__github__list_code_scanning_alerts,mcp__github__list_commits,mcp__github__list_dependabot_alerts,mcp__github__list_discussion_categories,mcp__github__list_discussions,mcp__github__list_issue_types,mcp__github__list_issues,mcp__github__list_label,mcp__github__list_notifications,mcp__github__list_pull_requests,mcp__github__list_releases,mcp__github__list_secret_scanning_alerts,mcp__github__list_starred_repositories,mcp__github__list_tags,mcp__github__list_workflow_jobs,mcp__github__list_workflow_run_artifacts,mcp__github__list_workflow_runs,mcp__github__list_workflows,mcp__github__pull_request_read,mcp__github__search_code,mcp__github__search_issues,mcp__github__search_orgs,mcp__github__search_pull_requests,mcp__github__search_repositories,mcp__github__search_users,mcp__safeoutputs'\'' --debug-file /tmp/gh-aw/agent-stdio.log --verbose --permission-mode acceptEdits --output-format stream-json --mcp-config "${RUNNER_TEMP}/gh-aw/mcp-config/mcp-servers.json" --prompt-file /tmp/gh-aw/aw-prompts/prompt.txt' 2>&1 | tee -a /tmp/gh-aw/agent-stdio.log
+            -- /bin/bash -c 'set +o histexpand; export PATH="${RUNNER_TEMP}/gh-aw/mcp-cli/bin:$PATH" && GH_AW_TOOL_CACHE="${RUNNER_TOOL_CACHE:-/opt/hostedtoolcache}"; export PATH="$(find "$GH_AW_TOOL_CACHE" /opt/hostedtoolcache /home/runner/work/_tool -maxdepth 5 -type d -name bin 2>/dev/null | tr '\''\n'\'' '\'':'\'')$PATH"; [ -n "$GOROOT" ] && export PATH="$GOROOT/bin:$PATH" || true && GH_AW_NODE_EXEC="${GH_AW_NODE_BIN:-}"; if [ -z "$GH_AW_NODE_EXEC" ] || [ ! -x "$GH_AW_NODE_EXEC" ]; then GH_AW_NODE_EXEC="$(command -v node 2>/dev/null || true)"; fi; if [ -z "$GH_AW_NODE_EXEC" ]; then echo "node runtime missing on this runner — check runtimes.node in workflow YAML" >&2; exit 127; fi; "$GH_AW_NODE_EXEC" ${RUNNER_TEMP}/gh-aw/actions/claude_harness.cjs claude --print --no-chrome --allowed-tools '\''Bash,BashOutput,Edit,Edit(/tmp/*),Edit(/tmp/gh-aw/agent/*),ExitPlanMode,Glob,Grep,KillBash,LS,MultiEdit,MultiEdit(/tmp/*),MultiEdit(/tmp/gh-aw/agent/*),NotebookEdit,NotebookRead,Read,Read(/tmp/*),Read(/tmp/gh-aw/agent/*),Task,TodoWrite,Write,Write(/tmp/*),Write(/tmp/gh-aw/agent/*),mcp__distillery__distillery_get,mcp__distillery__distillery_gh_sync,mcp__distillery__distillery_ingest_doc,mcp__distillery__distillery_list,mcp__distillery__distillery_relations,mcp__github__download_workflow_run_artifact,mcp__github__get_code_scanning_alert,mcp__github__get_commit,mcp__github__get_dependabot_alert,mcp__github__get_discussion,mcp__github__get_discussion_comments,mcp__github__get_file_contents,mcp__github__get_job_logs,mcp__github__get_label,mcp__github__get_latest_release,mcp__github__get_me,mcp__github__get_notification_details,mcp__github__get_pull_request,mcp__github__get_pull_request_comments,mcp__github__get_pull_request_diff,mcp__github__get_pull_request_files,mcp__github__get_pull_request_review_comments,mcp__github__get_pull_request_reviews,mcp__github__get_pull_request_status,mcp__github__get_release_by_tag,mcp__github__get_secret_scanning_alert,mcp__github__get_tag,mcp__github__get_workflow_run,mcp__github__get_workflow_run_logs,mcp__github__get_workflow_run_usage,mcp__github__issue_read,mcp__github__list_branches,mcp__github__list_code_scanning_alerts,mcp__github__list_commits,mcp__github__list_dependabot_alerts,mcp__github__list_discussion_categories,mcp__github__list_discussions,mcp__github__list_issue_types,mcp__github__list_issues,mcp__github__list_label,mcp__github__list_notifications,mcp__github__list_pull_requests,mcp__github__list_releases,mcp__github__list_secret_scanning_alerts,mcp__github__list_starred_repositories,mcp__github__list_tags,mcp__github__list_workflow_jobs,mcp__github__list_workflow_run_artifacts,mcp__github__list_workflow_runs,mcp__github__list_workflows,mcp__github__pull_request_read,mcp__github__search_code,mcp__github__search_issues,mcp__github__search_orgs,mcp__github__search_pull_requests,mcp__github__search_repositories,mcp__github__search_users,mcp__safeoutputs'\'' --debug-file /tmp/gh-aw/agent-stdio.log --verbose --permission-mode acceptEdits --output-format stream-json --mcp-config "${RUNNER_TEMP}/gh-aw/mcp-config/mcp-servers.json" --prompt-file /tmp/gh-aw/aw-prompts/prompt.txt' 2>&1 | tee -a /tmp/gh-aw/agent-stdio.log
         env:
           ANTHROPIC_MODEL: claude-haiku-4-5
           BASH_DEFAULT_TIMEOUT_MS: 60000
