@@ -146,9 +146,14 @@ safe-outputs:
     # push to the pyproject.toml the PR already touched, so exclude it here too
     # (issue #142). The Node manifest and npm/pnpm/yarn lockfiles are excluded
     # for the same reason as in create-pull-request (the host Node cleanup,
-    # issue #179, stages them). Other protected files keep gh-aw's default push
-    # policy.
+    # issue #179, stages them). Other protected files keep
+    # policy: fallback-to-issue, mirroring create-pull-request above, so a
+    # /revise that must touch a protected file the PR already changed pushes the
+    # branch and opens a review issue (ADR 0001 hand-off) rather than silently
+    # dropping the edit under gh-aw's unset-policy push default (CodeRabbit,
+    # PR #319).
     protected-files:
+      policy: fallback-to-issue
       exclude:
         - pyproject.toml
         - package.json
