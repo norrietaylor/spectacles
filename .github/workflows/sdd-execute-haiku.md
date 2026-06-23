@@ -23,10 +23,11 @@ permissions:
 # distinct tasks never collide; fall back to run_id when the context is absent.
 concurrency:
   group: "gh-aw-${{ github.workflow }}-${{ fromJSON(inputs.aw_context).item_number || github.run_id }}"
-# Wall-clock budget per run (gh-aw default is 20). Raised to 60 so the in-sandbox
+# Wall-clock budget per run (gh-aw default is 20). Raised to 90 so the in-sandbox
 # cargo build/test pre-PR gate (step 6) plus a broad multi-file change fit in one
-# run before the agent job is killed.
-timeout-minutes: 60
+# run before the agent job is killed; 60 proved too tight for the larger
+# multi-crate tasks (policy enforcement, hostname registry), which timed out.
+timeout-minutes: 90
 engine:
   id: claude
   model: claude-haiku-4-5
