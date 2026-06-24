@@ -94,6 +94,27 @@ post-steps:
     with:
       toolchain: stable
       components: rustfmt, clippy
+  - name: Install protobuf-compiler (host)
+    # `cargo clippy` in the refresh step below compiles the workspace, which
+    # runs build scripts; crates using prost/tonic shell out to `protoc` at
+    # build time. The host runner has the Rust toolchain (above) but not
+    # protoc, so a manifest-adding task that pulls a protobuf crate fails the
+    # refresh with `Could not find protoc` (first seen on a consumer pilot run
+    # adding a WireGuard mesh dep). Install it best-effort, gated on the same
+    # Rust-edit detection. Non-Debian hosts (no apt) degrade to a warning so
+    # clippy fails loudly on the missing tool rather than this step erroring.
+    if: steps.cargo_detect.outputs.changed == 'true'
+    shell: bash
+    run: |
+      set -euo pipefail
+      if command -v protoc >/dev/null 2>&1; then
+        echo "protoc already present: $(protoc --version)"
+      elif command -v apt-get >/dev/null 2>&1; then
+        sudo apt-get update -qq && sudo apt-get install -y -qq protobuf-compiler
+        echo "Installed $(protoc --version)"
+      else
+        echo "::warning::apt-get unavailable; cannot auto-install protobuf-compiler. Crates using prost/tonic may fail the clippy refresh."
+      fi
   - name: Refresh Cargo.lock, format, and lint-fix the agent patch
     if: steps.cargo_detect.outputs.changed == 'true'
     shell: bash
