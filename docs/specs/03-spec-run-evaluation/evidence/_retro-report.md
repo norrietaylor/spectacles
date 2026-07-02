@@ -270,3 +270,61 @@ eval-agent rubric gains a judge item for it (RB-input-3: generated
 requirements cross-checked against the source document at the spec
 boundary, where a correction is cheap and everything downstream inherits
 it).
+
+### Root cause of the drift (investigated 2026-07-02)
+
+Traced through the spec-generation run's full transcript, git pickaxe on the
+spec file, and the source document. Four stages:
+
+1. **Origin — generation wrote *both* models, three lines apart.** The
+   initial generated spec was internally contradictory from birth: one
+   requirement resolved local hostnames to an internal-switch address
+   (wrong), while the adjacent requirement correctly said requests route
+   through the published loopback port. The transcript proves the agent read
+   the full source in one pass (retrieval was not the cause), but its
+   visible reasoning modeled only the *remote* mesh case — where
+   switch-address reachability is correct — and the name-resolution
+   *mechanism* question; the local host→sandbox path is never engaged
+   ("published", "not on the switch" appear zero times in its thinking).
+   The source set the trap: its requirements-level use-case diagram reads
+   "DNS resolves → sandbox (own IP via the switch)", while the correction
+   (daemon off-switch; access via published loopback ports) lives ~200
+   lines later in an implementation overlay, with the tension never
+   flagged. The generator sampled a different topology model per
+   requirement and ran no reconciliation pass over its own output.
+   **Root cause at origin: a dual-model source × a single-pass generator
+   with no cross-requirement or source-topology consistency check.** Not
+   hallucination — both sentences have direct source antecedents; the
+   missing piece is the join.
+2. **Survival — no stage checks spec semantics.** The contradiction passed
+   the structural spec gates (units, R-ID grammar, proof presence), the
+   hour-3.6 human `/revise` (scope-focused), the architecture/ledger stage
+   (which cites the generated spec as evidence, institutionalizing it as
+   ground truth), and the third-party reviewer (zero reviews on the
+   docs-only spec PR).
+3. **Spread — execution harmonized toward the wrong pole.** During the
+   operator-directed Unit-3 mechanism re-scope, the execute agent rewrote
+   the correct requirement **and deleted the only correct sentence**,
+   aligning it with the wrong one — predictable, since the wrong
+   requirement was the normative-looking anchor ("shall resolve to…") and
+   the correct phrase was welded to the mechanism sentence being replaced.
+   The operator's directives specified mechanism and naming, not routing
+   target, so nothing in the loop contested it. The vector — **an
+   implementation PR editing a merged spec** — has no guard analogous to
+   the plan-fidelity guarantee of ADR 0010.
+4. **Correction — only when routing became load-bearing**, 11 days after
+   origin, as a spec amendment inside the remediation PR.
+
+What would have caught it, and when:
+
+| Check | Stage caught | Cost |
+|---|---|---|
+| Internal-consistency pass on the generated spec (requirement-vs-requirement contradiction) | origin, pre-PR | needs no source document at all |
+| Source-fidelity judge (RB-input-3) over diagrams/topology sections | origin, spec boundary | one judge pass |
+| Spec-edit tripwire: implementation PR touching a merged `docs/specs/**` file re-triggers both checks | spread, deterministic | one changed-files join |
+
+Encoded in the eval-agent spec (collector R1.4 spec-edit tripwire) and
+rubric (RB-input-3, extended). The general lesson: the pipeline has a
+fidelity guarantee plan→tree (ADR 0010) but none source→spec or
+spec→spec-edit, and every downstream stage compounds whichever model the
+spec asserts.
