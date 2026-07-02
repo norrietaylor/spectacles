@@ -219,3 +219,58 @@ noting the artifact-retention clock from A2?
 **E3. Environment changes in flight.** Anything about to change in the
 factory (ADR 0029/0030 rollout, model changes, new consumers) that the
 evaluation should account for so its findings aren't stale on arrival?
+
+---
+
+## Answers (operator, 2026-07-02)
+
+Consumer identities are replaced by placeholders in this public file; the
+operator supplies the mapping at session start.
+
+- **A1**: (a) — widen access. *Outcome: session-level allowlists cannot be
+  widened mid-session; work moved to a local session with direct `gh`
+  access instead.*
+- **A2**: yes — run artifacts are retrievable.
+- **A3**: yes — OTLP was set; observability runbook lives in
+  `<obs-repo>/observability`.
+- **A4**: yes and yes — Distillery configured and queryable.
+- **A5**: yes — the earlier pilot runs are accessible too.
+- **B1**: success = user-achievable outcomes. Ranking: functional
+  correctness, spec adherence, wall-clock, cost (in that order).
+  `needs-human` is allowed but should occur **early** in the run to
+  unblock later tests.
+- **B2**: full pipeline path. The remediation content was integration
+  plumbing to expose capabilities to users, plus some refactor.
+- **B3**: (b) — the pipeline completed but its output was not user-demoable;
+  the two remediation PRs are human-written.
+- **B4**: yes — out-of-band human touches occurred (inventory to be
+  reconstructed from evidence plus operator memory).
+- **B5**: all repository variables at defaults; wrappers pinned to tag
+  0.3.0.
+- **B6**: yes — CodeRabbit installed.
+- **B7**: pain: (1) not end-to-end — proven only in CI behind a feature
+  flag; (2) not all risks were spiked up front, causing `needs-human` late
+  in the run. Surprises: the spike workflow, good PR scope and size, a
+  well-defined plan.
+- **C1**: yes — if the spec could be better, the framework should expose
+  that early.
+- **C2**: the deliverable should include a plan for machine-checking the
+  rubric plus a ratification gate.
+- **C3**: cost is in scope via OTel token usage.
+- **C4**: retro report → a private-repo issue; the operator reads it to
+  produce new specs.
+- **D1**: confirmed — deterministic collector + separate engine-bearing
+  judge.
+- **D2**: all trigger tiers (per-run, per-boundary, per-feature, scheduled
+  aggregation).
+- **D3**: roll-up issue in the private repo.
+- **D4**: App identity; default-on.
+- **D5**: all listed metrics matter. A separate **actor agent** will act on
+  findings — draft a spec for it too.
+- **D6**: the networking run's own usage is the starting budget baseline
+  for the judge.
+- **D7**: build directly on a branch; no dogfooding through the pipeline.
+- **E1**: (c) — one-off orchestrated retro now; fold the durable
+  retro-evaluation workflow into the eval-agent spec.
+- **E2**: retro first, spec second.
+- **E3**: nothing changes until after the post-mortem.
