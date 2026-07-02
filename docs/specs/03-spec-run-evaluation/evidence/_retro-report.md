@@ -238,3 +238,35 @@ Attribution: agent artifacts (`agent_usage.json` for pre-06-19 runs; the engine 
 ## Appendix D — method
 
 Evidence bundle: full issue-tree timelines (label events with actors), all comments incl. minimized flags (GraphQL), all spec/arch/sdd + remediation PRs with reviews/threads/diffs/check-runs, 16k workflow runs June 15–24, and per-run agent artifacts, harvested via `gh` API. Deterministic metrics computed by script; hunk classification of #581/#589 and R-ID delivery audit performed per-file against the spec and every pipeline diff, cross-checked against issue/PR comment streams. Numbers marked ≈ are bounded by artifact retention and run-list pagination limits.
+
+## Addendum (2026-07-02): spec transcription drift — the generated spec contradicted its source's topology
+
+Operator-supplied evidence from remediation PR #589 (a spec-amending commit
+inside the remediation), strengthening §6c:
+
+The spec-generation step did not just transcribe unvalidated hypotheses —
+it **inverted the source document's topology**. The source is explicit that
+the daemon is *not* on the internal switch and that host→sandbox access
+goes through published loopback ports; the generated spec wrote, as
+normative requirements (R3.1/R3.3/R4.4 and a proof artifact), that
+hostnames resolve to switch addresses reached *via the switch* — routes the
+daemon could never take under the source's own deployment topology.
+
+Nothing in the pipeline caught it: the ledger was built *on top of* the
+generated spec; validate/review checked implementations against the drifted
+R-IDs, so they validated conformance to a contradiction; the human spec-PR
+review at hour 3.6 added missing scope but did not cross-check the source's
+diagrams. The contradiction surfaced during human remediation ~9 days after
+the spec merged, and the fix was an 18/−11 amendment **to the spec itself**
+inside the remediation PR.
+
+Two consequences for the analysis above. First, part of the §4a
+"specced-but-not-delivered" ledger shifts: some remediated routing was a
+faithful implementation of drifted requirements — a spec-input defect, not
+factory execution. Second, the C1 verdict gains a class: **generation-time
+source infidelity**, to which every downstream stage is blind by
+construction because each treats the generated spec as ground truth. The
+eval-agent rubric gains a judge item for it (RB-input-3: generated
+requirements cross-checked against the source document at the spec
+boundary, where a correction is cheap and everything downstream inherits
+it).

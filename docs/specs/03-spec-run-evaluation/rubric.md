@@ -157,6 +157,20 @@ mentioned but unowned; 0 = units only (the evaluated run — the two largest
 unspecced remediation areas were files no pipeline PR touched).
 Evidence: plan comment, task tree, remediation (b)-class concentration.
 
+**RB-input-3 · Source fidelity of the generated spec** — Does each generated
+normative requirement agree with the source document it was derived from
+(diagrams and topology sections included), with contradictions listed?
+Class: `inference` (judge-only; run at the spec boundary, where a correction
+is cheap and everything downstream inherits it).
+Scale: contradiction count; each names the R-ID and quotes the source
+passage it contradicts. Evaluated-run baseline: three requirements inverted
+the source's topology (routing via an internal switch the daemon was
+explicitly not on), survived every downstream gate — which validate
+conformance *to the generated spec* and are blind to source drift by
+construction — and were corrected only by amending the spec inside a
+remediation PR ~9 days after merge.
+Evidence: source document, generated spec R-IDs, spec-PR review thread.
+
 ## RB-sig — Signals
 
 **RB-sig-1 · Signal truthfulness** — False or missing operator signals:

@@ -273,7 +273,11 @@ the judge.
   gated vs. missing), demoability at `sdd:done` (does an executed end-to-end
   artifact exist), silent-revert suspicion on PR diffs vs. origin/main,
   revise-diff-addresses-threads quality, assumption-ledger evidence quality
-  (settled-by-circular-citation detection), plan quality, and
+  (settled-by-circular-citation detection), source fidelity of the
+  generated spec (contradictions between generated normative requirements
+  and the source document they were derived from — every downstream stage
+  validates against the generated spec and is blind to this class by
+  construction, so it is judged at the spec boundary), plan quality, and
   contributor-facing tone of bot copy. Each anchored to the failure classes
   the evaluated run exhibited.
 
