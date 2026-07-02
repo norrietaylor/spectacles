@@ -92,6 +92,25 @@ Established facts to reuse (verified, do not re-derive):
 - **Artifact retention clock**: run artifacts expire ~90 days after the
   June run — extract token/transcript data before ~mid-September.
 
+## Status (2026-07-02): both phases delivered
+
+- Phase 1 retro delivered as a new issue on the consumer repo (its #616);
+  genericized copy at `evidence/_retro-report.md`. Headlines: 119.7 h
+  end-to-end, ~56% human-gate share, 17 needs-human episodes (11 late),
+  8/30 R-IDs delivered working at `sdd:done` (19 partial, 3 missing),
+  remediation split a/b/c = 45/30/25% of 5,671 lines, monitor recovery 0/6,
+  status surface 0 successes ever (unset-coercion bug in the wrapper's
+  `vars.SDD_STATUS != '0'` gate — new framework bug found by the retro),
+  two live #326-class silent-revert incidents (one merged doc deletion never
+  restored), ≈81M effective tokens (lower bound).
+- Phase 2 delivered on this branch: `03-spec-run-evaluation.md` (collector +
+  judge, four trigger tiers, roll-up delivery, `/retro-eval` backfill),
+  `rubric.md` (v1-draft, unratified), ADR 0031, actor sketch
+  `docs/specs/04-spec-eval-actor/`.
+- Not done (deliberately — E3): no factory changes, no spectacles issues
+  filed. First candidates for filing: the `SDD_STATUS` unset-coercion bug;
+  the revert guard's always-INCONCLUSIVE environment (shallow clone).
+
 ## Phase 1 — retroactive evaluation (do this first)
 
 Reconstruct the consumer-side run, compute the metrics, score against the
