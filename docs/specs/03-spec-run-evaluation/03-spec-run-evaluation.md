@@ -173,7 +173,11 @@ schema.
     against current origin/main — deletions or reversions of files/hunks that
     main has independently advanced, docs-only assertion for spec-agent PRs,
     size/file-count tripwires on "docs" PRs; recurrence-fingerprint match of
-    new incidents against closed "fixed" framework issues;
+    new incidents against closed "fixed" framework issues; a spec-edit
+    tripwire flagging any implementation PR that modifies a merged
+    `docs/specs/**` spec file (the evaluated run's spec drift was spread by
+    exactly such an edit) so the judge's fidelity item re-runs on the edited
+    spec;
   - sizing: net-diff distribution of merged `sdd/` PRs vs. the ADR 0026
     floor and this spec's advisory ceiling (§ Design Considerations);
     single-task-Unit count; tasks vs. plan-comment tree (ADR 0010 guarantees
