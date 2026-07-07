@@ -98,13 +98,13 @@ jobs:
             const n = parseInt(process.env.OFFER_PR, 10);
             const body = [
               '<!-- sdd-derive:offer -->',
-              'This pull request has no accompanying spec. Comment '
-                + '`/derive-spec` to have one derived retrospectively from the '
-                + 'code — it opens a separate `spec/<slug>` documentation PR '
-                + 'with demoable units, acceptance criteria, and a gap analysis '
-                + '(implementation gaps, missing failure paths, weak acceptance '
-                + 'criteria). Ignore this to defer; the weekly unspecced-PR '
-                + 'scan will re-surface it. See ADR 0027.',
+              '📋 **Want a spec for this — derived from your code, for free?** '
+                + 'Comment `/derive-spec` and the pipeline writes one from the '
+                + 'diff: a separate `spec/<slug>` doc PR capturing this '
+                + "feature's demoable units and acceptance criteria, plus a "
+                + 'quick second pass on edge cases and failure paths worth a '
+                + 'look before review. Optional, and it touches nothing here — '
+                + 'skip it and nothing changes.',
             ].join('\n');
             await github.rest.issues.createComment({
               owner: context.repo.owner, repo: context.repo.repo,
