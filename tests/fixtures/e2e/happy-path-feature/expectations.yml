@@ -1,0 +1,33 @@
+# Assertion contract for the happy-path-feature E2E scenario.
+#
+# scripts/e2e-assert.py reads this file and checks the staging repo's terminal
+# state after the e2e-dispatch workflow polls the seeded tracking issue to a
+# terminal label. Every key is optional; an absent key is not asserted.
+
+# Seed labels the dispatcher applies to the synthetic tracking issue. The
+# feature issue template applies these in the web UI, but `gh issue create`
+# does not honor template labels, so the dispatcher passes them explicitly and
+# this list documents the contract.
+seed_labels:
+  - kind:feature
+  - sdd:spec
+
+# Required final sdd:* lifecycle label on the tracking issue. The canonical
+# full-path flow ends at sdd:done.
+terminal_label: sdd:done
+
+# Glob patterns; each must match at least one file on the staging repo's
+# default branch after the implementation PR merges. The spec phase writes a
+# spec doc; this scenario does not require an ADR.
+artifacts:
+  - "docs/specs/**/*.md"
+
+# Pull-request assertions over PRs opened on the staging repo since the seed.
+prs:
+  opened_min: 1
+  all_merged: true
+
+# Labels that must be ABSENT on the tracking issue at terminal state. A
+# happy-path run never escalates.
+forbid_labels:
+  - needs-human
